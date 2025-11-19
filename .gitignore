@@ -1,0 +1,149 @@
+# CMake build directories
+build/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# CPM dependency cache and builds
+CPM_modules/
+CPM_cache/
+_deps/
+.cache/
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Object files and libraries
+*.o
+*.obj
+*.lib
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Generated binaries
+dmcp
+dmcp-debug
+dmcp-release
+
+!include/dmcp/
+
+# Test binaries
+test_*
+*_test
+
+# Coverage reports
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# Static analysis reports
+cppcheck-report.xml
+clang-tidy-report.xml
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Log files
+*.log
+*.out
+
+# Temporary files
+*.tmp
+*.temp
+
+# Package files
+*.tar.gz
+*.zip
+*.tar.bz2
+
+# Documentation builds
+docs/_build/
+docs/doxygen/
+
+# Dependency directories (old vcpkg style)
+vcpkg_installed/
+vcpkg.json.user
+
+# Compiler-specific files
+*.sdf
+*.opensdf
+*.suo
+*.user
+
+# Visual Studio Code
+.vscode/
+
+# CLion
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Game-specific ignore patterns
+*.sav
+*.save
+*.wad
+*.pk3
+*.pk7
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock
+
+# Sanitizer reports
+*.asan
+*.lsan
+*.msan
+*.tsan
+
+# Valgrind
+vgcore.*
+
+# GDB
+.gdb_history
+
+# CMake presets (user-specific)
+CMakeUserPresets.json

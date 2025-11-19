@@ -1,0 +1,7 @@
+BasedOnStyle: Google
+UseTab: AlignWithSpaces
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveBitFields: Consecutive
+AlignConsecutiveDeclarations: Consecutive
+AlignConsecutiveMacros: Consecutive
