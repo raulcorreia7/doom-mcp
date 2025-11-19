@@ -6,13 +6,10 @@
 #include <thread>
 
 #include "App.h"
+#include "Loop.h"
 #include "dmcp/pool.hpp"
 #include "dmcp/screenshot.hpp"
 #include "dmcp/schema.hpp"
-
-namespace uWS {
-struct Loop;
-}
 
 namespace moodycamel {
 template <typename T, size_t MAX_BLOCK_SIZE>
