@@ -56,7 +56,7 @@ json snapshot_to_json(const Snapshot& snapshot) {
   json payload;
 
   json player_json = {
-      {  "health",		   snapshot.player.health                  },
+      {      "hp",		       snapshot.player.hp                  },
       {   "armor",				      snapshot.player.armor},
       {    "ammo",				       snapshot.player.ammo},
       {"position",
@@ -86,7 +86,8 @@ json snapshot_to_json(const Snapshot& snapshot) {
   for (const auto& enemy : snapshot.enemies) {
     enemies.push_back({
 	{      "id",					   enemy.id},
-	{  "health",				       enemy.health},
+	{      "hp",					   enemy.hp},
+	{  "max_hp",				       enemy.max_hp},
 	{"position", {{"x", enemy.position.x}, {"y", enemy.position.y}}},
 	{    "type",			     trim_array(enemy.type)}
     });

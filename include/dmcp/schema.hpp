@@ -13,7 +13,8 @@ struct Vector2D {
 
 struct Enemy {
   int32_t               id     = 0;
-  float                 health = 0.f;
+  float                 hp     = 0.f;
+  float                 max_hp = 0.f;
   Vector2D              position{};
   std::array<char, 128> type{};
 };
@@ -24,8 +25,8 @@ struct InventoryItem {
 };
 
 struct PlayerState {
-  float                      health = 0.f;
-  float                      armor  = 0.f;
+  float                      hp    = 0.f;
+  float                      armor = 0.f;
   Vector2D                   position{};
   int32_t                    ammo = 0;
   std::vector<InventoryItem> inventory;
@@ -45,7 +46,7 @@ struct Snapshot {
   std::vector<Enemy> enemies;
 
   void Clear() {
-    player.health   = 0.f;
+    player.hp   = 0.f;
     player.armor    = 0.f;
     player.position = {};
     player.ammo     = 0;

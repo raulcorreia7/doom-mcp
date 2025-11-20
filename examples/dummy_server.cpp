@@ -76,7 +76,7 @@ void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   std::strncpy(snapshot->level.name.data(), "E1M1: Hangar",
                snapshot->level.name.size() - 1);
 
-  snapshot->player.health     = state->player_health;
+  snapshot->player.hp     = state->player_health;
   snapshot->player.ammo       = state->player_ammo;
   snapshot->player.position.x = state->player_x;
   snapshot->player.position.y = state->player_y;
@@ -85,7 +85,7 @@ void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   for (const auto& e : state->enemies) {
     auto& dest      = snapshot->enemies.emplace_back();
     dest.id         = e.id;
-    dest.health     = e.health;
+    dest.hp     = e.health;
     dest.position.x = e.x;
     dest.position.y = e.y;
     std::strncpy(dest.type.data(), "Imp", dest.type.size() - 1);
