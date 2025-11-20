@@ -1,8 +1,8 @@
-#include "dmcp/core/png.hpp"
+#include "png.hpp"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STBI_MALLOC(sz) std::malloc(sz)
-#define STBI_FREE(p) std::free(p)
+#define STBI_FREE(p)    std::free(p)
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -15,17 +15,17 @@ namespace {
 
 void write_callback(void* context, void* data, int size) {
   auto* buffer = static_cast<std::vector<uint8_t>*>(context);
-  auto* bytes = static_cast<uint8_t*>(data);
+  auto* bytes  = static_cast<uint8_t*>(data);
   buffer->insert(buffer->end(), bytes, bytes + size);
 }
 
 }  // namespace
 
-expected<std::vector<uint8_t>, std::string> EncodePng(
+std::optional<std::vector<uint8_t>> EncodePng(
     const ScreenshotFrame& frame) {
   if (!frame.pixels || frame.width == 0 || frame.height == 0 ||
       frame.stride == 0) {
-    return tl::unexpected<std::string>("invalid screenshot frame");
+    return std::nullopt;
   }
 
   std::vector<uint8_t> buffer;
@@ -38,7 +38,7 @@ expected<std::vector<uint8_t>, std::string> EncodePng(
       static_cast<int>(frame.stride));
 
   if (result == 0) {
-    return tl::unexpected<std::string>("failed to encode png");
+    return std::nullopt;
   }
 
   return buffer;

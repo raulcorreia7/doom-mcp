@@ -2,13 +2,13 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
-#include "dmcp/common.hpp"
-#include "dmcp/screenshot.hpp"
+#include "screenshot.hpp"
 
 namespace dmcp::detail {
 
-expected<std::vector<uint8_t>, std::string> EncodePng(
+std::optional<std::vector<uint8_t>> EncodePng(
     const ScreenshotFrame& frame);
 
 }

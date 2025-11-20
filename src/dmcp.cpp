@@ -1,171 +1,162 @@
 #include "dmcp/dmcp.h"
 
+#include <inttypes.h>
+
 #include <atomic>
+#include <algorithm>
 #include <chrono>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <inttypes.h>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
-#include "dmcp/core/png.hpp"
-#include "dmcp/core/server.hpp"
-#include "dmcp/pool.hpp"
+#include "core/png.hpp"
+#include "core/pool.hpp"
+#include "core/screenshot.hpp"
+#include "core/server.hpp"
 #include "dmcp/schema.hpp"
-#include "dmcp/screenshot.hpp"
 #include "readerwriterqueue.h"
 
 using dmcp::detail::ServerRunner;
+using dmcp::detail::OwnedScreenshot;
 using SnapshotQueue = moodycamel::ReaderWriterQueue<dmcp::Snapshot*, 512>;
+using ScreenshotQueue = moodycamel::ReaderWriterQueue<OwnedScreenshot, 4>;
+
+struct dmcp_context_s {
+  std::mutex                            mutex;
+  bool                                  initialized = false;
+  dmcp_config_t                         config{};
+  std::unique_ptr<dmcp::SnapshotPool>   pool;
+  std::unique_ptr<SnapshotQueue>        queue;
+  std::unique_ptr<ScreenshotQueue>      screenshot_queue;
+  std::unique_ptr<ServerRunner>         server;
+  dmcp::ScreenshotState                 screenshot;
+  std::chrono::nanoseconds              min_interval{};
+  std::chrono::steady_clock::time_point last_snapshot_time{};
+  std::atomic<bool>                     screenshot_enabled{false};
+  std::atomic<uint64_t>                 dropped_snapshots{0};
+  std::atomic<uint64_t>                 dropped_screenshots{0};
+  std::atomic<uint64_t>                 connected_clients{0};
+  std::atomic<bool>                     drop_warning_emitted{false};
+};
 
 namespace {
-
-struct RuntimeState {
-  std::mutex mutex;
-  bool initialized = false;
-  dmcp_config_t config{};
-  std::unique_ptr<dmcp::SnapshotPool> pool;
-  std::unique_ptr<SnapshotQueue> queue;
-  std::unique_ptr<ServerRunner> server;
-  dmcp::ScreenshotState screenshot;
-  std::chrono::nanoseconds min_interval{};
-  std::chrono::steady_clock::time_point last_snapshot_time{};
-  std::atomic<bool> screenshot_enabled{false};
-  std::atomic<uint64_t> dropped_snapshots{0};
-  std::atomic<bool> drop_warning_emitted{false};
-} g_state;
 
 dmcp_config_t normalize_config(const dmcp_config_t* config) {
   dmcp_config_t cfg = dmcp_default_config();
   if (config) {
     cfg = *config;
   }
-  if (cfg.port == 0) {
-    cfg.port = 9090;
-  }
-  if (cfg.target_hz == 0) {
-    cfg.target_hz = 10;
-  }
-  if (cfg.snapshot_pool == 0) {
-    cfg.snapshot_pool = 16;
-  }
-  if (cfg.queue_slots == 0) {
-    cfg.queue_slots = 32;
-  }
-  if (cfg.enemy_capacity == 0) {
-    cfg.enemy_capacity = 256;
-  }
-  if (cfg.inventory_capacity == 0) {
-    cfg.inventory_capacity = 64;
-  }
-  if (cfg.screenshot.width == 0) {
-    cfg.screenshot.width = 640;
-  }
-  if (cfg.screenshot.height == 0) {
-    cfg.screenshot.height = 480;
-  }
+  if (cfg.port == 0) cfg.port = 9090;
+  if (cfg.target_hz == 0) cfg.target_hz = 10;
+  if (cfg.snapshot_pool == 0) cfg.snapshot_pool = 16;
+  if (cfg.queue_slots == 0) cfg.queue_slots = 32;
+  if (cfg.enemy_capacity == 0) cfg.enemy_capacity = 256;
+  if (cfg.inventory_capacity == 0) cfg.inventory_capacity = 64;
+  if (cfg.screenshot.width == 0) cfg.screenshot.width = 640;
+  if (cfg.screenshot.height == 0) cfg.screenshot.height = 480;
   return cfg;
+}
+
+void Log(dmcp_context_t* ctx, int level, const char* fmt, ...) {
+  if (ctx && ctx->config.on_log) {
+    char    buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    ctx->config.on_log(ctx->config.user_data, level, buffer);
+  }
 }
 
 }  // namespace
 
-extern "C" void __attribute__((weak)) DMCP_Process_Tick_Impl(
-    dmcp::Snapshot* snapshot) {
-  if (snapshot) {
-    snapshot->Clear();
-  }
-}
-
 dmcp_config_t dmcp_default_config(void) {
   dmcp_config_t cfg{};
-  cfg.port = 9090;
-  cfg.target_hz = 10;
-  cfg.snapshot_pool = 16;
-  cfg.queue_slots = 32;
-  cfg.enemy_capacity = 512;
+  cfg.struct_size        = sizeof(dmcp_config_t);
+  cfg.port               = 9090;
+  cfg.target_hz          = 10;
+  cfg.snapshot_pool      = 16;
+  cfg.queue_slots        = 32;
+  cfg.enemy_capacity     = 512;
   cfg.inventory_capacity = 64;
-  cfg.screenshot.enable = true;
-  cfg.screenshot.width = 640;
-  cfg.screenshot.height = 480;
+  cfg.screenshot.enable  = true;
+  cfg.screenshot.width   = 640;
+  cfg.screenshot.height  = 480;
+  cfg.on_tick            = nullptr;
+  cfg.on_log             = nullptr;
+  cfg.user_data          = nullptr;
   return cfg;
 }
 
-int dmcp_init(const dmcp_config_t* config) {
-  auto cfg = normalize_config(config);
+dmcp_context_t* dmcp_create(const dmcp_config_t* config) {
+  auto* ctx = new dmcp_context_s();
+  auto  cfg = normalize_config(config);
 
-  std::unique_lock lock(g_state.mutex);
-  if (g_state.initialized) {
-    return -1;
-  }
-
-  g_state.pool = std::make_unique<dmcp::SnapshotPool>(
+  ctx->pool = std::make_unique<dmcp::SnapshotPool>(
       cfg.snapshot_pool, cfg.enemy_capacity, cfg.inventory_capacity);
-  g_state.queue = std::make_unique<SnapshotQueue>(cfg.queue_slots);
-  g_state.server = std::make_unique<ServerRunner>(
-      g_state.queue.get(), g_state.pool.get(), &g_state.screenshot,
-      cfg.screenshot.enable);
+  ctx->queue = std::make_unique<SnapshotQueue>(cfg.queue_slots);
+  ctx->screenshot_queue = std::make_unique<ScreenshotQueue>(4);
+  ctx->server =
+      std::make_unique<ServerRunner>(ctx->queue.get(), ctx->screenshot_queue.get(),
+                                     ctx->pool.get(), &ctx->screenshot, cfg.screenshot.enable,
+                                     &ctx->connected_clients);
 
-  if (!g_state.server->start(cfg.port)) {
-    g_state.server.reset();
-    g_state.queue.reset();
-    g_state.pool.reset();
-    return -2;
+  if (!ctx->server->start(cfg.port)) {
+    delete ctx;
+    return nullptr;
   }
 
-  g_state.config = cfg;
+  ctx->config      = cfg;
   auto interval_ns = std::chrono::nanoseconds(1'000'000'000ull / cfg.target_hz);
-  g_state.min_interval = interval_ns;
-  g_state.last_snapshot_time =
-      std::chrono::steady_clock::now() - g_state.min_interval;
-  g_state.screenshot_enabled.store(cfg.screenshot.enable,
-                                   std::memory_order_release);
-  g_state.initialized = true;
-  return 0;
+  ctx->min_interval = interval_ns;
+  ctx->last_snapshot_time =
+      std::chrono::steady_clock::now() - ctx->min_interval;
+  ctx->screenshot_enabled.store(cfg.screenshot.enable,
+                                std::memory_order_release);
+  ctx->initialized = true;
+  return ctx;
 }
 
-void dmcp_shutdown(void) {
-  std::unique_lock lock(g_state.mutex);
-  if (!g_state.initialized) {
-    return;
-  }
-  auto server = std::move(g_state.server);
-  g_state.initialized = false;
-  g_state.screenshot_enabled.store(false, std::memory_order_release);
-  lock.unlock();
+void dmcp_destroy(dmcp_context_t* ctx) {
+  if (!ctx) return;
 
-  if (server) {
-    server->request_stop();
-    server->join();
+  // Stop the server first to ensure no one is reading the queue/pool
+  if (ctx->server) {
+    ctx->server->request_stop();
+    ctx->server->join();
   }
 
-  lock.lock();
-  g_state.queue.reset();
-  g_state.pool.reset();
+  delete ctx;
 }
 
-bool dmcp_is_running(void) {
-  std::lock_guard lock(g_state.mutex);
-  return g_state.initialized && g_state.server && g_state.server->is_running();
+bool dmcp_is_running(dmcp_context_t* ctx) {
+  if (!ctx) return false;
+  std::lock_guard lock(ctx->mutex);
+  return ctx->initialized && ctx->server && ctx->server->is_running();
 }
 
-void dmcp_process_tick(void) {
-  SnapshotQueue* queue = nullptr;
-  dmcp::SnapshotPool* pool = nullptr;
-  std::chrono::nanoseconds min_interval;
-  auto now = std::chrono::steady_clock::now();
+void dmcp_update(dmcp_context_t* ctx) {
+  if (!ctx) return;
+
+  SnapshotQueue*      queue = nullptr;
+  dmcp::SnapshotPool* pool  = nullptr;
+  auto                now   = std::chrono::steady_clock::now();
 
   {
-    std::unique_lock lock(g_state.mutex);
-    if (!g_state.initialized || !g_state.queue || !g_state.pool) {
+    // We only need to protect the pointers if we expect concurrent destroy,
+    // but for now we assume update/destroy are serialized by the user.
+    // However, checking initialized is good practice.
+    if (!ctx->initialized) return;
+
+    if (now - ctx->last_snapshot_time < ctx->min_interval) {
       return;
     }
-    if (now - g_state.last_snapshot_time < g_state.min_interval) {
-      return;
-    }
-    queue = g_state.queue.get();
-    pool = g_state.pool.get();
+    queue = ctx->queue.get();
+    pool  = ctx->pool.get();
   }
 
   dmcp::Snapshot* snapshot = pool->Acquire();
@@ -173,61 +164,70 @@ void dmcp_process_tick(void) {
     return;
   }
 
-  DMCP_Process_Tick_Impl(snapshot);
+  if (ctx->config.on_tick) {
+    ctx->config.on_tick(ctx->config.user_data, snapshot);
+  }
+
   if (queue->try_enqueue(snapshot)) {
-    std::lock_guard lock(g_state.mutex);
-    g_state.last_snapshot_time = now;
+    ctx->last_snapshot_time = now;
   } else {
     pool->Release(snapshot);
-    auto drops = g_state.dropped_snapshots.fetch_add(1, std::memory_order_relaxed) + 1;
-    if (!g_state.drop_warning_emitted.exchange(true, std::memory_order_relaxed)) {
-      std::fprintf(stderr,
-                   "[dmcp] Snapshot queue full, dropping frames (total %" PRIu64 ")\n",
-                   drops);
+    auto drops =
+	ctx->dropped_snapshots.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (!ctx->drop_warning_emitted.exchange(true, std::memory_order_relaxed)) {
+      Log(ctx, DMCP_LOG_WARN,
+          "[dmcp] Snapshot queue full, dropping frames (total %" PRIu64 ")",
+          drops);
     }
   }
 }
 
-bool dmcp_consume_screenshot_request(void) {
-  if (!g_state.screenshot_enabled.load(std::memory_order_acquire)) {
+bool dmcp_has_screenshot_request(dmcp_context_t* ctx) {
+  if (!ctx) return false;
+  if (!ctx->screenshot_enabled.load(std::memory_order_acquire)) {
     return false;
   }
-  auto pending =
-      g_state.screenshot.pending_requests.load(std::memory_order_acquire);
-  while (pending > 0) {
-    if (g_state.screenshot.pending_requests.compare_exchange_weak(
-            pending, pending - 1, std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
-      return true;
-    }
-  }
-  return false;
+  return ctx->screenshot.pending_requests.load(std::memory_order_acquire) > 0;
 }
 
-int dmcp_submit_screenshot(const dmcp_screenshot_frame_t* frame) {
-  if (!frame) {
-    return -1;
+dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx,
+                                     const dmcp_screenshot_frame_t* frame) {
+  if (!ctx || !frame) {
+    return DMCP_ERROR_INVALID_ARGS;
   }
-  if (!g_state.screenshot_enabled.load(std::memory_order_acquire)) {
-    return -3;
+  if (!ctx->screenshot_enabled.load(std::memory_order_acquire)) {
+    return DMCP_ERROR_DISABLED;
   }
-  dmcp::ScreenshotFrame view{frame->pixels, frame->width, frame->height,
-                             frame->stride};
-  auto png = dmcp::detail::EncodePng(view);
-  if (!png.has_value()) {
-    return -2;
+
+  OwnedScreenshot owned;
+  owned.width = frame->width;
+  owned.height = frame->height;
+  owned.stride = frame->stride;
+
+  size_t size = frame->height * frame->stride;
+  try {
+    owned.pixels.resize(size);
+    std::copy_n(frame->pixels, size, owned.pixels.begin());
+  } catch (...) {
+    return DMCP_ERROR_ENCODING_FAILED; // Allocation failed
   }
-  {
-    std::scoped_lock lock(g_state.screenshot.data_mutex);
-    g_state.screenshot.latest_png = std::move(png.value());
-    g_state.screenshot.width = frame->width;
-    g_state.screenshot.height = frame->height;
-    g_state.screenshot.captured_at = std::chrono::system_clock::now();
+
+  if (!ctx->screenshot_queue->try_enqueue(std::move(owned))) {
+    ctx->dropped_screenshots.fetch_add(1, std::memory_order_relaxed);
+    return DMCP_ERROR_QUEUE_FULL;
   }
-  g_state.screenshot.version.fetch_add(1, std::memory_order_release);
-  return 0;
+
+  auto prev = ctx->screenshot.pending_requests.fetch_sub(1, std::memory_order_relaxed);
+  if (prev == 0) {
+    ctx->screenshot.pending_requests.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  return DMCP_OK;
 }
 
-uint64_t dmcp_dropped_snapshot_count(void) {
-  return g_state.dropped_snapshots.load(std::memory_order_relaxed);
+void dmcp_get_stats(const dmcp_context_t* ctx, dmcp_stats_t* stats) {
+  if (!ctx || !stats) return;
+  stats->dropped_snapshots = ctx->dropped_snapshots.load(std::memory_order_relaxed);
+  stats->dropped_screenshots = ctx->dropped_screenshots.load(std::memory_order_relaxed);
+  stats->connected_clients = ctx->connected_clients.load(std::memory_order_relaxed);
 }

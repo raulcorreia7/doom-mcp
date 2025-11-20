@@ -15,16 +15,14 @@ class SnapshotPool {
                size_t inventory_capacity);
 
   Snapshot* Acquire();
-  void Release(Snapshot* snapshot);
+  void      Release(Snapshot* snapshot);
 
  private:
-  Snapshot* createSnapshot();
-
-  std::vector<std::unique_ptr<Snapshot>> storage_;
+  std::vector<Snapshot>  storage_;
   std::vector<Snapshot*> freelist_;
-  std::mutex mutex_;
-  size_t enemy_capacity_;
-  size_t inventory_capacity_;
+  std::mutex             mutex_;
+  size_t                 enemy_capacity_;
+  size_t                 inventory_capacity_;
 };
 
 }  // namespace dmcp

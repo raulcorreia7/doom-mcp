@@ -5,12 +5,9 @@
 #include <cstdint>
 #include <string_view>
 
-#include <tl/expected.hpp>
 
 namespace dmcp {
 
-template <class T, class E>
-using expected = tl::expected<T, E>;
 
 template <size_t N>
 inline void CopyString(const char* source, std::array<char, N>& target) {
