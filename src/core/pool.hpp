@@ -5,7 +5,7 @@
 #include <mutex>
 #include <vector>
 
-#include "dmcp/schema.hpp"
+#include "core/schema.hpp"
 
 namespace dmcp {
 

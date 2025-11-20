@@ -3,11 +3,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STBI_MALLOC(sz) std::malloc(sz)
 #define STBI_FREE(p)    std::free(p)
+#include <stb_image_write.h>
+
 #include <cstdlib>
 #include <string>
 #include <vector>
-
-#include "stb_image_write.h"
 
 namespace dmcp::detail {
 
@@ -21,8 +21,7 @@ void write_callback(void* context, void* data, int size) {
 
 }  // namespace
 
-std::optional<std::vector<uint8_t>> EncodePng(
-    const ScreenshotFrame& frame) {
+std::optional<std::vector<uint8_t>> EncodePng(const ScreenshotFrame& frame) {
   if (!frame.pixels || frame.width == 0 || frame.height == 0 ||
       frame.stride == 0) {
     return std::nullopt;

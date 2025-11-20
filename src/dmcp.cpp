@@ -17,7 +17,7 @@
 #include "core/pool.hpp"
 #include "core/screenshot.hpp"
 #include "core/server.hpp"
-#include "dmcp/schema.hpp"
+#include "core/schema.hpp"
 #include "readerwriterqueue.h"
 
 using dmcp::detail::ServerRunner;

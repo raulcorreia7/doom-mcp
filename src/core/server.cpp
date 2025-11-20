@@ -1,11 +1,10 @@
 #include "server.hpp"
 
-#include <libusockets.h>
 #include <readerwriterqueue.h>
 
 // Include uWebSockets implementation headers here, not in the header file
-#include <uwebsockets/App.h>
-#include <uwebsockets/Loop.h>
+#include <App.h>
+#include <Loop.h>
 
 #include <algorithm>
 #include <chrono>
@@ -24,9 +23,10 @@
 #include "dmcp/common.hpp"
 
 namespace dmcp::detail {
-namespace {
 
 using json = nlohmann::json;
+
+namespace {
 
 std::string_view trim_cstr(const char* data, size_t max_len) {
   size_t len = 0;

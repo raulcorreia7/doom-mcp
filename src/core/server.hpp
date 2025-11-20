@@ -7,8 +7,8 @@
 #include <thread>
 #include <vector>
 
-#include "dmcp/schema.hpp"
 #include "pool.hpp"
+#include "schema.hpp"
 #include "screenshot.hpp"
 
 namespace uWS {
@@ -34,14 +34,15 @@ struct OwnedScreenshot {
   uint32_t             stride;
 };
 
-using SnapshotQueueType = moodycamel::ReaderWriterQueue<Snapshot*, 512>;
+using SnapshotQueueType   = moodycamel::ReaderWriterQueue<Snapshot*, 512>;
 using ScreenshotQueueType = moodycamel::ReaderWriterQueue<OwnedScreenshot, 4>;
 
 class ServerRunner {
  public:
   ServerRunner(SnapshotQueueType* queue, ScreenshotQueueType* screenshot_queue,
                SnapshotPool* pool, ScreenshotState* screenshot,
-               bool screenshot_enabled, std::atomic<uint64_t>* connected_clients_counter);
+               bool                   screenshot_enabled,
+               std::atomic<uint64_t>* connected_clients_counter);
   ~ServerRunner();
 
   bool start(uint16_t port);
@@ -52,11 +53,11 @@ class ServerRunner {
  private:
   void threadMain(uint16_t port);
 
-  SnapshotQueueType*   queue_;
-  ScreenshotQueueType* screenshot_queue_;
-  SnapshotPool*        pool_;
-  ScreenshotState*     screenshot_;
-  const bool           screenshot_enabled_;
+  SnapshotQueueType*     queue_;
+  ScreenshotQueueType*   screenshot_queue_;
+  SnapshotPool*          pool_;
+  ScreenshotState*       screenshot_;
+  const bool             screenshot_enabled_;
   std::atomic<uint64_t>* connected_clients_counter_;
 
   std::atomic<bool> running_{false};
