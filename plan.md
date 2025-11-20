@@ -2,7 +2,7 @@
 
 **Version**: 12.0 (Released)
 **Date**: 2025-11-20
-**Target Engine**: UZDoom (GZDoom Fork)
+**Target Engine**: ZDoom (GZDoom Fork)
 **Standard**: C++17
 **Protocol**: MCP Streamable HTTP (SSE + JSON-RPC 2.0)
 **Build System**: CMake + vcpkg (Manifest Mode)
@@ -27,7 +27,7 @@ DMCP is a high-performance C++ SDK acting as a "Sidecar" to Doom engines. It exp
 ```mermaid
 graph LR
     subgraph "Game Thread (35Hz)"
-        Mem[Engine Memory] -->|Read| Adapter[Bridge]
+        Mem[Engine Memory] -->|Read| Adapter[Adapter]
         Pool[Object Pool] -->|Acquire| Snap[Snapshot]
         Adapter -->|Populate| Snap
         Snap -->|Push Pointer| Q[(Lock-Free Queue)]
@@ -57,7 +57,7 @@ graph LR
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | **Schema** | `include/dmcp/schema.hpp` | Data Contract (`Snapshot`, `Enemy`). | `std::vector` |
 | **2** | **Core** | `src/dmcp.cpp` | Lifecycle, Threading, Object Pool, Queue. | `uWebSockets`, `json` |
-| **3** | **Bridge** | `adapters/uzdoom/adapter.cpp` | Maps Engine Pointers -> Snapshot. | **Engine Headers** + SDK |
+| **3** | **Adapter** | `adapters/uzdoom/adapter.cpp` | Maps Engine Pointers -> Snapshot. | **Engine Headers** + SDK |
 
 ---
 
@@ -83,7 +83,7 @@ dmcp-sdk/
 │   └── dmcp.cpp                # Main Entry Point
 ├── adapters/
 │   └── uzdoom/
-│       ├── adapter.cpp         # The Bridge
+│       ├── adapter.cpp         # The Adapter
 │       └── CMakeLists.txt      # Interface Target
 ├── examples/
 │   └── dummy_server.cpp        # Validation Server
@@ -125,9 +125,9 @@ cmake --build --preset default
 *   [x] **2.2**: **Async**: Move screenshot encoding to server thread.
 *   [x] **2.3**: **Safety**: Fix race conditions and deadlocks in shutdown.
 
-### Phase 3: The Bridge (Adapter)
+### Phase 3: The Adapter
 *   [x] **3.1**: **`adapters/uzdoom/adapter.cpp`**: Implement `PopulateSnapshot` using function composition.
-*   [x] **3.2**: **CMake**: Expose as `dmcp::adapter::uzdoom` INTERFACE library.
+*   [x] **3.2**: **CMake**: Expose as `dmcp::adapter::zdoom` INTERFACE library.
 
 ### Phase 4: API Modernization
 *   [x] **4.1**: **`dmcp.h`**: Introduce `dmcp_result_t`, `dmcp_stats_t`.
@@ -147,37 +147,37 @@ cmake --build --preset default
 # Add SDK
 add_subdirectory(dmcp-sdk)
 # Link Adapter (inherits dmcp core automatically)
-target_link_libraries(uzdoom PRIVATE dmcp::adapter::uzdoom)
+target_link_libraries(uzdoom PRIVATE dmcp::adapter::zdoom)
 ```
 
 ### Step 2: Startup (`d_main.cpp`)
 ```cpp
 #include "dmcp/dmcp.h"
-extern "C" void dmcp_adapter_setup();
+extern "C" void dmcp_zdoom_init();
 
 void D_DoomInit() {
     // ...
-    dmcp_adapter_setup();
+    dmcp_zdoom_init();
 }
 ```
 
 ### Step 3: Loop (`g_game.cpp`)
 ```cpp
-extern "C" void dmcp_adapter_update();
+extern "C" void dmcp_zdoom_tick();
 
 void G_Ticker() {
     // ... game logic ...
-    dmcp_adapter_update();
+    dmcp_zdoom_tick();
 }
 ```
 
 ### Step 4: Shutdown (`d_main.cpp`)
 ```cpp
-extern "C" void dmcp_adapter_shutdown();
+extern "C" void dmcp_zdoom_shutdown();
 
 void D_DoomMain() {
     // ...
-    dmcp_adapter_shutdown();
+    dmcp_zdoom_shutdown();
 }
 ```
 

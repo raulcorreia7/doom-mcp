@@ -3,7 +3,7 @@
 A zero-allocation sidecar for Doom-family engines that streams real-time game state over SSE/JSON-RPC and serves on-demand PNG screenshots for MCP agents.
 
 ## Highlights
-- **C++17 SDK + C bridge** – Engine code only touches the bridge header.
+- **C++17 SDK + C adapter** – Engine code only touches the adapter header.
 - **Zero-alloc snapshots** – Object pool + SPSC queue keep the 35 Hz logic loop free of allocations.
 - **Async Architecture** – Network I/O and PNG encoding happen on a background thread.
 - **Modern CMake** – Uses `vcpkg` for dependencies and `INTERFACE` libraries for easy integration.
@@ -33,9 +33,9 @@ You can verify the output using the provided test script:
 ./test_mcp.sh
 ```
 
-## Integrating with UZDoom
+## Integrating with ZDoom
 
-The SDK provides a ready-to-use adapter for UZDoom/GZDoom.
+The SDK provides a ready-to-use adapter for ZDoom/GZDoom.
 
 ### 1. CMake Integration
 Add the SDK as a subdirectory in your engine's `CMakeLists.txt`:
@@ -46,26 +46,26 @@ add_subdirectory(dmcp-sdk)
 # Link the adapter interface.
 # This compiles the adapter source files AS PART OF your engine,
 # giving them access to your engine's internal headers.
-target_link_libraries(uzdoom PRIVATE dmcp::adapter::uzdoom)
+target_link_libraries(uzdoom PRIVATE dmcp::adapter::zdoom)
 ```
 
 ### 2. Bootstrap at Startup (`d_main.cpp`)
 
 ```cpp
 // Declare the adapter hook
-extern "C" void dmcp_adapter_setup();
-extern "C" void dmcp_adapter_shutdown();
+extern "C" void dmcp_zdoom_init();
+extern "C" void dmcp_zdoom_shutdown();
 
 void D_DoomInit() {
   // ... existing init code ...
   
   // Initialize DMCP
-  dmcp_adapter_setup();
+  dmcp_zdoom_init();
 }
 
 // Clean up on exit
 void D_QuitNetGame() {
-    dmcp_adapter_shutdown();
+    dmcp_zdoom_shutdown();
     // ...
 }
 ```
@@ -73,13 +73,13 @@ void D_QuitNetGame() {
 ### 3. Hook the Logic Loop (`g_game.cpp`)
 
 ```cpp
-extern "C" void dmcp_adapter_update();
+extern "C" void dmcp_zdoom_tick();
 
 void G_Ticker() {
   // ... core game logic ...
   
   // Capture state and process network events
-  dmcp_adapter_update();
+  dmcp_zdoom_tick();
 }
 ```
 
