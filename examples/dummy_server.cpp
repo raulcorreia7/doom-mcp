@@ -3,7 +3,6 @@
 #include <csignal>
 #include <cstdio>
 #include <cstring>
-#include <random>
 #include <thread>
 #include <vector>
 
@@ -65,7 +64,7 @@ void BindSnapshot(void* user_data, void* snapshot_ptr) {
 }
 
 // We need to include schema to actually set data
-#include "dmcp/schema.hpp"
+#include "core/schema.hpp"
 
 void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   auto* state    = static_cast<GameState*>(user_data);
@@ -76,7 +75,7 @@ void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   std::strncpy(snapshot->level.name.data(), "E1M1: Hangar",
                snapshot->level.name.size() - 1);
 
-  snapshot->player.hp     = state->player_health;
+  snapshot->player.hp         = state->player_health;
   snapshot->player.ammo       = state->player_ammo;
   snapshot->player.position.x = state->player_x;
   snapshot->player.position.y = state->player_y;
@@ -85,7 +84,7 @@ void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   for (const auto& e : state->enemies) {
     auto& dest      = snapshot->enemies.emplace_back();
     dest.id         = e.id;
-    dest.hp     = e.health;
+    dest.hp         = e.health;
     dest.position.x = e.x;
     dest.position.y = e.y;
     std::strncpy(dest.type.data(), "Imp", dest.type.size() - 1);
@@ -94,7 +93,7 @@ void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
 
 int main() {
   std::signal(SIGINT, signal_handler);
-  std::srand(std::time(nullptr));
+  ::srand(std::time(nullptr));
 
   GameState game;
   game.enemies.push_back({1, 200, 200, 60});
