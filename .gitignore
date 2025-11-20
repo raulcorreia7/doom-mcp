@@ -42,6 +42,7 @@ dmcp-release
 # Test binaries
 test_*
 *_test
+!test_mcp.sh
 
 # Coverage reports
 *.gcda
@@ -146,4 +147,6 @@ vgcore.*
 .gdb_history
 
 # CMake presets (user-specific)
-CMakeUserPresets.json
+CMakeUserPresets.jsonscreenshot*.png
+sse_stream.txt
+dummy_server
