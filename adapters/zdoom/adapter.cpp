@@ -1,18 +1,19 @@
+#include "adapter.h"
+
 #include <cstring>
 #include <memory>
 #include <vector>
 
-#include "bridge.h"
+#include "core/schema.hpp"
 #include "dmcp/common.hpp"
 #include "dmcp/dmcp.h"
-#include "dmcp/schema.hpp"
 
 #if defined(DMCP_WITH_UZDOOM)
 #include "src/common/rendering/v_video.h"
-#include "src/g_levellocals.h"
 #include "src/d_player.h"
 #include "src/doomstat.h"
 #include "src/dthinker.h"
+#include "src/g_levellocals.h"
 #include "src/gamedata/a_weapons.h"
 #include "src/gamedata/gametype.h"
 #include "src/gamedata/gi.h"
@@ -62,12 +63,12 @@ static bool ShouldFilterInventoryItem(AActor* item) {
 }
 #endif
 
-static void BindDefaults(dmcp::Snapshot& snapshot) {
-  snapshot.level.tic     = 0;
+inline static void BindDefaults(dmcp::Snapshot& snapshot) {
+  snapshot.level.tic = 0;
   snapshot.player.hp = 100.f;
 }
 
-static void BindPlayerHealth(dmcp::Snapshot& snapshot) {
+inline static void BindPlayerHealth(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   player_t& player   = ConsolePlayer();
   AActor*   pawn     = player.mo;
@@ -75,7 +76,7 @@ static void BindPlayerHealth(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindPlayerArmor(dmcp::Snapshot& snapshot) {
+inline static void BindPlayerArmor(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
@@ -89,7 +90,7 @@ static void BindPlayerArmor(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindPlayerPosition(dmcp::Snapshot& snapshot) {
+inline static void BindPlayerPosition(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
@@ -102,7 +103,7 @@ static void BindPlayerPosition(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindPlayerAmmo(dmcp::Snapshot& snapshot) {
+inline static void BindPlayerAmmo(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   if (player.ReadyWeapon == nullptr) {
@@ -114,7 +115,7 @@ static void BindPlayerAmmo(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindLevel(dmcp::Snapshot& snapshot) {
+inline static void BindLevel(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
@@ -131,7 +132,7 @@ static void BindLevel(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindEnemies(dmcp::Snapshot& snapshot) {
+inline static void BindEnemies(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   snapshot.enemies.clear();
   player_t& player = ConsolePlayer();
@@ -195,7 +196,7 @@ static void BindEnemies(dmcp::Snapshot& snapshot) {
 #endif
 }
 
-static void BindInventory(dmcp::Snapshot& snapshot) {
+inline static void BindInventory(dmcp::Snapshot& snapshot) {
 #if defined(DMCP_WITH_UZDOOM)
   snapshot.player.inventory.clear();
   player_t& player = ConsolePlayer();
@@ -232,7 +233,7 @@ static void PopulateSnapshot(dmcp::Snapshot& snapshot) {
   BindInventory(snapshot);
 }
 
-static void BridgeTicket(void* /*user_data*/, void* snapshot_ptr) {
+static void ZdoomTick(void* /*user_data*/, void* snapshot_ptr) {
   if (!snapshot_ptr) return;
   auto* snapshot = static_cast<dmcp::Snapshot*>(snapshot_ptr);
   PopulateSnapshot(*snapshot);
@@ -240,27 +241,27 @@ static void BridgeTicket(void* /*user_data*/, void* snapshot_ptr) {
 
 }  // namespace
 
-extern "C" void dmcp_bridge_setup() {
+extern "C" void dmcp_zdoom_init() {
   if (g_ctx) {
     return;  // Already initialized
   }
 
   // Initialize the library context
   dmcp_config_t cfg = dmcp_default_config();
-  cfg.on_tick       = BridgeTicket;
+  cfg.on_tick       = ZdoomTick;
   cfg.user_data     = nullptr;
 
   g_ctx = dmcp_create(&cfg);
 }
 
-extern "C" void dmcp_bridge_shutdown() {
+extern "C" void dmcp_zdoom_shutdown() {
   if (g_ctx) {
     dmcp_destroy(g_ctx);
     g_ctx = nullptr;
   }
 }
 
-extern "C" void dmcp_bridge_update() {
+extern "C" void dmcp_zdoom_tick() {
   if (g_ctx) {
     dmcp_update(g_ctx);
   }
