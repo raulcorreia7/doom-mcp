@@ -1,75 +1,87 @@
 # Doom Model Context Protocol SDK
 
-A zero-allocation sidecar for Doom-family engines that streams real-time game
-state over SSE/JSON-RPC and serves on-demand PNG screenshots for MCP agents.
+A zero-allocation sidecar for Doom-family engines that streams real-time game state over SSE/JSON-RPC and serves on-demand PNG screenshots for MCP agents.
 
 ## Highlights
 - **C++17 SDK + C bridge** – Engine code only touches the bridge header.
-- **Zero-alloc snapshots** – Object pool + SPSC queue keep the 35 Hz logic loop
-  free of allocations.
-- **uWebSockets SSE server** – `/sse` streams JSON frames, `/tools/call`
-  receives JSON-RPC commands.
-- **PNG screenshot pipeline** – Agents call `capture_screenshot`; the engine
-  captures RGBA buffers and `dmcp` encodes + serves `/screenshot/latest.png`.
+- **Zero-alloc snapshots** – Object pool + SPSC queue keep the 35 Hz logic loop free of allocations.
+- **Async Architecture** – Network I/O and PNG encoding happen on a background thread.
+- **Modern CMake** – Uses `vcpkg` for dependencies and `INTERFACE` libraries for easy integration.
 
 ## Building the SDK
 
+**Prerequisites:** CMake 3.15+, C++17 compiler, vcpkg.
+
 ```bash
-cmake -S doom-mcp -B doom-mcp/build
-cmake --build doom-mcp/build
+# Configure using vcpkg preset
+cmake --preset default
+
+# Build
+cmake --build --preset default
 ```
 
-Dependencies are fetched via CPM (nlohmann/json, tl::expected, uSockets,
-uWebSockets, stb_image_write header).
+## Running the Example
 
-`dmcp_config_t.target_hz` controls how often snapshots are emitted. Set it to
-10 Hz by default to reduce bandwidth (even if you call `dmcp_process_tick()` at
-35 Hz, the SDK only forwards every 100 ms).
+The `dummy_server` simulates a Doom engine to validate the protocol.
+
+```bash
+./build/dummy_server
+```
+
+You can verify the output using the provided test script:
+```bash
+./test_mcp.sh
+```
 
 ## Integrating with UZDoom
 
-1. **Add the SDK**
-   ```cmake
-   add_subdirectory(doom-mcp)
-   target_link_libraries(uzdoom PRIVATE dmcp)
-   target_sources(uzdoom PRIVATE doom-mcp/adapters/dmcp_uzdoom.cpp)
-   ```
+The SDK provides a ready-to-use adapter for UZDoom/GZDoom.
 
-2. **Bootstrap at startup**
-   ```cpp
-   #include "dmcp/dmcp.h"
+### 1. CMake Integration
+Add the SDK as a subdirectory in your engine's `CMakeLists.txt`:
 
-   extern "C" void dmcp_adapter_setup();
+```cmake
+add_subdirectory(dmcp-sdk)
 
-   void D_DoomInit() {
-     dmcp_config_t cfg = dmcp_default_config();
-     if (dmcp_init(&cfg) == 0) {
-       dmcp_adapter_setup();
-     }
-   }
-   ```
+# Link the adapter interface.
+# This compiles the adapter source files AS PART OF your engine,
+# giving them access to your engine's internal headers.
+target_link_libraries(uzdoom PRIVATE dmcp::adapter::uzdoom)
+```
 
-3. **Hook the logic loop (default stream rate: 10 Hz)**
-   ```cpp
-   void G_Ticker() {
-     // ... core game logic ...
-     dmcp_process_tick();  // throttled internally to cfg.target_hz (default 10)
+### 2. Bootstrap at Startup (`d_main.cpp`)
 
-     if (dmcp_consume_screenshot_request()) {
-       dmcp_screenshot_frame_t shot{
-           .pixels = framebuffer_rgba,
-           .width = SCREENWIDTH,
-           .height = SCREENHEIGHT,
-           .stride = SCREENWIDTH * 4};
-       dmcp_submit_screenshot(&shot);
-     }
-   }
-   ```
+```cpp
+// Declare the adapter hook
+extern "C" void dmcp_adapter_setup();
+extern "C" void dmcp_adapter_shutdown();
 
-4. **Expose the adapter**
-   `adapters/dmcp_uzdoom.cpp` is the single translation unit that touches the
-   engine headers. Use the `dmcp::Binder` helpers to map engine state to the
-   `dmcp::Snapshot` schema.
+void D_DoomInit() {
+  // ... existing init code ...
+  
+  // Initialize DMCP
+  dmcp_adapter_setup();
+}
+
+// Clean up on exit
+void D_QuitNetGame() {
+    dmcp_adapter_shutdown();
+    // ...
+}
+```
+
+### 3. Hook the Logic Loop (`g_game.cpp`)
+
+```cpp
+extern "C" void dmcp_adapter_update();
+
+void G_Ticker() {
+  // ... core game logic ...
+  
+  // Capture state and process network events
+  dmcp_adapter_update();
+}
+```
 
 ## Protocol Surface
 
@@ -80,6 +92,7 @@ uWebSockets, stb_image_write header).
 | `POST /tools/call` | JSON-RPC tool calls; `capture_screenshot` queues a request |
 | `GET /screenshot/latest.png` | Latest PNG + headers (`X-Width`, `X-Height`) |
 
+### Snapshot Data (SSE)
 Each `event: state` message contains the serialized snapshot:
 
 ```json
@@ -107,18 +120,13 @@ Each `event: state` message contains the serialized snapshot:
 }
 ```
 
-`screenshot` events broadcast `{ "uri": "/screenshot/latest.png", "width": 640,
-"height": 480, "captured_at": "2025-01-01T12:00:00Z" }`.
-
-## Screenshot Flow
+### Screenshot Flow
 1. Agent POSTs `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"capture_screenshot"}}`.
-2. Engine observes `dmcp_consume_screenshot_request() == true` on the next
-   `G_Ticker` and captures an RGBA buffer.
-3. Engine submits via `dmcp_submit_screenshot`, which encodes to PNG and bumps
-   the SSE `screenshot` event.
+2. Engine observes the request, captures the framebuffer, and pushes it to the async encoder.
+3. Server thread encodes PNG and broadcasts SSE event: `event: screenshot`.
 4. Agent downloads `/screenshot/latest.png`.
 
-## Next Steps
-- Add unit/integration tests for the SSE flow.
-- Wire the adapter into the actual UZDoom build.
-- Extend the snapshot schema with more engine data as needed.
+## Architecture
+
+*   **Core Library (`libdmcp`)**: Contains the networking logic, memory pools, and thread management. It is engine-agnostic.
+*   **Adapter (`adapters/`)**: Contains the engine-specific mapping logic. It uses function composition to map engine structs (e.g., `player_t`) to the DMCP `Snapshot` schema.
