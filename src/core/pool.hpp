@@ -1,11 +1,10 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
 #include <mutex>
 #include <vector>
 
-#include "core/schema.hpp"
+#include "dmcp/schema.hpp"
 
 namespace dmcp {
 

@@ -34,7 +34,8 @@ struct PlayerState {
 
 struct LevelState {
   int32_t              tic = 0;
-  std::array<char, 64> name{};
+  std::array<char, 32> id{};    // e.g., MAP01/E1M1
+  std::array<char, 96> name{};  // human-friendly name/title
   int32_t              kill_count   = 0;
   int32_t              item_count   = 0;
   int32_t              secret_count = 0;
@@ -47,9 +48,7 @@ struct Snapshot {
 
   void Clear() {
     player = PlayerState{};
-    level = LevelState{};
-
-
+    level  = LevelState{};
     enemies.clear();
   }
 };

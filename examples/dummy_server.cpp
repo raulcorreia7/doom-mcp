@@ -64,7 +64,7 @@ void BindSnapshot(void* user_data, void* snapshot_ptr) {
 }
 
 // We need to include schema to actually set data
-#include "core/schema.hpp"
+#include "dmcp/schema.hpp"
 
 void BindSnapshotCpp(void* user_data, void* snapshot_ptr) {
   auto* state    = static_cast<GameState*>(user_data);

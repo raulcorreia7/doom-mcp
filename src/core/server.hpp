@@ -7,8 +7,8 @@
 #include <thread>
 #include <vector>
 
+#include "dmcp/schema.hpp"
 #include "pool.hpp"
-#include "schema.hpp"
 #include "screenshot.hpp"
 
 namespace uWS {

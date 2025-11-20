@@ -5,9 +5,9 @@ project(dmcp LANGUAGES C CXX VERSION 0.2.0)
 # Options
 # ============================================================================
 option(DMCP_BUILD_EXAMPLES "Build example server" ON)
-option(DMCP_BUILD_ADAPTERS "Build all standard adapters (useful for testing)" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
+option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 
 # ============================================================================
 # Build Configuration
@@ -58,14 +58,14 @@ include(${CPM_DOWNLOAD_LOCATION})
 # ============================================================================
 
 # --- nlohmann_json (JSON library) ---
-CPMAddPackage(
+CPMFindPackage(
   NAME nlohmann_json
   GITHUB_REPOSITORY nlohmann/json
   VERSION 3.12.0
 )
 
 # --- uSockets (Low-level socket library) ---
-CPMAddPackage(
+CPMFindPackage(
   NAME uSockets
   GITHUB_REPOSITORY uNetworking/uSockets
   VERSION 0.8.8
@@ -95,7 +95,7 @@ if(uSockets_ADDED)
 endif()
 
 # --- uWebSockets (WebSocket/HTTP server, header-only) ---
-CPMAddPackage(
+CPMFindPackage(
   NAME uWebSockets
   GITHUB_REPOSITORY uNetworking/uWebSockets
   VERSION 20.74.0
@@ -118,7 +118,7 @@ if(uWebSockets_ADDED)
 endif()
 
 # --- readerwriterqueue (Lock-free SPSC queue) ---
-CPMAddPackage(
+CPMFindPackage(
   NAME readerwriterqueue
   GITHUB_REPOSITORY cameron314/readerwriterqueue
   VERSION 1.0.7
@@ -126,7 +126,7 @@ CPMAddPackage(
 
 # --- stb (Image encoding/decoding, header-only) ---
 # Note: stb doesn't use versioned releases, master branch is the standard practice
-CPMAddPackage(
+CPMFindPackage(
   NAME stb
   GITHUB_REPOSITORY nothings/stb
   GIT_TAG master
@@ -194,11 +194,20 @@ target_link_libraries(dmcp PRIVATE
 )
 
 # ============================================================================
-# Adapters (Optional)
+# ZDoom Adapter (optional)
 # ============================================================================
-if(DMCP_BUILD_ADAPTERS)
-  add_subdirectory(adapters)
+if(DMCP_BUILD_ADAPTER_ZDOOM)
+  add_library(dmcp_adapter_zdoom STATIC adapters/zdoom/adapter.cpp)
+  add_library(dmcp::zdoom_adapter ALIAS dmcp_adapter_zdoom)
+  target_link_libraries(dmcp_adapter_zdoom PUBLIC dmcp)
+  target_include_directories(dmcp_adapter_zdoom
+    PRIVATE
+      ${DMCP_ZDOOM_INCLUDE_DIRS}
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom
+  )
 endif()
+
 
 # ============================================================================
 # Examples

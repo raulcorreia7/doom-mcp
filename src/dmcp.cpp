@@ -2,27 +2,25 @@
 
 #include <inttypes.h>
 
-#include <atomic>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
-#include "core/png.hpp"
 #include "core/pool.hpp"
 #include "core/screenshot.hpp"
 #include "core/server.hpp"
-#include "core/schema.hpp"
+#include "dmcp/schema.hpp"
 #include "readerwriterqueue.h"
 
-using dmcp::detail::ServerRunner;
 using dmcp::detail::OwnedScreenshot;
-using SnapshotQueue = moodycamel::ReaderWriterQueue<dmcp::Snapshot*, 512>;
+using dmcp::detail::ServerRunner;
+using SnapshotQueue   = moodycamel::ReaderWriterQueue<dmcp::Snapshot*, 512>;
 using ScreenshotQueue = moodycamel::ReaderWriterQueue<OwnedScreenshot, 4>;
 
 struct dmcp_context_s {
@@ -53,7 +51,7 @@ dmcp_config_t normalize_config(const dmcp_config_t* config) {
   if (cfg.port == 0) cfg.port = 9090;
   if (cfg.target_hz == 0) cfg.target_hz = 10;
   if (cfg.snapshot_pool == 0) cfg.snapshot_pool = 16;
-  if (cfg.queue_slots == 0) cfg.queue_slots = 32;
+  if (cfg.queue_slots == 0) cfg.queue_slots = 4;
   if (cfg.enemy_capacity == 0) cfg.enemy_capacity = 256;
   if (cfg.inventory_capacity == 0) cfg.inventory_capacity = 64;
   if (cfg.screenshot.width == 0) cfg.screenshot.width = 640;
@@ -63,41 +61,41 @@ dmcp_config_t normalize_config(const dmcp_config_t* config) {
 
 // Internal Logging Helper
 void Log(dmcp_context_t* ctx, dmcp_log_level_t level, const char* fmt, ...) {
-    if (!ctx) return;
+  if (!ctx) return;
 
-    // 1. Setup va_list
-    va_list args;
-    va_start(args, fmt);
+  // 1. Setup va_list
+  va_list args;
+  va_start(args, fmt);
 
-    // 2. Determine required size
-    va_list args_copy;
-    va_copy(args_copy, args);
-    int len = std::vsnprintf(nullptr, 0, fmt, args_copy);
-    va_end(args_copy);
+  // 2. Determine required size
+  va_list args_copy;
+  va_copy(args_copy, args);
+  int len = std::vsnprintf(nullptr, 0, fmt, args_copy);
+  va_end(args_copy);
 
-    if (len < 0) {
-        va_end(args);
-        return; // Encoding error
-    }
-
-    // 3. Format string into buffer
-    std::vector<char> buf(static_cast<size_t>(len) + 1);
-    std::vsnprintf(buf.data(), buf.size(), fmt, args);
+  if (len < 0) {
     va_end(args);
+    return;  // Encoding error
+  }
 
-    // 4. Route to appropriate output
-    if (ctx->config.on_log) {
-        // A. Use Engine's Logger (Override)
-        ctx->config.on_log(ctx->config.user_data, level, buf.data());
-    } else {
-        // B. Default Fallback (stdout/stderr)
-        // Only print if we don't have a custom logger
-        FILE* out = (level >= DMCP_LOG_ERROR) ? stderr : stdout;
-        fprintf(out, "[DMCP] %s\n", buf.data());
-    }
+  // 3. Format string into buffer
+  std::vector<char> buf(static_cast<size_t>(len) + 1);
+  std::vsnprintf(buf.data(), buf.size(), fmt, args);
+  va_end(args);
+
+  // 4. Route to appropriate output
+  if (ctx->config.on_log) {
+    // A. Use Engine's Logger (Override)
+    ctx->config.on_log(ctx->config.user_data, level, buf.data());
+  } else {
+    // B. Default Fallback (stdout/stderr)
+    // Only print if we don't have a custom logger
+    FILE* out = (level >= DMCP_LOG_ERROR) ? stderr : stdout;
+    fprintf(out, "[DMCP] %s\n", buf.data());
+  }
 }
 
-} // namespace
+}  // namespace
 
 // Helper Macros for internal use within libdmcp
 #define LOG_INFO(ctx, ...)  Log(ctx, DMCP_LOG_INFO, __VA_ARGS__)
@@ -111,7 +109,7 @@ dmcp_config_t dmcp_default_config(void) {
   cfg.port               = 9090;
   cfg.target_hz          = 10;
   cfg.snapshot_pool      = 16;
-  cfg.queue_slots        = 32;
+  cfg.queue_slots        = 4;
   cfg.enemy_capacity     = 512;
   cfg.inventory_capacity = 64;
   cfg.screenshot.enable  = true;
@@ -129,12 +127,11 @@ dmcp_context_t* dmcp_create(const dmcp_config_t* config) {
 
   ctx->pool = std::make_unique<dmcp::SnapshotPool>(
       cfg.snapshot_pool, cfg.enemy_capacity, cfg.inventory_capacity);
-  ctx->queue = std::make_unique<SnapshotQueue>(cfg.queue_slots);
+  ctx->queue            = std::make_unique<SnapshotQueue>(cfg.queue_slots);
   ctx->screenshot_queue = std::make_unique<ScreenshotQueue>(4);
-  ctx->server =
-      std::make_unique<ServerRunner>(ctx->queue.get(), ctx->screenshot_queue.get(),
-                                     ctx->pool.get(), &ctx->screenshot, cfg.screenshot.enable,
-                                     &ctx->connected_clients);
+  ctx->server           = std::make_unique<ServerRunner>(
+      ctx->queue.get(), ctx->screenshot_queue.get(), ctx->pool.get(),
+      &ctx->screenshot, cfg.screenshot.enable, &ctx->connected_clients);
 
   if (!ctx->server->start(cfg.port)) {
     delete ctx;
@@ -231,7 +228,7 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx,
   }
 
   OwnedScreenshot owned;
-  owned.width = frame->width;
+  owned.width  = frame->width;
   owned.height = frame->height;
   owned.stride = frame->stride;
 
@@ -240,7 +237,7 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx,
     owned.pixels.resize(size);
     std::copy_n(frame->pixels, size, owned.pixels.begin());
   } catch (...) {
-    return DMCP_ERROR_ENCODING_FAILED; // Allocation failed
+    return DMCP_ERROR_ENCODING_FAILED;  // Allocation failed
   }
 
   if (!ctx->screenshot_queue->try_enqueue(std::move(owned))) {
@@ -248,7 +245,8 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx,
     return DMCP_ERROR_QUEUE_FULL;
   }
 
-  auto prev = ctx->screenshot.pending_requests.fetch_sub(1, std::memory_order_relaxed);
+  auto prev =
+      ctx->screenshot.pending_requests.fetch_sub(1, std::memory_order_relaxed);
   if (prev == 0) {
     ctx->screenshot.pending_requests.fetch_add(1, std::memory_order_relaxed);
   }
@@ -258,7 +256,10 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx,
 
 void dmcp_get_stats(const dmcp_context_t* ctx, dmcp_stats_t* stats) {
   if (!ctx || !stats) return;
-  stats->dropped_snapshots = ctx->dropped_snapshots.load(std::memory_order_relaxed);
-  stats->dropped_screenshots = ctx->dropped_screenshots.load(std::memory_order_relaxed);
-  stats->connected_clients = ctx->connected_clients.load(std::memory_order_relaxed);
+  stats->dropped_snapshots =
+      ctx->dropped_snapshots.load(std::memory_order_relaxed);
+  stats->dropped_screenshots =
+      ctx->dropped_screenshots.load(std::memory_order_relaxed);
+  stats->connected_clients =
+      ctx->connected_clients.load(std::memory_order_relaxed);
 }

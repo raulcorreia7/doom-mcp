@@ -4,64 +4,58 @@
 #include <memory>
 #include <vector>
 
-#include "core/schema.hpp"
 #include "dmcp/common.hpp"
 #include "dmcp/dmcp.h"
+#include "dmcp/schema.hpp"
 
-#if defined(DMCP_WITH_UZDOOM)
-#include "common/rendering/v_video.h"
-#include "d_player.h"
+#include "common/utility/name.h"
 #include "doomstat.h"
-#include "dthinker.h"
 #include "g_levellocals.h"
 #include "gamedata/a_weapons.h"
 #include "gamedata/gametype.h"
 #include "gamedata/gi.h"
-#include "name.h"
-#include "p_local.h"
-#endif
+#include "playsim/d_player.h"
+#include "playsim/dthinker.h"
+#include "playsim/p_local.h"
 
 namespace {
 
-static dmcp_context_t* g_ctx = nullptr;
+struct AdapterContext {
+  dmcp_context_t*     dmcp_ctx{nullptr};
+  dmcp_zdoom_config_t user_cfg{};
+  dmcp_config_t       dmcp_cfg{};
+};
 
-#if defined(DMCP_WITH_UZDOOM)
+// Engine logging fallback; declared here to avoid pulling engine headers into dmcp.
+extern "C" int Printf(int printlevel, const char* format, ...);
+
 player_t& ConsolePlayer() { return players[consoleplayer]; }
 
 const char* ItemLabel(AActor* item) {
-  if (!item) {
-    return "";
-  }
+  if (!item) return "";
   const char* label = item->GetTag();
   if (!label || label[0] == '\0') {
     label = item->GetClass()->TypeName.GetChars();
   }
   return label ? label : "";
 }
-#endif
 
-#if defined(DMCP_WITH_UZDOOM)
 // Game-specific inventory filtering
 static bool ShouldFilterInventoryItem(AActor* item) {
   if (!item) return true;
 
   const char* className = item->GetClass()->TypeName.GetChars();
 
-  // Always filter internal BasicArmor - it's handled separately in
-  // BindPlayerArmor
   if (strcmp(className, "BasicArmor") == 0) {
     return true;
   }
 
-  // Game-specific filtering for HexenArmor
   if (strcmp(className, "HexenArmor") == 0) {
-    // Only show HexenArmor in Hexen itself, filter it in other games
     return !(gameinfo.gametype & GAME_Hexen);
   }
 
   return false;
 }
-#endif
 
 inline static void BindDefaults(dmcp::Snapshot& snapshot) {
   snapshot.level.tic = 0;
@@ -69,15 +63,12 @@ inline static void BindDefaults(dmcp::Snapshot& snapshot) {
 }
 
 inline static void BindPlayerHealth(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   player_t& player   = ConsolePlayer();
   AActor*   pawn     = player.mo;
   snapshot.player.hp = pawn ? pawn->health : 0;
-#endif
 }
 
 inline static void BindPlayerArmor(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
   if (!pawn) {
@@ -87,11 +78,9 @@ inline static void BindPlayerArmor(dmcp::Snapshot& snapshot) {
   AActor* armor = pawn->FindInventory(NAME_BasicArmor, true);
   snapshot.player.armor =
       armor ? static_cast<float>(armor->IntVar(NAME_Amount)) : 0.f;
-#endif
 }
 
 inline static void BindPlayerPosition(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
   if (pawn) {
@@ -100,11 +89,9 @@ inline static void BindPlayerPosition(dmcp::Snapshot& snapshot) {
   } else {
     snapshot.player.position.x = snapshot.player.position.y = 0.f;
   }
-#endif
 }
 
 inline static void BindPlayerAmmo(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   if (player.ReadyWeapon == nullptr) {
     snapshot.player.ammo = 0;
@@ -112,28 +99,30 @@ inline static void BindPlayerAmmo(dmcp::Snapshot& snapshot) {
   }
   auto* ammo           = player.ReadyWeapon->PointerVar<AActor>(NAME_Ammo1);
   snapshot.player.ammo = ammo ? ammo->IntVar(NAME_Amount) : 0;
-#endif
 }
 
 inline static void BindLevel(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
   if (pawn && pawn->Level) {
     snapshot.level.tic = pawn->Level->time;
-    dmcp::CopyString(pawn->Level->MapName.GetChars(), snapshot.level.name);
+    dmcp::CopyString(pawn->Level->MapName.GetChars(), snapshot.level.id);
+    if (pawn->Level->LevelName.IsNotEmpty()) {
+      dmcp::CopyString(pawn->Level->LevelName.GetChars(), snapshot.level.name);
+    } else {
+      dmcp::CopyString(pawn->Level->MapName.GetChars(), snapshot.level.name);
+    }
   } else {
     snapshot.level.tic     = 0;
+    snapshot.level.id[0]   = '\0';
     snapshot.level.name[0] = '\0';
   }
   snapshot.level.kill_count   = player.killcount;
   snapshot.level.item_count   = player.itemcount;
   snapshot.level.secret_count = player.secretcount;
-#endif
 }
 
 inline static void BindEnemies(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   snapshot.enemies.clear();
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
@@ -152,40 +141,12 @@ inline static void BindEnemies(dmcp::Snapshot& snapshot) {
     entry.id    = static_cast<int32_t>(actor->tid);
     entry.hp    = static_cast<float>(actor->health);
 
-    // Try to get max health - use SpawnHealth first, fall back to GetMaxHealth
     int maxHealth = actor->SpawnHealth();
     if (maxHealth <= 0) {
       maxHealth = actor->GetMaxHealth();
     }
-    // If still 0, use a reasonable default based on actor type
     if (maxHealth <= 0) {
-      const char* className = actor->GetClass()->TypeName.GetChars();
-      if (strcmp(className, "DoomImp") == 0)
-	maxHealth = 60;
-      else if (strcmp(className, "Zombieman") == 0)
-	maxHealth = 20;
-      else if (strcmp(className, "ShotgunGuy") == 0)
-	maxHealth = 30;
-      else if (strcmp(className, "ChaingunGuy") == 0)
-	maxHealth = 70;
-      else if (strcmp(className, "Cacodemon") == 0)
-	maxHealth = 400;
-      else if (strcmp(className, "BaronOfHell") == 0)
-	maxHealth = 1000;
-      else if (strcmp(className, "HellKnight") == 0)
-	maxHealth = 500;
-      else if (strcmp(className, "Revenant") == 0)
-	maxHealth = 300;
-      else if (strcmp(className, "Mancubus") == 0)
-	maxHealth = 600;
-      else if (strcmp(className, "Arachnotron") == 0)
-	maxHealth = 500;
-      else if (strcmp(className, "SpiderMastermind") == 0)
-	maxHealth = 3000;
-      else if (strcmp(className, "Cyberdemon") == 0)
-	maxHealth = 4000;
-      else
-	maxHealth = 100;  // Default fallback
+      maxHealth = 100;
     }
     entry.max_hp = static_cast<float>(maxHealth);
 
@@ -193,11 +154,9 @@ inline static void BindEnemies(dmcp::Snapshot& snapshot) {
     entry.position.y = static_cast<float>(actor->Pos().Y);
     dmcp::CopyString(actor->GetClass()->TypeName.GetChars(), entry.type);
   }
-#endif
 }
 
 inline static void BindInventory(dmcp::Snapshot& snapshot) {
-#if defined(DMCP_WITH_UZDOOM)
   snapshot.player.inventory.clear();
   player_t& player = ConsolePlayer();
   AActor*   pawn   = player.mo;
@@ -206,7 +165,6 @@ inline static void BindInventory(dmcp::Snapshot& snapshot) {
   }
   for (AActor* item = pawn->Inventory; item != nullptr;
        item         = item->Inventory) {
-    // Skip items that should be filtered based on game type
     if (ShouldFilterInventoryItem(item)) {
       continue;
     }
@@ -219,7 +177,6 @@ inline static void BindInventory(dmcp::Snapshot& snapshot) {
     dmcp::CopyString(ItemLabel(item), dest.name);
     dest.amount = amount;
   }
-#endif
 }
 
 static void PopulateSnapshot(dmcp::Snapshot& snapshot) {
@@ -239,30 +196,73 @@ static void ZdoomTick(void* /*user_data*/, void* snapshot_ptr) {
   PopulateSnapshot(*snapshot);
 }
 
+static void ZdoomLog(void* user_data, int level, const char* message) {
+  auto* ctx = static_cast<AdapterContext*>(user_data);
+  if (!ctx || !message) return;
+
+  if (ctx->user_cfg.log_fn) {
+    ctx->user_cfg.log_fn(ctx->user_cfg.log_user, level, message);
+    return;
+  }
+  int printLevel = (level >= DMCP_LOG_WARN) ? PRINT_HIGH : PRINT_LOG;
+  Printf(printLevel, "[DMCP] %s\n", message);
+}
+
 }  // namespace
 
-extern "C" void dmcp_zdoom_init() {
-  if (g_ctx) {
-    return;  // Already initialized
+extern "C" dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
+  auto* ctx     = new AdapterContext();
+  ctx->user_cfg = cfg ? *cfg : dmcp_zdoom_config_t{};
+  ctx->dmcp_cfg = dmcp_default_config();
+
+  if (ctx->user_cfg.dmcp_config) {
+    ctx->dmcp_cfg = *ctx->user_cfg.dmcp_config;
   }
 
-  // Initialize the library context
-  dmcp_config_t cfg = dmcp_default_config();
-  cfg.on_tick       = ZdoomTick;
-  cfg.user_data     = nullptr;
+  ctx->dmcp_cfg.on_tick   = ZdoomTick;
+  ctx->dmcp_cfg.on_log    = ZdoomLog;
+  ctx->dmcp_cfg.user_data = ctx;
 
-  g_ctx = dmcp_create(&cfg);
+  ctx->dmcp_ctx = dmcp_create(&ctx->dmcp_cfg);
+  if (!ctx->dmcp_ctx) {
+    delete ctx;
+    return nullptr;
+  }
+  return reinterpret_cast<dmcp_zdoom_t*>(ctx);
 }
 
-extern "C" void dmcp_zdoom_shutdown() {
-  if (g_ctx) {
-    dmcp_destroy(g_ctx);
-    g_ctx = nullptr;
+extern "C" void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx) return;
+  if (ctx->dmcp_ctx) {
+    dmcp_destroy(ctx->dmcp_ctx);
+    ctx->dmcp_ctx = nullptr;
   }
+  delete ctx;
 }
 
-extern "C" void dmcp_zdoom_tick() {
-  if (g_ctx) {
-    dmcp_update(g_ctx);
+extern "C" int dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx) return DMCP_ERROR_INVALID_ARGS;
+
+  if (ctx->user_cfg.should_tick_fn &&
+      !ctx->user_cfg.should_tick_fn(ctx->user_cfg.should_tick_user)) {
+    return DMCP_OK;
   }
+
+  dmcp_update(ctx->dmcp_ctx);
+  return DMCP_OK;
+}
+
+extern "C" bool dmcp_zdoom_is_running(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx) return false;
+  return dmcp_is_running(ctx->dmcp_ctx);
+}
+
+extern "C" void dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx_handle,
+                                     dmcp_stats_t* out_stats) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx || !out_stats) return;
+  dmcp_get_stats(ctx->dmcp_ctx, out_stats);
 }
