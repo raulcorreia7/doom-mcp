@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
-project(dmcp LANGUAGES CXX VERSION 0.1.0)
+project(dmcp LANGUAGES CXX VERSION 1.0.0)
+
+# --- Options ---
+option(DMCP_BUILD_EXAMPLES "Build example server" ON)
+option(DMCP_BUILD_BRIDGES "Build all standard bridges (useful for testing)" OFF)
 
 # --- Dependencies ---
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -8,7 +12,7 @@ find_package(unofficial-uwebsockets CONFIG REQUIRED)
 find_package(readerwriterqueue CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 
-# --- Main Library Target ---
+# --- Core Library Target ---
 add_library(dmcp STATIC
   src/dmcp.cpp
   src/core/pool.cpp
@@ -25,7 +29,6 @@ set_target_properties(dmcp PROPERTIES
   VISIBILITY_INLINES_HIDDEN ON
 )
 
-# Warnings
 if(MSVC)
   target_compile_options(dmcp PRIVATE /W4 /permissive-)
 else()
@@ -64,21 +67,18 @@ install(TARGETS dmcp
 
 install(DIRECTORY include/dmcp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# Export Targets
 install(EXPORT dmcpTargets
   FILE dmcpTargets.cmake
   NAMESPACE dmcp::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
 )
 
-# Config Version
 write_basic_package_version_file(
   "${CMAKE_CURRENT_BINARY_DIR}/dmcpConfigVersion.cmake"
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion
 )
 
-# Config File
 configure_package_config_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcpConfig.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/dmcpConfig.cmake"
@@ -91,12 +91,15 @@ install(FILES
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
 )
 
-# --- Subdirectories ---
-add_subdirectory(adapters)
+# --- Bridges (Optional) ---
+# This allows the top-level project to decide if they want to add specific bridges
+# or if they want to build everything provided by this repo.
+if(DMCP_BUILD_BRIDGES)
+  add_subdirectory(bridges)
+endif()
 
 # --- Examples ---
-# Only build examples if this is the main project
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(dummy_server examples/dummy_server.cpp)
   target_link_libraries(dummy_server PRIVATE dmcp::dmcp)
 endif()

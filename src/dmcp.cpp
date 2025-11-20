@@ -61,18 +61,49 @@ dmcp_config_t normalize_config(const dmcp_config_t* config) {
   return cfg;
 }
 
-void Log(dmcp_context_t* ctx, int level, const char* fmt, ...) {
-  if (ctx && ctx->config.on_log) {
-    char    buffer[1024];
+// Internal Logging Helper
+void Log(dmcp_context_t* ctx, dmcp_log_level_t level, const char* fmt, ...) {
+    if (!ctx) return;
+
+    // 1. Setup va_list
     va_list args;
     va_start(args, fmt);
-    std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+    // 2. Determine required size
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int len = std::vsnprintf(nullptr, 0, fmt, args_copy);
+    va_end(args_copy);
+
+    if (len < 0) {
+        va_end(args);
+        return; // Encoding error
+    }
+
+    // 3. Format string into buffer
+    std::vector<char> buf(static_cast<size_t>(len) + 1);
+    std::vsnprintf(buf.data(), buf.size(), fmt, args);
     va_end(args);
-    ctx->config.on_log(ctx->config.user_data, level, buffer);
-  }
+
+    // 4. Route to appropriate output
+    if (ctx->config.on_log) {
+        // A. Use Engine's Logger (Override)
+        ctx->config.on_log(ctx->config.user_data, level, buf.data());
+    } else {
+        // B. Default Fallback (stdout/stderr)
+        // Only print if we don't have a custom logger
+        FILE* out = (level >= DMCP_LOG_ERROR) ? stderr : stdout;
+        fprintf(out, "[DMCP] %s\n", buf.data());
+    }
 }
 
-}  // namespace
+} // namespace
+
+// Helper Macros for internal use within libdmcp
+#define LOG_INFO(ctx, ...)  Log(ctx, DMCP_LOG_INFO, __VA_ARGS__)
+#define LOG_WARN(ctx, ...)  Log(ctx, DMCP_LOG_WARN, __VA_ARGS__)
+#define LOG_ERROR(ctx, ...) Log(ctx, DMCP_LOG_ERROR, __VA_ARGS__)
+#define LOG_DEBUG(ctx, ...) Log(ctx, DMCP_LOG_DEBUG, __VA_ARGS__)
 
 dmcp_config_t dmcp_default_config(void) {
   dmcp_config_t cfg{};

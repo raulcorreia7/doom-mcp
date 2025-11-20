@@ -46,17 +46,9 @@ struct Snapshot {
   std::vector<Enemy> enemies;
 
   void Clear() {
-    player.hp   = 0.f;
-    player.armor    = 0.f;
-    player.position = {};
-    player.ammo     = 0;
-    player.inventory.clear();
+    player = PlayerState{};
+    level = LevelState{};
 
-    level.tic = 0;
-    level.name.fill(0);
-    level.kill_count   = 0;
-    level.item_count   = 0;
-    level.secret_count = 0;
 
     enemies.clear();
   }

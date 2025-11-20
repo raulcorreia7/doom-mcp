@@ -2,21 +2,22 @@
 #include <memory>
 #include <vector>
 
+#include "bridge.h"
 #include "dmcp/common.hpp"
 #include "dmcp/dmcp.h"
 #include "dmcp/schema.hpp"
 
 #if defined(DMCP_WITH_UZDOOM)
-#include "../../../src/common/rendering/v_video.h"
-#include "../../../src/g_levellocals.h"
-#include "d_player.h"
-#include "doomstat.h"
-#include "dthinker.h"
-#include "gamedata/a_weapons.h"
-#include "gamedata/gametype.h"
-#include "gamedata/gi.h"
-#include "name.h"
-#include "p_local.h"
+#include "src/common/rendering/v_video.h"
+#include "src/g_levellocals.h"
+#include "src/d_player.h"
+#include "src/doomstat.h"
+#include "src/dthinker.h"
+#include "src/gamedata/a_weapons.h"
+#include "src/gamedata/gametype.h"
+#include "src/gamedata/gi.h"
+#include "src/name.h"
+#include "src/p_local.h"
 #endif
 
 namespace {
@@ -231,7 +232,7 @@ static void PopulateSnapshot(dmcp::Snapshot& snapshot) {
   BindInventory(snapshot);
 }
 
-static void AdapterTick(void* /*user_data*/, void* snapshot_ptr) {
+static void BridgeTicket(void* /*user_data*/, void* snapshot_ptr) {
   if (!snapshot_ptr) return;
   auto* snapshot = static_cast<dmcp::Snapshot*>(snapshot_ptr);
   PopulateSnapshot(*snapshot);
@@ -239,27 +240,27 @@ static void AdapterTick(void* /*user_data*/, void* snapshot_ptr) {
 
 }  // namespace
 
-extern "C" void dmcp_adapter_setup() {
+extern "C" void dmcp_bridge_setup() {
   if (g_ctx) {
     return;  // Already initialized
   }
 
   // Initialize the library context
   dmcp_config_t cfg = dmcp_default_config();
-  cfg.on_tick       = AdapterTick;
+  cfg.on_tick       = BridgeTicket;
   cfg.user_data     = nullptr;
 
   g_ctx = dmcp_create(&cfg);
 }
 
-extern "C" void dmcp_adapter_shutdown() {
+extern "C" void dmcp_bridge_shutdown() {
   if (g_ctx) {
     dmcp_destroy(g_ctx);
     g_ctx = nullptr;
   }
 }
 
-extern "C" void dmcp_adapter_update() {
+extern "C" void dmcp_bridge_update() {
   if (g_ctx) {
     dmcp_update(g_ctx);
   }

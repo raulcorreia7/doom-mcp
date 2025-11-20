@@ -19,6 +19,7 @@ typedef enum {
   DMCP_LOG_ERROR = 3
 } dmcp_log_level_t;
 
+
 // Return codes
 typedef enum {
   DMCP_OK                    = 0,
