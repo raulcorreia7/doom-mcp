@@ -9,16 +9,16 @@
 #include "dmcp/dmcp.h"
 
 #if defined(DMCP_WITH_UZDOOM)
-#include "src/common/rendering/v_video.h"
-#include "src/d_player.h"
-#include "src/doomstat.h"
-#include "src/dthinker.h"
-#include "src/g_levellocals.h"
-#include "src/gamedata/a_weapons.h"
-#include "src/gamedata/gametype.h"
-#include "src/gamedata/gi.h"
-#include "src/name.h"
-#include "src/p_local.h"
+#include "common/rendering/v_video.h"
+#include "d_player.h"
+#include "doomstat.h"
+#include "dthinker.h"
+#include "g_levellocals.h"
+#include "gamedata/a_weapons.h"
+#include "gamedata/gametype.h"
+#include "gamedata/gi.h"
+#include "name.h"
+#include "p_local.h"
 #endif
 
 namespace {
