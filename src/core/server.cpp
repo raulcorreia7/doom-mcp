@@ -1,13 +1,12 @@
 #include "server.hpp"
 
-#include <readerwriterqueue.h>
-
-// Include uWebSockets implementation headers here, not in the header file
 #include <App.h>
 #include <Loop.h>
+#include <readerwriterqueue.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <deque>
@@ -77,12 +76,12 @@ json snapshot_to_json(const Snapshot& snapshot) {
   payload["player"]        = std::move(player_json);
 
   json level_json = {
-      {	 "tic", snapshot.level.tic},
-      {	  "id", trim_array(snapshot.level.id)},
+      {	 "tic",	      snapshot.level.tic},
+      {	  "id",   trim_array(snapshot.level.id)},
       {	"name", trim_array(snapshot.level.name)},
-      {  "kill_count", snapshot.level.kill_count},
-      {  "item_count", snapshot.level.item_count},
-      {"secret_count", snapshot.level.secret_count},
+      {  "kill_count",       snapshot.level.kill_count},
+      {  "item_count",       snapshot.level.item_count},
+      {"secret_count",     snapshot.level.secret_count},
   };
   payload["level"] = std::move(level_json);
 
@@ -207,8 +206,8 @@ void ServerRunner::threadMain(uint16_t port) {
     std::mutex                             snapshot_mutex;
     uint64_t                               last_screenshot_version = 0;
     bool                                   screenshot_enabled      = false;
-  } ctx{queue_, screenshot_queue_, pool_, screenshot_, {},
-        {},     {},                0, screenshot_enabled_};
+  } ctx{queue_, screenshot_queue_,  pool_, screenshot_, {}, {}, {},
+        0,      screenshot_enabled_};
 
   app_       = std::make_unique<uWS::App>();
   auto* loop = uWS::Loop::get();
@@ -221,11 +220,11 @@ void ServerRunner::threadMain(uint16_t port) {
       auto        payload = snapshot_to_json(*snapshot);
       std::string msg     = make_sse_event("state", payload);
       {
-        std::scoped_lock lock(ctx.snapshot_mutex);
-        ctx.snapshot_history.push_back(payload);
-        if (ctx.snapshot_history.size() > kMaxSnapshotHistory) {
-          ctx.snapshot_history.pop_front();
-        }
+	std::scoped_lock lock(ctx.snapshot_mutex);
+	ctx.snapshot_history.push_back(payload);
+	if (ctx.snapshot_history.size() > kMaxSnapshotHistory) {
+	  ctx.snapshot_history.pop_front();
+	}
       }
       std::vector<uWS::HttpResponse<false>*> closed;
       for (auto* sub : ctx.subs) {
@@ -294,138 +293,153 @@ void ServerRunner::threadMain(uint16_t port) {
   auto& app = *app_;
 
   app.post(
-      "/mcp",
-      [&ctx](auto* res, auto* /*req*/) {
-        res->onAborted([]() {});
-        res->onData([res, &ctx, payload = std::string()](
-                        std::string_view chunk, bool last) mutable {
-          // DoS Protection
-          if (payload.size() + chunk.size() > 1024 * 1024) {
-            res->writeStatus("413 Payload Too Large");
-            res->end("payload too large");
-            return;
-          }
+	 "/mcp",
+	 [&ctx](auto* res, auto* /*req*/) {
+	   res->onAborted([]() {});
+	   res->onData([res, &ctx, payload = std::string()](
+			   std::string_view chunk, bool last) mutable {
+	     // DoS Protection
+	     if (payload.size() + chunk.size() > 1024 * 1024) {
+	       res->writeStatus("413 Payload Too Large");
+	       res->end("payload too large");
+	       return;
+	     }
 
-          payload.append(chunk.data(), chunk.size());
-          if (!last) return;
+	     payload.append(chunk.data(), chunk.size());
+	     if (!last) return;
 
-          auto doc = json::parse(payload, nullptr, false);
-          if (doc.is_discarded()) {
-            json capabilities = {{"jsonrpc", "2.0"},
-                                 {"result",
-                                  {{"protocolVersion", "2025-06-18"},
-                                   {"capabilities",
-                                    {{"notifications", true},
-                                     {"tools", {{"listChanged", true}}}}}}}};
-            if (ctx.screenshot_enabled) {
-              capabilities["result"]["capabilities"]["screenshot"] = {
-                  {"mimeType", "image/png"}};
-            }
-            respond_json(res, capabilities);
-            return;
-          }
+	     auto doc = json::parse(payload, nullptr, false);
+	     if (doc.is_discarded()) {
+	       json capabilities = {
+		   {"jsonrpc","2.0"                           },
+		   { "result",
+	            {{"protocolVersion", "2025-06-18"},
+                    {"capabilities",
+                    {{"notifications", true},
+                    {"tools", {{"listChanged", true}}}}}}}
+               };
+	       if (ctx.screenshot_enabled) {
+		 capabilities["result"]["capabilities"]["screenshot"] = {
+		     {"mimeType", "image/png"}
+                 };
+	       }
+	       respond_json(res, capabilities);
+	       return;
+	     }
 
-          std::string method = doc.value("method", std::string());
+	     std::string method = doc.value("method", std::string());
 
-          if (method == "initialize") {
-            json capabilities = {
-                {"jsonrpc", "2.0"},
-                {"result",
-                 {{"protocolVersion", "2025-06-18"},
-                  {"capabilities",
-                   {{"notifications", true},
+	     if (method == "initialize") {
+	       json capabilities = {
+		   {"jsonrpc",   "2.0"                            },
+		   { "result",
+	            {{"protocolVersion", "2025-06-18"},
+                    {"capabilities",
+                    {{"notifications", true},
                     {"tools", {{"listChanged", true}}}}},
-                  {"serverInfo",
-                   {{"name", "doom-mcp"}, {"version", "1.0.0"}}}}}};
-            if (ctx.screenshot_enabled) {
-              capabilities["result"]["capabilities"]["screenshot"] = {
-                  {"mimeType", "image/png"}};
-            }
-            if (doc.contains("id")) {
-              capabilities["id"] = doc["id"];
-            }
-            respond_json(res, capabilities);
-          } else if (method == "tools/list") {
-            json tools = {
-                {"jsonrpc", "2.0"},
-                {"id", doc.value("id", json())},
-                {"result",
-                 {{"tools",
-                   json::array(
-                       {json{{"name", "get_game_state"},
-                             {"description",
-                              "Get current game state including player position, "
-                              "health, enemies"},
-                             {"inputSchema",
-                              {{"type", "object"},
-                               {"properties", json::object()}}}},
-                        json{{"name", "get_screenshot"},
-                             {"description",
-                              "Capture a screenshot of the current game state"},
-                             {"inputSchema",
-                              {{"type", "object"},
-                               {"properties", json::object()}}}}})}}}};
-            if (!ctx.screenshot_enabled) {
-              tools["result"]["tools"].erase(1);
-            }
-            respond_json(res, tools);
-          } else if (method == "notifications/initialized") {
-            res->writeStatus("202 Accepted");
-            res->end();
-          } else if (method == "tools/call") {
-            const auto name = doc.value("params", json::object())
-                                  .value("name", std::string());
-            if (name == "get_game_state") {
-              json game_state = {{"jsonrpc", "2.0"},
-                                 {"id", doc.value("id", json())}};
-              json latest = json::object();
-              {
-                std::scoped_lock lock(ctx.snapshot_mutex);
-                if (!ctx.snapshot_history.empty()) {
-                  latest = ctx.snapshot_history.back();
-                }
-              }
-              if (!latest.empty()) {
-                game_state["result"] = {
-                    {"content",
-                     {{{"type", "text"}, {"text", latest.dump()}}}}};
-              } else {
-                game_state["result"] = {
-                    {"content", {{{"type", "text"}, {"text", "{}"}}}}};
-              }
-              respond_json(res, game_state);
-            } else if (name == "get_screenshot" && ctx.screenshot_enabled) {
-              ctx.screenshot->pending_requests.fetch_add(
-                  1, std::memory_order_relaxed);
-              json reply = {{"jsonrpc", "2.0"},
-                            {"id", doc.value("id", json())},
-                            {"result",
-                             {{"content",
-                               {{{"type", "text"},
-                                 {"text", "Screenshot capture queued"}}}}}}};
-              respond_json(res, reply);
-            } else if (name == "get_screenshot") {
-              res->writeStatus("400 Bad Request");
-              res->end("screenshot disabled");
-            } else {
-              res->writeStatus("404 Not Found");
-              res->end("unknown tool");
-            }
-          } else {
-            if (doc.contains("id")) {
-              json error = {
-                  {"jsonrpc", "2.0"},
-                  {"id", doc["id"]},
-                  {"error",
-                   {{"code", -32601}, {"message", "Method not found"}}}};
-              respond_json(res, error);
-            } else {
-              res->writeStatus("202 Accepted");
-              res->end();
-            }
-          }
-        });
-      })
+                    {"serverInfo",
+                    {{"name", "doom-mcp"}, {"version", "1.0.0"}}}}}
+               };
+	       if (ctx.screenshot_enabled) {
+		 capabilities["result"]["capabilities"]["screenshot"] = {
+		     {"mimeType", "image/png"}
+                 };
+	       }
+	       if (doc.contains("id")) {
+		 capabilities["id"] = doc["id"];
+	       }
+	       respond_json(res, capabilities);
+	     } else if (method == "tools/list") {
+	       json tools = {
+		   {"jsonrpc", "2.0"},
+		   {"id", doc.value("id", json())},
+		   {"result",
+	            {{"tools",
+	              json::array(
+			  {json{{"name", "get_game_state"},
+	                        {"description",
+	                         "Get current game state including player "
+	                         "position, "
+	                         "health, enemies"},
+	                        {"inputSchema",
+	                         {{"type", "object"},
+	                          {"properties", json::object()}}}},
+	                   json{{"name", "get_screenshot"},
+	                        {"description",
+	                         "Capture a screenshot of the current game "
+	                         "state"},
+	                        {"inputSchema",
+	                         {{"type", "object"},
+	                          {"properties", json::object()}}}}})}}}
+               };
+	       if (!ctx.screenshot_enabled) {
+		 tools["result"]["tools"].erase(1);
+	       }
+	       respond_json(res, tools);
+	     } else if (method == "notifications/initialized") {
+	       res->writeStatus("202 Accepted");
+	       res->end();
+	     } else if (method == "tools/call") {
+	       const auto name = doc.value("params", json::object())
+	                             .value("name", std::string());
+	       if (name == "get_game_state") {
+		 json game_state = {
+		     {"jsonrpc", "2.0"},
+                     {"id", doc.value("id", json())}
+                 };
+		 json latest = json::object();
+		 {
+		   std::scoped_lock lock(ctx.snapshot_mutex);
+		   if (!ctx.snapshot_history.empty()) {
+		     latest = ctx.snapshot_history.back();
+		   }
+		 }
+		 if (!latest.empty()) {
+		   game_state["result"] = {
+		       {"content",
+	                {{{"type", "text"}, {"text", latest.dump()}}}}
+                   };
+		 } else {
+		   game_state["result"] = {
+		       {"content", {{{"type", "text"}, {"text", "{}"}}}}
+                   };
+		 }
+		 respond_json(res, game_state);
+	       } else if (name == "get_screenshot" && ctx.screenshot_enabled) {
+		 ctx.screenshot->pending_requests.fetch_add(
+		     1, std::memory_order_relaxed);
+		 json reply = {
+		     {"jsonrpc", "2.0"},
+		     {"id", doc.value("id", json())},
+		     {"result",
+	              {{"content",
+	                {{{"type", "text"},
+	                  {"text", "Screenshot capture queued"}}}}}}
+                 };
+		 respond_json(res, reply);
+	       } else if (name == "get_screenshot") {
+		 res->writeStatus("400 Bad Request");
+		 res->end("screenshot disabled");
+	       } else {
+		 res->writeStatus("404 Not Found");
+		 res->end("unknown tool");
+	       }
+	     } else {
+	       if (doc.contains("id")) {
+		 json error = {
+		     {"jsonrpc",    "2.0"                                },
+		     {     "id",				doc["id"]},
+		     {  "error",
+	              {{"code", -32601}, {"message", "Method not found"}}}
+                 };
+		 respond_json(res, error);
+	       } else {
+		 res->writeStatus("202 Accepted");
+		 res->end();
+	       }
+	     }
+	   });
+	 })
       .post("/tools/call",
             [&ctx](auto* res, auto* /*req*/) {
 	      res->onAborted([]() {});
@@ -519,11 +533,12 @@ void ServerRunner::threadMain(uint16_t port) {
                                   copy.size()));
       });
 
-  app.listen(port, [this](auto* token) {
+  app.listen(port, [this, port](auto* token) {
     if (token) {
       listen_socket_.store(token, std::memory_order_release);
       running_.store(true, std::memory_order_release);
     } else {
+      std::fprintf(stderr, "[DMCP] listen failed on port %u\n", port);
       stopping_.store(true, std::memory_order_release);
     }
     start_cv_.notify_one();

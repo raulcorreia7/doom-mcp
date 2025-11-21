@@ -8,7 +8,7 @@ sleep 2
 
 # Function to check if server is up
 check_server() {
-    curl -s http://localhost:9090/mcp > /dev/null
+    curl -s http://localhost:6060/mcp > /dev/null
     return $?
 }
 
@@ -20,11 +20,11 @@ if ! check_server; then
 fi
 
 echo "--- 1. Checking MCP Capabilities ---"
-curl -s -X POST http://localhost:9090/mcp | jq .
+curl -s -X POST http://localhost:6060/mcp | jq .
 
 echo -e "\n--- 2. Consuming Snapshots (SSE) ---"
 # Connect to SSE stream in background, capture output
-curl -N -s http://localhost:9090/sse > sse_stream.txt &
+curl -N -s http://localhost:6060/sse > sse_stream.txt &
 SSE_PID=$!
 
 # Wait for ~3 seconds (at 35Hz, this should be ~100 snapshots)
@@ -43,14 +43,14 @@ if [ "$SNAPSHOT_COUNT" -lt 30 ]; then
 fi
 
 echo -e "\n--- 3. Requesting Screenshot 1 ---"
-curl -s -X POST http://localhost:9090/tools/call \
+curl -s -X POST http://localhost:6060/tools/call \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"params":{"name":"capture_screenshot"}}' | jq .
 
 sleep 1
 
 echo -e "\n--- Fetching Screenshot 1 ---"
-curl -s http://localhost:9090/screenshot/latest.png -o screenshot1.png
+curl -s http://localhost:6060/screenshot/latest.png -o screenshot1.png
 SIZE1=$(stat -c%s screenshot1.png)
 echo "Screenshot 1 size: $SIZE1 bytes"
 
@@ -61,14 +61,14 @@ if [ ! -s screenshot1.png ]; then
 fi
 
 echo -e "\n--- 4. Requesting Screenshot 2 ---"
-curl -s -X POST http://localhost:9090/tools/call \
+curl -s -X POST http://localhost:6060/tools/call \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"params":{"name":"capture_screenshot"}}' | jq .
 
 sleep 1
 
 echo -e "\n--- Fetching Screenshot 2 ---"
-curl -s http://localhost:9090/screenshot/latest.png -o screenshot2.png
+curl -s http://localhost:6060/screenshot/latest.png -o screenshot2.png
 SIZE2=$(stat -c%s screenshot2.png)
 echo "Screenshot 2 size: $SIZE2 bytes"
 

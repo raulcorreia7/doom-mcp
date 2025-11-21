@@ -48,7 +48,7 @@ dmcp_config_t normalize_config(const dmcp_config_t* config) {
   if (config) {
     cfg = *config;
   }
-  if (cfg.port == 0) cfg.port = 9090;
+  if (cfg.port == 0) cfg.port = 6060;
   if (cfg.target_hz == 0) cfg.target_hz = 10;
   if (cfg.snapshot_pool == 0) cfg.snapshot_pool = 16;
   if (cfg.queue_slots == 0) cfg.queue_slots = 4;
@@ -106,11 +106,11 @@ void Log(dmcp_context_t* ctx, dmcp_log_level_t level, const char* fmt, ...) {
 dmcp_config_t dmcp_default_config(void) {
   dmcp_config_t cfg{};
   cfg.struct_size        = sizeof(dmcp_config_t);
-  cfg.port               = 9090;
+  cfg.port               = 6060;
   cfg.target_hz          = 10;
   cfg.snapshot_pool      = 16;
-  cfg.queue_slots        = 4;
-  cfg.enemy_capacity     = 512;
+  cfg.queue_slots        = 10;
+  cfg.enemy_capacity     = 1024;
   cfg.inventory_capacity = 64;
   cfg.screenshot.enable  = true;
   cfg.screenshot.width   = 640;

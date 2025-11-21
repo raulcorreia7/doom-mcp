@@ -100,7 +100,7 @@ int main() {
   game.enemies.push_back({2, -200, 200, 60});
 
   dmcp_config_t config = dmcp_default_config();
-  config.port          = 9090;
+  config.port          = 6060;
   config.target_hz     = 35;  // Doom runs at 35Hz
   config.on_tick       = BindSnapshotCpp;
   config.user_data     = &game;

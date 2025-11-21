@@ -4,8 +4,7 @@ namespace dmcp {
 
 SnapshotPool::SnapshotPool(size_t initial_count, size_t enemy_capacity,
                            size_t inventory_capacity)
-    : enemy_capacity_(enemy_capacity),
-      inventory_capacity_(inventory_capacity) {
+    : enemy_capacity_(enemy_capacity), inventory_capacity_(inventory_capacity) {
   storage_.resize(initial_count);
   freelist_.reserve(initial_count);
   for (auto& snapshot : storage_) {
