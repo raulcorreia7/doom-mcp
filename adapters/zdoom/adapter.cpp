@@ -35,7 +35,7 @@ constexpr size_t kLogBufferSize = 256;
 struct PlayerView {
   player_t*     player{nullptr};
   AActor*       pawn{nullptr};
-  LevelLocals*  level{nullptr};
+  FLevelLocals*  level{nullptr};
   bool          HasPawn() const { return pawn != nullptr; }
   bool          HasLevel() const { return level != nullptr; }
 };
