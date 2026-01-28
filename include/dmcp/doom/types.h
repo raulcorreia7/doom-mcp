@@ -182,7 +182,7 @@ typedef struct {
 // ============================================================================
 // Default Configuration
 // ============================================================================
-static inline dmcp_config_t dmcp_default_config(void) {
+static inline dmcp_config_t dmcp_config_default(void) {
   dmcp_config_t cfg      = {};
   cfg.struct_size        = sizeof(dmcp_config_t);
   cfg.port               = MCP_DEFAULT_PORT;

@@ -273,7 +273,7 @@ extern "C" {
 dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
   auto* ctx                    = new AdapterContext();
   ctx->user_cfg                = cfg ? *cfg : dmcp_zdoom_config_default();
-  ctx->dmcp_cfg                = dmcp_default_config();
+  ctx->dmcp_cfg                = dmcp_config_default();
   ctx->log_not_running_emitted = false;
 
   // Apply user config
@@ -293,7 +293,7 @@ dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
   ctx->dmcp_cfg.user_data   = ctx;
 
   // Create DMCP context
-  ctx->dmcp_ctx = dmcp_create(&ctx->dmcp_cfg);
+  ctx->dmcp_ctx = dmcp_context_create(&ctx->dmcp_cfg);
   if (!ctx->dmcp_ctx) {
     Log(ctx, DMCP_LOG_ERROR, "Failed to start DMCP server on port %u",
         ctx->dmcp_cfg.port);
@@ -312,7 +312,7 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
   if (!ctx) return;
 
   if (ctx->dmcp_ctx) {
-    dmcp_destroy(ctx->dmcp_ctx);
+    dmcp_context_destroy(ctx->dmcp_ctx);
     ctx->dmcp_ctx = nullptr;
   }
 

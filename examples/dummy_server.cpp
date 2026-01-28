@@ -119,7 +119,8 @@ int main() {
   game.enemies.push_back({2, -200, 200, 60});
 
   // Configure DMCP
-  dmcp_config_t config = dmcp_default_config();
+  // OLD: dmcp_config_t config = dmcp_default_config();
+  dmcp_config_t config = dmcp_config_default();
   config.port          = 6060;
   config.target_hz     = 10;
   config.on_snapshot   = SnapshotCallback;
@@ -155,6 +156,26 @@ int main() {
              static_cast<unsigned long>(stats.connected_clients),
              static_cast<unsigned long>(stats.dropped_snapshots));
     }
+
+    // Example: Screenshot handling with new error handling pattern
+    // OLD: if (dmcp_screenshot_requested(ctx)) { dmcp_submit_screenshot(ctx,
+    // &frame); } NEW: Check result.code and result.message for error details
+    //
+    // if (dmcp_screenshot_is_requested(ctx)) {
+    //   uint8_t* pixels = CaptureScreenshot();
+    //   dmcp_screenshot_frame_t frame = {
+    //       .pixels = pixels,
+    //       .width = width,
+    //       .height = height,
+    //       .stride = width * 4  // RGBA = 4 bytes per pixel
+    //   };
+    //
+    //   dmcp_result_t result = dmcp_screenshot_submit(ctx, &frame);
+    //   if (result.code != DMCP_RESULT_CODE_OK) {
+    //     fprintf(stderr, "Screenshot failed: %s\n", result.message);
+    //   }
+    //   free(pixels);  // Safe to free after submit (data is copied)
+    // }
 
     // Maintain ~35Hz
     auto end = std::chrono::steady_clock::now();

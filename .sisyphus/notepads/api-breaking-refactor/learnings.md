@@ -716,3 +716,39 @@ The Migration Guide includes:
 - Error handling pattern documented with all result codes
 - README updated with current API examples (not old deprecated names)
 
+
+## Task 11: Update Examples - Learnings
+
+### Example Documentation Requirements
+- Created comprehensive examples/README.md with:
+  - Migration guide table showing old → new function names
+  - Error handling pattern examples (enum → struct with .code/.message)
+  - Code pattern examples for common operations
+  - Troubleshooting section
+  - Links to main documentation
+
+### Before/After Comments in Examples
+- Added migration comment showing `OLD: dmcp_default_config()` pattern
+- Helps users understand what changed and why
+- Critical for demonstrating migration path
+
+### Error Handling Demonstration
+- Added commented screenshot handling example
+- Shows pattern for checking `result.code` vs `result.message`
+- Demonstrates new struct-based error handling
+
+### Type-Oriented Naming Consistency
+- All functions in example now use type-oriented pattern
+- Pattern: `{namespace}_{type}_{action}` (e.g., `dmcp_context_create`)
+- Makes API more predictable and intuitive
+
+### Build Verification
+- Example compiles and runs successfully
+- All 25 tests pass
+- Server responds to health checks: `curl http://localhost:6060/health`
+
+### Testing Examples
+- Used `timeout` to run server briefly for verification
+- Used `curl` to test health endpoint
+- Confirmed server starts, listens on port 6060, responds correctly
+

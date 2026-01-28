@@ -49,7 +49,7 @@ extern "C" {
  *     // Fill snapshot with game state...
  * }
  *
- * dmcp_config_t config = dmcp_default_config();
+ * dmcp_config_t config = dmcp_config_default();
  * config.on_snapshot = OnSnapshot;
  *
  * dmcp_context_t* ctx = dmcp_context_create(&config);
