@@ -9,7 +9,7 @@ extern "C" {
 
 // ============================================================================
 // ZDoom Adapter
-// 
+//
 // This adapter provides zero-configuration integration with ZDoom/GZDoom.
 // It automatically extracts game state from the ZDoom engine.
 //
@@ -44,15 +44,15 @@ typedef struct {
 
 } dmcp_zdoom_config_t;
 
-static inline dmcp_zdoom_config_t dmcp_zdoom_default_config(void) {
+static inline dmcp_zdoom_config_t dmcp_zdoom_config_default(void) {
   dmcp_zdoom_config_t cfg = {};
-  cfg.struct_size = sizeof(dmcp_zdoom_config_t);
-  cfg.dmcp_config = NULL;
-  cfg.log_fn = NULL;
-  cfg.log_user = NULL;
-  cfg.should_tick_fn = NULL;
-  cfg.should_tick_user = NULL;
-  cfg.port_override = 0;
+  cfg.struct_size         = sizeof(dmcp_zdoom_config_t);
+  cfg.dmcp_config         = NULL;
+  cfg.log_fn              = NULL;
+  cfg.log_user            = NULL;
+  cfg.should_tick_fn      = NULL;
+  cfg.should_tick_user    = NULL;
+  cfg.port_override       = 0;
   return cfg;
 }
 
@@ -86,10 +86,10 @@ void dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx, dmcp_stats_t* out_stats);
 // ============================================================================
 
 // Execute a single command
-bool dmcp_zdoom_execute_command(dmcp_zdoom_t* ctx, const dmcp_command_t* cmd);
+bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx, const dmcp_command_t* cmd);
 
 // Process all pending commands (call from game loop)
-void dmcp_zdoom_process_commands(dmcp_zdoom_t* ctx);
+void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
 
 #ifdef __cplusplus
 }
