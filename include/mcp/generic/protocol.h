@@ -8,6 +8,8 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#include "mcp/generic/constants.h"
+
 // ============================================================================
 // MCP Protocol Version
 // ============================================================================
@@ -51,11 +53,10 @@ typedef void (*mcp_log_callback_t)(void* user_data, int level,
 // response_buffer: buffer to write response JSON (null-terminated)
 // response_size: size of response buffer
 // Returns: true if handled, false if not handled
-typedef bool (*mcp_method_handler_t)(void* user_data, 
-                                     const char* method,
+typedef bool (*mcp_method_handler_t)(void* user_data, const char* method,
                                      const char* request_json,
-                                     char* response_buffer,
-                                     size_t response_size);
+                                     char*       response_buffer,
+                                     size_t      response_size);
 
 // ============================================================================
 // Server Configuration
@@ -65,7 +66,7 @@ typedef struct {
 
   // Network
   uint16_t port;
-  
+
   // Rate limiting
   uint32_t max_requests_per_second;
   size_t   max_payload_size;
@@ -91,13 +92,13 @@ typedef struct {
 // Default Configuration
 // ============================================================================
 static inline mcp_server_config_t mcp_default_config(void) {
-  mcp_server_config_t cfg = {};
-  cfg.struct_size         = sizeof(mcp_server_config_t);
-  cfg.port                = 6060;
+  mcp_server_config_t cfg     = {};
+  cfg.struct_size             = sizeof(mcp_server_config_t);
+  cfg.port                    = MCP_DEFAULT_PORT;
   cfg.max_requests_per_second = 100;
-  cfg.max_payload_size    = 1024 * 1024;  // 1MB
-  cfg.on_log              = NULL;
-  cfg.log_user_data       = NULL;
+  cfg.max_payload_size        = MCP_MAX_PAYLOAD_SIZE;
+  cfg.on_log                  = NULL;
+  cfg.log_user_data           = NULL;
   return cfg;
 }
 
