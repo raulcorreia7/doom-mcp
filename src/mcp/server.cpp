@@ -294,6 +294,30 @@ mcp_result_t mcp_server_method_register(mcp_server_t*        server_handle,
   return MCP_OK;
 }
 
+mcp_result_t mcp_server_methods_register(
+    mcp_server_t* server_handle, const mcp_method_registration_t* methods,
+    size_t count) {
+  if (!server_handle || (count > 0 && !methods)) {
+    return MCP_ERROR_INVALID_ARGS;
+  }
+
+  auto* server = reinterpret_cast<mcp::Server*>(server_handle);
+
+  std::lock_guard<std::mutex> lock(server->methods_mutex);
+
+  server->methods.reserve(server->methods.size() + count);
+
+  for (size_t i = 0; i < count; ++i) {
+    if (!methods[i].method || !methods[i].handler) {
+      return MCP_ERROR_INVALID_ARGS;
+    }
+    server->methods[methods[i].method] = {methods[i].handler,
+                                          methods[i].user_data};
+  }
+
+  return MCP_OK;
+}
+
 void mcp_server_method_unregister(mcp_server_t* server_handle,
                                   const char*   method) {
   if (!server_handle || !method) return;

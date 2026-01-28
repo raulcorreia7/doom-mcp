@@ -3,9 +3,18 @@ cmake_minimum_required(VERSION 3.25)
 # ============================================================================
 # Test Executable
 # ============================================================================
-add_executable(dmcp_tests
+set(TEST_SOURCES
   test_main.cpp
+  test_api.cpp
+  test_doom.cpp
 )
+
+# Add adapter tests only if adapter is being built
+if(DMCP_BUILD_ADAPTER_ZDOOM)
+  list(APPEND TEST_SOURCES test_adapter.cpp)
+endif()
+
+add_executable(dmcp_tests ${TEST_SOURCES})
 
 target_link_libraries(dmcp_tests
   PRIVATE
