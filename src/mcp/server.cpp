@@ -279,7 +279,7 @@ bool mcp_server_is_running(const mcp_server_t* server_handle) {
   return server->running.load();
 }
 
-mcp_result_t mcp_server_register_method(mcp_server_t*        server_handle,
+mcp_result_t mcp_server_method_register(mcp_server_t*        server_handle,
                                         const char*          method,
                                         mcp_method_handler_t handler,
                                         void*                user_data) {
@@ -294,7 +294,7 @@ mcp_result_t mcp_server_register_method(mcp_server_t*        server_handle,
   return MCP_OK;
 }
 
-void mcp_server_unregister_method(mcp_server_t* server_handle,
+void mcp_server_method_unregister(mcp_server_t* server_handle,
                                   const char*   method) {
   if (!server_handle || !method) return;
 
@@ -303,8 +303,9 @@ void mcp_server_unregister_method(mcp_server_t* server_handle,
   server->methods.erase(method);
 }
 
-void mcp_server_broadcast(mcp_server_t* server_handle, const char* event_type,
-                          const char* json_payload) {
+void mcp_server_event_broadcast(mcp_server_t* server_handle,
+                                const char*   event_type,
+                                const char*   json_payload) {
   if (!server_handle || !event_type || !json_payload) return;
 
   auto* server = reinterpret_cast<mcp::Server*>(server_handle);
@@ -321,13 +322,13 @@ void mcp_server_broadcast(mcp_server_t* server_handle, const char* event_type,
   server->bytes_sent += msg.size();
 }
 
-bool mcp_server_has_clients(const mcp_server_t* server_handle) {
-  if (!server_handle) return false;
+uint64_t mcp_server_clients_count(const mcp_server_t* server_handle) {
+  if (!server_handle) return 0;
   auto* server = reinterpret_cast<const mcp::Server*>(server_handle);
-  return server->connected_clients.load() > 0;
+  return server->connected_clients.load();
 }
 
-void mcp_server_get_stats(const mcp_server_t* server_handle,
+void mcp_server_stats_get(const mcp_server_t* server_handle,
                           mcp_server_stats_t* stats) {
   if (!server_handle || !stats) return;
 

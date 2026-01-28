@@ -414,9 +414,9 @@ dmcp_context_t* dmcp_create(const dmcp_config_t* config) {
   }
 
   // Register method handlers
-  mcp_server_register_method(ctx->server, "tools/list", dmcp::handle_tools_list,
+  mcp_server_method_register(ctx->server, "tools/list", dmcp::handle_tools_list,
                              ctx.get());
-  mcp_server_register_method(ctx->server, "tools/call", dmcp::handle_tools_call,
+  mcp_server_method_register(ctx->server, "tools/call", dmcp::handle_tools_call,
                              ctx.get());
 
   return reinterpret_cast<dmcp_context_t*>(ctx.release());
@@ -472,7 +472,7 @@ void dmcp_tick(dmcp_context_t* ctx_handle) {
   // Serialize and broadcast
   const std::string json = dmcp::snapshot_to_json(*snapshot);
   if (!json.empty()) {
-    mcp_server_broadcast(ctx->server, "state", json.c_str());
+    mcp_server_event_broadcast(ctx->server, "state", json.c_str());
   }
 
   // Release snapshot back to pool
@@ -522,7 +522,7 @@ void dmcp_get_stats(const dmcp_context_t* ctx_handle, dmcp_stats_t* stats) {
   stats->dropped_screenshots = ctx->dropped_screenshots.load();
 
   mcp_server_stats_t server_stats{};
-  mcp_server_get_stats(ctx->server, &server_stats);
+  mcp_server_stats_get(ctx->server, &server_stats);
   stats->connected_clients = server_stats.connected_clients;
 }
 
