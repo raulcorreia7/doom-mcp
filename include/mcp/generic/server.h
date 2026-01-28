@@ -34,8 +34,20 @@ mcp_result_t mcp_server_method_register(mcp_server_t*        server,
                                         const char*          method,
                                         mcp_method_handler_t handler,
                                         void*                user_data);
+
 // Unregister a method handler
 void mcp_server_method_unregister(mcp_server_t* server, const char* method);
+
+// Register multiple methods atomically with a single mutex lock
+typedef struct {
+  const char*          method;
+  mcp_method_handler_t handler;
+  void*                user_data;
+} mcp_method_registration_t;
+
+mcp_result_t mcp_server_methods_register(
+    mcp_server_t* server, const mcp_method_registration_t* methods,
+    size_t count);
 
 // ============================================================================
 // Event Broadcasting (SSE)
