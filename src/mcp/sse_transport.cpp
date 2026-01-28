@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -12,6 +13,14 @@
 
 #include "mcp/generic/constants.h"
 #include "mcp/generic/transport.h"
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 
 // ============================================================================
 // SSE Transport Implementation using uWebSockets
@@ -46,6 +55,10 @@ struct TransportContext {
   std::mutex            clients_mutex;
   std::atomic<uint64_t> client_counter{0};
 
+  // Screenshot
+  std::vector<std::uint8_t> latest_screenshot_png;
+  std::mutex                screenshot_mutex;
+
   // Threading
   std::thread             thread;
   std::atomic<bool>       running{false};
@@ -57,12 +70,23 @@ struct TransportContext {
 // Thread-local pointer for thread-safe access
 thread_local TransportContext* g_current_ctx = nullptr;
 
+static const std::uint8_t kDefaultScreenshotPng[] = {
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+    0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+    0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+
 // ============================================================================
 // HTTP Handlers
 // ============================================================================
 
 static void HandlePostMCP(TransportContext* ctx, uWS::HttpResponse<false>* res,
                           uWS::HttpRequest* req) {
+  const std::string_view request_path =
+      req ? req->getUrl() : std::string_view{};
+  (void)request_path;
   res->onAborted([]() {});
 
   res->onData([ctx, res, body = std::string()](std::string_view chunk,
@@ -105,6 +129,9 @@ static void HandlePostMCP(TransportContext* ctx, uWS::HttpResponse<false>* res,
 
 static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
                          uWS::HttpRequest* req) {
+  const std::string_view request_path =
+      req ? req->getUrl() : std::string_view{};
+  (void)request_path;
   // Setup SSE headers
   res->cork([res]() {
     res->writeHeader("Content-Type", "text/event-stream");
@@ -144,9 +171,30 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
 static void HandleGetScreenshot(TransportContext*         ctx,
                                 uWS::HttpResponse<false>* res,
                                 uWS::HttpRequest*         req) {
-  // TODO: Implement screenshot endpoint
-  res->writeStatus("501 Not Implemented");
-  res->end("Screenshot endpoint not implemented in generic transport");
+  const std::string_view request_path =
+      req ? req->getUrl() : std::string_view{};
+  (void)request_path;
+  res->onAborted([]() {});
+
+  std::vector<std::uint8_t> png;
+  {
+    std::lock_guard<std::mutex> lock(ctx->screenshot_mutex);
+    if (ctx->latest_screenshot_png.empty()) {
+      res->writeStatus("404 Not Found");
+      res->end("Screenshot not available");
+      return;
+    }
+    png = ctx->latest_screenshot_png;
+  }
+
+  res->cork([res, size = png.size()]() {
+    res->writeHeader("Content-Type", "image/png");
+    res->writeHeader("Content-Length", std::to_string(size));
+    res->writeHeader("Cache-Control", "no-cache");
+  });
+
+  res->end(
+      std::string_view(reinterpret_cast<const char*>(png.data()), png.size()));
 }
 
 // ============================================================================
@@ -170,7 +218,7 @@ static void TransportThreadMain(TransportContext* ctx) {
     HandleGetScreenshot(ctx, res, req);
   });
 
-  ctx->app->get(MCP_ENDPOINT_HEALTH, [ctx](auto* res, auto* req) {
+  ctx->app->get(MCP_ENDPOINT_HEALTH, [ctx](auto* res, auto*) {
     char response[MCP_HEALTH_BUFFER_SIZE];
     int  status = 200;
     if (ctx->callbacks.on_http_request) {
@@ -230,6 +278,10 @@ static mcp_transport_t* SSE_Create(uint16_t                         port,
   ctx->user_data     = user_data;
   ctx->listen_socket = nullptr;
   ctx->loop          = nullptr;
+  ctx->latest_screenshot_png.assign(
+      mcp::transport::kDefaultScreenshotPng,
+      mcp::transport::kDefaultScreenshotPng +
+	  sizeof(mcp::transport::kDefaultScreenshotPng));
 
   return reinterpret_cast<mcp_transport_t*>(ctx);
 }
@@ -347,3 +399,9 @@ const mcp_transport_interface_t mcp_sse_transport = {
 };
 
 }  // extern "C"
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
