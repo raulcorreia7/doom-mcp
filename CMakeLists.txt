@@ -121,10 +121,21 @@ if(uWebSockets_ADDED)
   add_library(uWebSockets INTERFACE)
   target_include_directories(uWebSockets INTERFACE ${uWebSockets_SOURCE_DIR}/src)
   target_link_libraries(uWebSockets INTERFACE uSockets ${ZLIB_LIBRARIES})
-  
+
   if(NOT MSVC)
     target_compile_options(uWebSockets INTERFACE -Wno-deprecated-declarations)
   endif()
+endif()
+
+# Catch2 - Testing framework (only if tests are enabled)
+if(DMCP_BUILD_TESTS)
+  CPMAddPackage(
+    NAME Catch2
+    GITHUB_REPOSITORY catchorg/Catch2
+    VERSION 3.7.1
+    GIT_TAG v3.7.1
+    OPTIONS "CATCH_INSTALL_DOCS OFF" "CATCH_INSTALL_EXTRAS OFF"
+  )
 endif()
 
 # ============================================================================
@@ -250,10 +261,18 @@ endif()
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(dummy_server examples/dummy_server.cpp)
   target_link_libraries(dummy_server PRIVATE dmcp::core)
-  
+
   if(NOT MSVC)
     target_compile_options(dummy_server PRIVATE -Wall -Wextra)
   endif()
+endif()
+
+# ============================================================================
+# Tests
+# ============================================================================
+if(DMCP_BUILD_TESTS AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
 
 # ============================================================================
