@@ -1,21 +1,29 @@
 cmake_minimum_required(VERSION 3.25)
-project(dmcp LANGUAGES C CXX VERSION 0.2.0)
+project(dmcp LANGUAGES C CXX VERSION 0.4.0)
 
 # ============================================================================
 # Options
 # ============================================================================
-option(DMCP_BUILD_EXAMPLES "Build example server" ON)
+option(DMCP_BUILD_TESTS "Build tests" OFF)
+option(DMCP_BUILD_EXAMPLES "Build example servers" ON)
+option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
-option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
+
+# JSON library selection
+set(DMCP_JSON_LIBRARY "yyjson" CACHE STRING "JSON library (yyjson or nlohmann)")
+set_property(CACHE DMCP_JSON_LIBRARY PROPERTY STRINGS yyjson nlohmann)
 
 # ============================================================================
 # Build Configuration
 # ============================================================================
-# Enable compile_commands.json for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Use ccache if available and enabled
+# Use ccache if available
 if(DMCP_USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
   if(CCACHE_PROGRAM)
@@ -27,60 +35,67 @@ endif()
 # ============================================================================
 # CPM Package Manager
 # ============================================================================
-# Set CPM cache directory BEFORE including CPM
-set(CPM_SOURCE_CACHE "${CMAKE_SOURCE_DIR}/.cache" CACHE PATH "Directory to download CPM dependencies")
-set(CPM_USE_LOCAL_PACKAGES OFF CACHE BOOL "Use local packages if available")
+set(CPM_SOURCE_CACHE "${CMAKE_SOURCE_DIR}/.cache" CACHE PATH "CPM cache directory")
 
-# Download CPM.cmake only if not already cached
 set(CPM_DOWNLOAD_VERSION 0.42.0)
-
 if(CPM_SOURCE_CACHE)
   set(CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
-elseif(DEFINED ENV{CPM_SOURCE_CACHE})
-  set(CPM_DOWNLOAD_LOCATION "$ENV{CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 else()
-  set(CPM_DOWNLOAD_LOCATION "${CMAKE_SOURCE_DIR}/.cache/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
+  set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 endif()
 
-# Only download if file doesn't exist
 if(NOT EXISTS ${CPM_DOWNLOAD_LOCATION})
-  message(STATUS "Downloading CPM.cmake to ${CPM_DOWNLOAD_LOCATION}")
   file(DOWNLOAD
     https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
     ${CPM_DOWNLOAD_LOCATION}
   )
 endif()
-
 include(${CPM_DOWNLOAD_LOCATION})
 
 # ============================================================================
 # Dependencies
 # ============================================================================
 
-# --- nlohmann_json (JSON library) ---
-CPMFindPackage(
-  NAME nlohmann_json
-  GITHUB_REPOSITORY nlohmann/json
-  VERSION 3.12.0
-)
+# JSON Library
+if(DMCP_JSON_LIBRARY STREQUAL "yyjson")
+  message(STATUS "DMCP: Using yyjson (fast)")
+  CPMAddPackage(
+    NAME yyjson
+    GITHUB_REPOSITORY ibireme/yyjson
+    VERSION 0.10.0
+    GIT_TAG 0.10.0
+    OPTIONS "YYJSON_BUILD_TESTS OFF" "YYJSON_BUILD_MISC OFF"
+  )
+  set(DMCP_JSON_TARGET yyjson)
+  set(DMCP_JSON_DEFINE "DMCP_USE_YYJSON")
+  
+elseif(DMCP_JSON_LIBRARY STREQUAL "nlohmann")
+  message(STATUS "DMCP: Using nlohmann/json (compatibility)")
+  CPMFindPackage(
+    NAME nlohmann_json
+    GITHUB_REPOSITORY nlohmann/json
+    VERSION 3.12.0
+  )
+  set(DMCP_JSON_TARGET nlohmann_json::nlohmann_json)
+  set(DMCP_JSON_DEFINE "DMCP_USE_NLOHMANN")
+else()
+  message(FATAL_ERROR "Invalid DMCP_JSON_LIBRARY: ${DMCP_JSON_LIBRARY}. Use 'yyjson' or 'nlohmann'")
+endif()
 
-# --- uSockets (Low-level socket library) ---
+# uSockets - Low-level networking
 CPMFindPackage(
   NAME uSockets
   GITHUB_REPOSITORY uNetworking/uSockets
   VERSION 0.8.8
-  GIT_SUBMODULES ""  # Don't fetch submodules
+  GIT_SUBMODULES ""
 )
 
 if(uSockets_ADDED)
-  # Use GLOB to get all C source files
   file(GLOB_RECURSE USOCKETS_SOURCES ${uSockets_SOURCE_DIR}/src/*.c)
-  
   add_library(uSockets STATIC ${USOCKETS_SOURCES})
   target_include_directories(uSockets PUBLIC ${uSockets_SOURCE_DIR}/src)
   target_compile_definitions(uSockets PRIVATE LIBUS_NO_SSL)
   
-  # Platform-specific libraries
   if(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)
     target_link_libraries(uSockets PUBLIC Threads::Threads)
@@ -88,140 +103,183 @@ if(uSockets_ADDED)
     target_link_libraries(uSockets PUBLIC ws2_32)
   endif()
   
-  # Suppress warnings from third-party code
   if(NOT MSVC)
     target_compile_options(uSockets PRIVATE -w)
   endif()
 endif()
 
-# --- uWebSockets (WebSocket/HTTP server, header-only) ---
+# uWebSockets - HTTP/WebSocket server (header-only)
 CPMFindPackage(
   NAME uWebSockets
   GITHUB_REPOSITORY uNetworking/uWebSockets
   VERSION 20.74.0
-  GIT_SUBMODULES ""  # Don't fetch submodules
+  GIT_SUBMODULES ""
 )
 
 if(uWebSockets_ADDED)
-  # uWebSockets needs zlib for compression
   find_package(ZLIB REQUIRED)
-  
-  # Create uWebSockets as an INTERFACE library (header-only)
   add_library(uWebSockets INTERFACE)
   target_include_directories(uWebSockets INTERFACE ${uWebSockets_SOURCE_DIR}/src)
   target_link_libraries(uWebSockets INTERFACE uSockets ${ZLIB_LIBRARIES})
   
-  # Suppress deprecation warnings from uWebSockets
   if(NOT MSVC)
     target_compile_options(uWebSockets INTERFACE -Wno-deprecated-declarations)
   endif()
 endif()
 
-# --- readerwriterqueue (Lock-free SPSC queue) ---
-CPMFindPackage(
-  NAME readerwriterqueue
-  GITHUB_REPOSITORY cameron314/readerwriterqueue
-  VERSION 1.0.7
-)
-
-# --- stb (Image encoding/decoding, header-only) ---
-# Note: stb doesn't use versioned releases, master branch is the standard practice
-CPMFindPackage(
-  NAME stb
-  GITHUB_REPOSITORY nothings/stb
-  GIT_TAG master
-  DOWNLOAD_ONLY YES
-)
-
-if(stb_ADDED)
-  add_library(Stb INTERFACE)
-  target_include_directories(Stb INTERFACE ${stb_SOURCE_DIR})
-  add_library(Stb::Stb ALIAS Stb)
-endif()
-
 # ============================================================================
-# Core Library Target
+# Generic MCP Layer (mcp::generic)
 # ============================================================================
-add_library(dmcp STATIC
-  src/dmcp.cpp
-  src/core/pool.cpp
-  src/core/png.cpp
-  src/core/server.cpp
+set(MCP_SOURCES
+  src/mcp/server.cpp
+  src/mcp/sse_transport.cpp
+  src/mcp/json/${DMCP_JSON_LIBRARY}.cpp
 )
-add_library(dmcp::dmcp ALIAS dmcp)
 
-# --- Compiler Settings ---
-target_compile_features(dmcp PUBLIC cxx_std_17)
-set_target_properties(dmcp PROPERTIES
+add_library(mcp_generic STATIC ${MCP_SOURCES})
+add_library(mcp::generic ALIAS mcp_generic)
+
+target_include_directories(mcp_generic
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(mcp_generic
+  PUBLIC
+    ${DMCP_JSON_TARGET}
+    uWebSockets
+)
+
+target_compile_definitions(mcp_generic
+  PUBLIC
+    ${DMCP_JSON_DEFINE}
+    MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+)
+
+set_target_properties(mcp_generic PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
 )
 
-if(MSVC)
-  target_compile_options(dmcp PRIVATE /W4 /permissive-)
-else()
-  target_compile_options(dmcp PRIVATE 
-    -Wall -Wextra -Wpedantic 
+if(NOT MSVC)
+  target_compile_options(mcp_generic PRIVATE
+    -Wall -Wextra -Wpedantic
     -Wconversion -Wshadow
-    -Wunused -Wcast-align
+    -Wunused
   )
 endif()
 
-# Sanitizers (optional)
-if(DMCP_ENABLE_SANITIZERS AND NOT MSVC)
-  target_compile_options(dmcp PRIVATE -fsanitize=address,undefined)
-  target_link_options(dmcp PRIVATE -fsanitize=address,undefined)
+# ============================================================================
+# Doom MCP Layer (dmcp::core)
+# ============================================================================
+add_library(dmcp_core STATIC
+  src/doom/context.cpp
+  src/doom/commands.cpp
+)
+add_library(dmcp::core ALIAS dmcp_core)
+
+target_include_directories(dmcp_core
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(dmcp_core
+  PUBLIC
+    mcp::generic
+)
+
+target_compile_definitions(dmcp_core
+  PUBLIC
+    DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+)
+
+set_target_properties(dmcp_core PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
+
+if(NOT MSVC)
+  target_compile_options(dmcp_core PRIVATE
+    -Wall -Wextra -Wpedantic
+  )
 endif()
 
-# --- Include Directories ---
-target_include_directories(dmcp PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-target_include_directories(dmcp PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  # uWebSockets and uSockets headers are provided via uWebSockets INTERFACE library
-)
-
-# --- Linking ---
-# All dependencies are PRIVATE because the public C API (dmcp.h) doesn't expose any C++ types
-target_link_libraries(dmcp PRIVATE
-  nlohmann_json::nlohmann_json
-  uWebSockets  # Transitively links uSockets and ZLIB
-  readerwriterqueue
-  Stb::Stb
-)
-
 # ============================================================================
-# ZDoom Adapter (optional)
+# ZDoom Adapter (dmcp::zdoom)
 # ============================================================================
 if(DMCP_BUILD_ADAPTER_ZDOOM)
-  add_library(dmcp_adapter_zdoom STATIC adapters/zdoom/adapter.cpp)
-  add_library(dmcp::zdoom_adapter ALIAS dmcp_adapter_zdoom)
-  target_link_libraries(dmcp_adapter_zdoom PUBLIC dmcp)
-  target_include_directories(dmcp_adapter_zdoom
+  add_library(dmcp_zdoom STATIC
+    adapters/zdoom/adapter.cpp
+    adapters/zdoom/commands.cpp
+  )
+  add_library(dmcp::zdoom ALIAS dmcp_zdoom)
+  
+  target_include_directories(dmcp_zdoom
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom>
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE
       ${DMCP_ZDOOM_INCLUDE_DIRS}
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-      ${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom
   )
+  
+  target_link_libraries(dmcp_zdoom
+    PUBLIC
+      dmcp::core
+  )
+  
+  if(NOT MSVC)
+    target_compile_options(dmcp_zdoom PRIVATE -w)
+  endif()
 endif()
-
 
 # ============================================================================
 # Examples
 # ============================================================================
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(dummy_server examples/dummy_server.cpp)
-  target_link_libraries(dummy_server PRIVATE dmcp::dmcp)
+  target_link_libraries(dummy_server PRIVATE dmcp::core)
   
-  # Example needs access to internal headers (schema.hpp) for snapshot population
-  target_include_directories(dummy_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  if(NOT MSVC)
+    target_compile_options(dummy_server PRIVATE -Wall -Wextra)
+  endif()
+endif()
+
+# ============================================================================
+# Sanitizers
+# ============================================================================
+if(DMCP_ENABLE_SANITIZERS AND NOT MSVC)
+  foreach(target mcp_generic dmcp_core)
+    target_compile_options(${target} PRIVATE -fsanitize=address,undefined)
+    target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+  endforeach()
   
-  # Apply sanitizers to example if enabled
-  if(DMCP_ENABLE_SANITIZERS AND NOT MSVC)
+  if(DMCP_BUILD_EXAMPLES)
     target_compile_options(dummy_server PRIVATE -fsanitize=address,undefined)
     target_link_options(dummy_server PRIVATE -fsanitize=address,undefined)
   endif()
 endif()
+
+# ============================================================================
+# Summary
+# ============================================================================
+message(STATUS "")
+message(STATUS "DMCP Configuration:")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  JSON Library: ${DMCP_JSON_LIBRARY}")
+message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Build examples: ${DMCP_BUILD_EXAMPLES}")
+message(STATUS "  Build ZDoom adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
+message(STATUS "  Sanitizers: ${DMCP_ENABLE_SANITIZERS}")
+message(STATUS "")

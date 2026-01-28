@@ -1,0 +1,231 @@
+#include "adapter.h"
+
+#include <cstring>
+#include <string>
+
+// ZDoom headers
+#include "common/engine/printf.h"
+#include "doomstat.h"
+#include "g_levellocals.h"
+#include "gamedata/a_weapons.h"
+#include "gamedata/gi.h"
+#include "playsim/d_player.h"
+#include "playsim/dthinker.h"
+#include "playsim/p_local.h"
+#include "common/console/c_console.h"
+#include "common/utility/cmdlib.h"
+
+namespace {
+
+// Helper to execute console commands
+static void ExecuteConsoleCommand(const char* cmd) {
+  if (!cmd || !cmd[0]) return;
+  
+  // Add command to console buffer
+  C_DoCommand(cmd, false);
+}
+
+// Helper to spawn an entity
+static bool SpawnEntity(const dmcp_cmd_spawn_t* spawn) {
+  if (!spawn) return false;
+  
+  // Build spawn command
+  char cmd[512];
+  snprintf(cmd, sizeof(cmd), 
+           "summon %s %f %f %f",
+           spawn->entity_class,
+           spawn->position.x,
+           spawn->position.y,
+           spawn->angle);
+  
+  ExecuteConsoleCommand(cmd);
+  return true;
+}
+
+// Helper to change level
+static bool ChangeLevel(const dmcp_cmd_change_level_t* change) {
+  if (!change || !change->map_name[0]) return false;
+  
+  char cmd[128];
+  if (change->reset_inventory) {
+    snprintf(cmd, sizeof(cmd), "map %s %d", change->map_name, change->skill_level);
+  } else {
+    snprintf(cmd, sizeof(cmd), "changemap %s", change->map_name);
+  }
+  
+  ExecuteConsoleCommand(cmd);
+  return true;
+}
+
+// Helper to give item
+static bool GiveItem(const dmcp_cmd_give_item_t* give) {
+  if (!give || !give->item_class[0]) return false;
+  
+  char cmd[256];
+  snprintf(cmd, sizeof(cmd), "give %s", give->item_class);
+  ExecuteConsoleCommand(cmd);
+  
+  // If amount > 1, we might need additional handling depending on the item
+  return true;
+}
+
+// Helper to set player health
+static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
+  if (!health) return false;
+  
+  // Get console player
+  if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return false;
+  player_t* player = &players[consoleplayer];
+  if (!player->mo) return false;
+  
+  // Direct health modification
+  player->mo->health = static_cast<int>(health->health);
+  player->health = player->mo->health;
+  
+  return true;
+}
+
+// Helper to set player position
+static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
+  if (!pos) return false;
+  
+  // Get console player
+  if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return false;
+  player_t* player = &players[consoleplayer];
+  if (!player->mo) return false;
+  
+  // Teleport player to new position
+  player->mo->SetOrigin(
+    DVector3(pos->position.x, pos->position.y, player->mo->Z()),
+    false
+  );
+  
+  // Set angle
+  player->mo->Angles.Yaw = DAngle::fromDeg(pos->angle);
+  
+  return true;
+}
+
+// Helper to pause/unpause game
+static bool PauseGame(const dmcp_cmd_pause_t* pause) {
+  // Toggle pause state
+  if (pause->paused) {
+    ExecuteConsoleCommand("pause");
+  } else {
+    ExecuteConsoleCommand("pause");  // Toggle off if already paused
+  }
+  return true;
+}
+
+// Helper to set timescale
+static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
+  char cmd[64];
+  snprintf(cmd, sizeof(cmd), "timescale %f", timescale->scale);
+  ExecuteConsoleCommand(cmd);
+  return true;
+}
+
+// Helper to damage entity
+static bool DamageEntity(const dmcp_cmd_damage_t* damage) {
+  if (!damage) return false;
+  
+  // Find entity by TID
+  TThinkerIterator<AActor> it;
+  while (AActor* actor = it.Next()) {
+    if (actor->tid == damage->target_tid) {
+      // Apply damage
+      P_DamageMobj(actor, nullptr, nullptr, 
+                   static_cast<int>(damage->damage),
+                   damage->damage_type);
+      return true;
+    }
+  }
+  
+  return false;  // Entity not found
+}
+
+// Helper to kill entity
+static bool KillEntity(const dmcp_cmd_kill_t* kill) {
+  if (!kill) return false;
+  
+  // Find entity by TID
+  TThinkerIterator<AActor> it;
+  while (AActor* actor = it.Next()) {
+    if (actor->tid == kill->target_tid) {
+      // Kill the entity
+      P_DamageMobj(actor, nullptr, nullptr, 
+                   actor->health * 2,  // Overkill
+                   NAME_None);
+      return true;
+    }
+  }
+  
+  return false;  // Entity not found
+}
+
+}  // namespace
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+bool dmcp_zdoom_execute_command(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* cmd) {
+  if (!cmd) return false;
+  
+  switch (cmd->type) {
+    case DMCP_CMD_SPAWN_ENTITY:
+      return SpawnEntity(&cmd->data.spawn);
+      
+    case DMCP_CMD_CHANGE_LEVEL:
+      return ChangeLevel(&cmd->data.change_level);
+      
+    case DMCP_CMD_GIVE_ITEM:
+      return GiveItem(&cmd->data.give_item);
+      
+    case DMCP_CMD_SET_PLAYER_HEALTH:
+      return SetPlayerHealth(&cmd->data.set_health);
+      
+    case DMCP_CMD_SET_PLAYER_POSITION:
+      return SetPlayerPosition(&cmd->data.set_position);
+      
+    case DMCP_CMD_EXECUTE_CONSOLE:
+      ExecuteConsoleCommand(cmd->data.console.command);
+      return true;
+      
+    case DMCP_CMD_PAUSE_GAME:
+      return PauseGame(&cmd->data.pause);
+      
+    case DMCP_CMD_SET_TIMESCALE:
+      return SetTimescale(&cmd->data.timescale);
+      
+    case DMCP_CMD_DAMAGE_ENTITY:
+      return DamageEntity(&cmd->data.damage);
+      
+    case DMCP_CMD_KILL_ENTITY:
+      return KillEntity(&cmd->data.kill);
+      
+    default:
+      return false;
+  }
+}
+
+// ============================================================================
+// Command Processing
+// ============================================================================
+
+void dmcp_zdoom_process_commands(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx) return;
+  
+  dmcp_command_t cmd;
+  while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
+    bool success = dmcp_zdoom_execute_command(ctx_handle, &cmd);
+    
+    // Log result
+    if (!success) {
+      Log(ctx, DMCP_LOG_WARN, "Command %d failed", cmd.type);
+    }
+    
+    // TODO: Send acknowledgment back to agent if DMCP_CMD_FLAG_RELIABLE was set
+  }
+}

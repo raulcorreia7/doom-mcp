@@ -1,0 +1,185 @@
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+// ============================================================================
+// Doom MCP Version
+// These are defined by CMake, provided here for reference
+// ============================================================================
+#ifndef DMCP_VERSION_MAJOR
+#define DMCP_VERSION_MAJOR 0
+#endif
+#ifndef DMCP_VERSION_MINOR
+#define DMCP_VERSION_MINOR 4
+#endif
+#ifndef DMCP_VERSION_PATCH
+#define DMCP_VERSION_PATCH 0
+#endif
+
+// ============================================================================
+// Result Codes
+// ============================================================================
+typedef enum {
+  DMCP_OK                    = 0,
+  DMCP_ERROR_INVALID_ARGS    = -1,
+  DMCP_ERROR_ENCODING_FAILED = -2,
+  DMCP_ERROR_DISABLED        = -3,
+  DMCP_ERROR_QUEUE_FULL      = -4,
+  DMCP_ERROR_SERVER_FAILED   = -5,
+} dmcp_result_t;
+
+// ============================================================================
+// Log Levels
+// ============================================================================
+typedef enum {
+  DMCP_LOG_DEBUG = 0,
+  DMCP_LOG_INFO  = 1,
+  DMCP_LOG_WARN  = 2,
+  DMCP_LOG_ERROR = 3
+} dmcp_log_level_t;
+
+// ============================================================================
+// Forward Declarations
+// ============================================================================
+typedef struct dmcp_context_s dmcp_context_t;
+
+// ============================================================================
+// Basic Types
+// ============================================================================
+
+typedef struct {
+  float x;
+  float y;
+} dmcp_vec2_t;
+
+typedef struct {
+  float hp;
+  float armor;
+  dmcp_vec2_t position;
+  int32_t ammo;
+} dmcp_player_t;
+
+typedef struct {
+  int32_t tic;
+  char    level_id[32];    // e.g., "MAP01", "E1M1"
+  char    level_name[96];  // Human-readable name
+  int32_t kill_count;
+  int32_t item_count;
+  int32_t secret_count;
+} dmcp_level_t;
+
+typedef struct {
+  int32_t id;
+  float   hp;
+  float   max_hp;
+  dmcp_vec2_t position;
+  char    type[128];       // Enemy type/class name
+} dmcp_enemy_t;
+
+typedef struct {
+  char    name[64];
+  int32_t amount;
+} dmcp_item_t;
+
+// ============================================================================
+// Snapshot
+// ============================================================================
+#define DMCP_MAX_ENEMIES    256
+#define DMCP_MAX_INVENTORY  64
+
+typedef struct {
+  dmcp_player_t player;
+  dmcp_level_t  level;
+  
+  dmcp_enemy_t enemies[DMCP_MAX_ENEMIES];
+  uint32_t     enemy_count;
+  
+  dmcp_item_t  inventory[DMCP_MAX_INVENTORY];
+  uint32_t     inventory_count;
+} dmcp_snapshot_t;
+
+// ============================================================================
+// Screenshot
+// ============================================================================
+typedef struct {
+  const uint8_t* pixels;
+  uint32_t       width;
+  uint32_t       height;
+  uint32_t       stride;   // Bytes per row
+} dmcp_screenshot_frame_t;
+
+// ============================================================================
+// Statistics
+// ============================================================================
+typedef struct {
+  uint64_t dropped_snapshots;
+  uint64_t dropped_screenshots;
+  uint64_t connected_clients;
+} dmcp_stats_t;
+
+// ============================================================================
+// Callbacks
+// ============================================================================
+
+typedef void (*dmcp_log_callback_t)(void* user_data, int level,
+                                    const char* message);
+
+typedef void (*dmcp_snapshot_callback_t)(void* user_data, 
+                                         dmcp_snapshot_t* snapshot);
+
+// ============================================================================
+// Configuration
+// ============================================================================
+typedef struct {
+  uint32_t struct_size;    // Set to sizeof(dmcp_config_t)
+
+  // Server settings
+  uint16_t port;
+  uint32_t target_hz;      // Snapshot rate (default: 10)
+
+  // Capacity settings
+  size_t snapshot_pool_size;
+  size_t queue_slots;
+
+  // Screenshot settings
+  struct {
+    bool     enable;
+    uint32_t width;
+    uint32_t height;
+  } screenshot;
+
+  // Callbacks
+  dmcp_snapshot_callback_t on_snapshot;  // Fill snapshot with game data
+  dmcp_log_callback_t      on_log;
+  void*                    user_data;
+
+} dmcp_config_t;
+
+// ============================================================================
+// Default Configuration
+// ============================================================================
+static inline dmcp_config_t dmcp_default_config(void) {
+  dmcp_config_t cfg = {};
+  cfg.struct_size         = sizeof(dmcp_config_t);
+  cfg.port                = 6060;
+  cfg.target_hz           = 10;
+  cfg.snapshot_pool_size  = 16;
+  cfg.queue_slots         = 4;
+  cfg.screenshot.enable   = true;
+  cfg.screenshot.width    = 640;
+  cfg.screenshot.height   = 480;
+  cfg.on_snapshot         = NULL;
+  cfg.on_log              = NULL;
+  cfg.user_data           = NULL;
+  return cfg;
+}
+
+#ifdef __cplusplus
+}
+#endif
