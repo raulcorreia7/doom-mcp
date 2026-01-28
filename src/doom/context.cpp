@@ -378,7 +378,7 @@ std::string snapshot_to_json(const dmcp_snapshot_t& snapshot) {
 
 extern "C" {
 
-dmcp_context_t* dmcp_create(const dmcp_config_t* config) {
+dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   auto ctx = std::make_unique<dmcp::context>();
 
   ctx->config = config ? *config : dmcp_default_config();
@@ -422,7 +422,7 @@ dmcp_context_t* dmcp_create(const dmcp_config_t* config) {
   return reinterpret_cast<dmcp_context_t*>(ctx.release());
 }
 
-void dmcp_destroy(dmcp_context_t* ctx_handle) {
+void dmcp_context_destroy(dmcp_context_t* ctx_handle) {
   if (!ctx_handle) return;
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
@@ -434,14 +434,14 @@ void dmcp_destroy(dmcp_context_t* ctx_handle) {
   delete ctx;
 }
 
-bool dmcp_is_running(const dmcp_context_t* ctx_handle) {
+bool dmcp_context_is_running(const dmcp_context_t* ctx_handle) {
   if (!ctx_handle) return false;
 
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
   return mcp_server_is_running(ctx->server);
 }
 
-void dmcp_tick(dmcp_context_t* ctx_handle) {
+void dmcp_context_tick(dmcp_context_t* ctx_handle) {
   if (!ctx_handle) return;
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
@@ -481,7 +481,7 @@ void dmcp_tick(dmcp_context_t* ctx_handle) {
   ctx->last_snapshot_time = now;
 }
 
-bool dmcp_screenshot_requested(const dmcp_context_t* ctx_handle) {
+bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx_handle) {
   if (!ctx_handle) return false;
 
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
@@ -490,7 +490,7 @@ bool dmcp_screenshot_requested(const dmcp_context_t* ctx_handle) {
   return ctx->screenshot.pending_requests.load() > 0;
 }
 
-dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx_handle,
+dmcp_result_t dmcp_screenshot_submit(dmcp_context_t*                ctx_handle,
                                      const dmcp_screenshot_frame_t* frame) {
   if (!ctx_handle || !frame) {
     return DMCP_ERROR_INVALID_ARGS;
@@ -513,7 +513,7 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t*                ctx_handle,
   return DMCP_OK;
 }
 
-void dmcp_get_stats(const dmcp_context_t* ctx_handle, dmcp_stats_t* stats) {
+void dmcp_stats_get(const dmcp_context_t* ctx_handle, dmcp_stats_t* stats) {
   if (!ctx_handle || !stats) return;
 
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);

@@ -14,14 +14,14 @@ void signal_handler(int) { g_running = false; }
 
 // Simple mock game state
 struct GameState {
-  float player_x = 0.0f;
-  float player_y = 0.0f;
+  float player_x      = 0.0f;
+  float player_y      = 0.0f;
   float player_health = 100.0f;
-  int player_ammo = 50;
-  int tic = 0;
-  
+  int   player_ammo   = 50;
+  int   tic           = 0;
+
   struct MockEnemy {
-    int id;
+    int   id;
     float x, y;
     float health;
   };
@@ -30,15 +30,15 @@ struct GameState {
 
 void UpdateGame(GameState& state) {
   state.tic++;
-  
+
   // Move player in a circle
   state.player_x = 100.0f * std::cos(state.tic * 0.01f);
   state.player_y = 100.0f * std::sin(state.tic * 0.01f);
-  
+
   // Randomly damage/heal player
   if (rand() % 100 < 2) state.player_health -= 5.0f;
   if (state.player_health < 0) state.player_health = 100.0f;
-  
+
   // Update enemies
   for (auto& enemy : state.enemies) {
     enemy.x += (rand() % 3 - 1) * 2.0f;
@@ -49,41 +49,43 @@ void UpdateGame(GameState& state) {
 // DMCP callback to fill snapshot
 void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
   auto* state = static_cast<GameState*>(user_data);
-  
+
   // Level info
   snapshot->level.tic = state->tic;
-  dmcp_strcpy(snapshot->level.level_id, "E1M1", sizeof(snapshot->level.level_id));
-  dmcp_strcpy(snapshot->level.level_name, "Hangar", sizeof(snapshot->level.level_name));
-  snapshot->level.kill_count = 5;
-  snapshot->level.item_count = 2;
+  dmcp_strcpy(snapshot->level.level_id, "E1M1",
+              sizeof(snapshot->level.level_id));
+  dmcp_strcpy(snapshot->level.level_name, "Hangar",
+              sizeof(snapshot->level.level_name));
+  snapshot->level.kill_count   = 5;
+  snapshot->level.item_count   = 2;
   snapshot->level.secret_count = 1;
-  
+
   // Player
-  snapshot->player.hp = state->player_health;
-  snapshot->player.armor = 25.0f;
-  snapshot->player.ammo = state->player_ammo;
+  snapshot->player.hp         = state->player_health;
+  snapshot->player.armor      = 25.0f;
+  snapshot->player.ammo       = state->player_ammo;
   snapshot->player.position.x = state->player_x;
   snapshot->player.position.y = state->player_y;
-  
+
   // Inventory
   dmcp_item_t shells = {};
   dmcp_strcpy(shells.name, "Shells", sizeof(shells.name));
   shells.amount = 24;
   dmcp_snapshot_add_item(snapshot, &shells);
-  
+
   dmcp_item_t stimpack = {};
   dmcp_strcpy(stimpack.name, "Stimpack", sizeof(stimpack.name));
   stimpack.amount = 2;
   dmcp_snapshot_add_item(snapshot, &stimpack);
-  
+
   // Enemies
   for (const auto& e : state->enemies) {
     dmcp_enemy_t enemy = {};
-    enemy.id = e.id;
-    enemy.hp = e.health;
-    enemy.max_hp = 60.0f;
-    enemy.position.x = e.x;
-    enemy.position.y = e.y;
+    enemy.id           = e.id;
+    enemy.hp           = e.health;
+    enemy.max_hp       = 60.0f;
+    enemy.position.x   = e.x;
+    enemy.position.y   = e.y;
     dmcp_strcpy(enemy.type, "Imp", sizeof(enemy.type));
     dmcp_snapshot_add_enemy(snapshot, &enemy);
   }
@@ -92,10 +94,18 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 void LogCallback(void* user_data, int level, const char* message) {
   const char* prefix = "[DMCP]";
   switch (level) {
-    case DMCP_LOG_DEBUG: prefix = "[DMCP:D]"; break;
-    case DMCP_LOG_INFO:  prefix = "[DMCP:I]"; break;
-    case DMCP_LOG_WARN:  prefix = "[DMCP:W]"; break;
-    case DMCP_LOG_ERROR: prefix = "[DMCP:E]"; break;
+    case DMCP_LOG_DEBUG:
+      prefix = "[DMCP:D]";
+      break;
+    case DMCP_LOG_INFO:
+      prefix = "[DMCP:I]";
+      break;
+    case DMCP_LOG_WARN:
+      prefix = "[DMCP:W]";
+      break;
+    case DMCP_LOG_ERROR:
+      prefix = "[DMCP:E]";
+      break;
   }
   printf("%s %s\n", prefix, message);
 }
@@ -103,57 +113,59 @@ void LogCallback(void* user_data, int level, const char* message) {
 int main() {
   std::signal(SIGINT, signal_handler);
   srand(static_cast<unsigned>(time(nullptr)));
-  
+
   GameState game;
   game.enemies.push_back({1, 200, 200, 60});
   game.enemies.push_back({2, -200, 200, 60});
-  
+
   // Configure DMCP
   dmcp_config_t config = dmcp_default_config();
-  config.port = 6060;
-  config.target_hz = 10;
-  config.on_snapshot = SnapshotCallback;
-  config.on_log = LogCallback;
-  config.user_data = &game;
-  
+  config.port          = 6060;
+  config.target_hz     = 10;
+  config.on_snapshot   = SnapshotCallback;
+  config.on_log        = LogCallback;
+  config.user_data     = &game;
+
   // Create context
-  dmcp_context_t* ctx = dmcp_create(&config);
+  dmcp_context_t* ctx = dmcp_context_create(&config);
   if (!ctx) {
     fprintf(stderr, "Failed to create DMCP context\n");
     return 1;
   }
-  
-  printf("Dummy server running on port %d. Press Ctrl+C to stop.\n", config.port);
+
+  printf("Dummy server running on port %d. Press Ctrl+C to stop.\n",
+         config.port);
   printf("Endpoints:\n");
   printf("  POST /mcp       - MCP protocol endpoint\n");
   printf("  GET /sse        - Server-Sent Events stream\n");
   printf("  GET /health     - Health check\n\n");
-  
+
   // Main loop
   while (g_running) {
     auto start = std::chrono::steady_clock::now();
-    
+
     UpdateGame(game);
-    dmcp_tick(ctx);
-    
+    dmcp_context_tick(ctx);
+
     // Log stats periodically
     if (game.tic % 35 == 0) {
       dmcp_stats_t stats;
-      dmcp_get_stats(ctx, &stats);
+      dmcp_stats_get(ctx, &stats);
       printf("Stats: clients=%lu, dropped=%lu\n",
              static_cast<unsigned long>(stats.connected_clients),
              static_cast<unsigned long>(stats.dropped_snapshots));
     }
-    
+
     // Maintain ~35Hz
     auto end = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto elapsed =
+	std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (elapsed.count() < 28) {
       std::this_thread::sleep_for(std::chrono::milliseconds(28) - elapsed);
     }
   }
-  
+
   printf("\nShutting down...\n");
-  dmcp_destroy(ctx);
+  dmcp_context_destroy(ctx);
   return 0;
 }

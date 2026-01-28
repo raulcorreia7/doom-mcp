@@ -8,7 +8,7 @@ extern "C" {
 
 // ============================================================================
 // Doom MCP Public API
-// 
+//
 // This is the public interface for integrating Doom engines with the
 // Model Context Protocol. All functions are thread-safe unless noted.
 // ============================================================================
@@ -19,13 +19,13 @@ extern "C" {
 
 // Create a new DMCP context
 // Returns NULL on failure (e.g., server failed to start)
-dmcp_context_t* dmcp_create(const dmcp_config_t* config);
+dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
 
 // Destroy context and free all resources
-void dmcp_destroy(dmcp_context_t* ctx);
+void dmcp_context_destroy(dmcp_context_t* ctx);
 
 // Check if server is running
-bool dmcp_is_running(const dmcp_context_t* ctx);
+bool dmcp_context_is_running(const dmcp_context_t* ctx);
 
 // ============================================================================
 // Game Loop Integration
@@ -35,18 +35,18 @@ bool dmcp_is_running(const dmcp_context_t* ctx);
 // This will:
 //   1. Call the on_snapshot callback to fill snapshot data
 //   2. Queue the snapshot for broadcasting (rate-limited by target_hz)
-void dmcp_tick(dmcp_context_t* ctx);
+void dmcp_context_tick(dmcp_context_t* ctx);
 
 // ============================================================================
 // Screenshot
 // ============================================================================
 
 // Check if a screenshot has been requested by a client
-bool dmcp_screenshot_requested(const dmcp_context_t* ctx);
+bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
 
 // Submit a screenshot frame
 // The frame data is copied immediately, so pixels can be freed after return
-dmcp_result_t dmcp_submit_screenshot(dmcp_context_t* ctx,
+dmcp_result_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
                                      const dmcp_screenshot_frame_t* frame);
 
 // ============================================================================
@@ -54,33 +54,33 @@ dmcp_result_t dmcp_submit_screenshot(dmcp_context_t* ctx,
 // ============================================================================
 
 // Get current statistics
-void dmcp_get_stats(const dmcp_context_t* ctx, dmcp_stats_t* stats);
+void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
 
 // Helper: Convert snapshot to JSON string
 // Returns number of bytes written (excluding null terminator), or -1 on error
-int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot,
-                          char* buffer, size_t buffer_size);
+int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
+                          size_t buffer_size);
 
 // Helper: Clear a snapshot structure
 static inline void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot) {
   if (!snapshot) return;
-  snapshot->player.hp = 0;
-  snapshot->player.armor = 0;
-  snapshot->player.position.x = 0;
-  snapshot->player.position.y = 0;
-  snapshot->player.ammo = 0;
-  snapshot->level.tic = 0;
-  snapshot->level.level_id[0] = '\0';
+  snapshot->player.hp           = 0;
+  snapshot->player.armor        = 0;
+  snapshot->player.position.x   = 0;
+  snapshot->player.position.y   = 0;
+  snapshot->player.ammo         = 0;
+  snapshot->level.tic           = 0;
+  snapshot->level.level_id[0]   = '\0';
   snapshot->level.level_name[0] = '\0';
-  snapshot->level.kill_count = 0;
-  snapshot->level.item_count = 0;
-  snapshot->level.secret_count = 0;
-  snapshot->enemy_count = 0;
-  snapshot->inventory_count = 0;
+  snapshot->level.kill_count    = 0;
+  snapshot->level.item_count    = 0;
+  snapshot->level.secret_count  = 0;
+  snapshot->enemy_count         = 0;
+  snapshot->inventory_count     = 0;
 }
 
 // Helper: Add enemy to snapshot
-static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t* snapshot,
+static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t*    snapshot,
                                            const dmcp_enemy_t* enemy) {
   if (!snapshot || !enemy) return false;
   if (snapshot->enemy_count >= DMCP_MAX_ENEMIES) return false;
@@ -89,7 +89,7 @@ static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t* snapshot,
 }
 
 // Helper: Add item to inventory
-static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t* snapshot,
+static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t*   snapshot,
                                           const dmcp_item_t* item) {
   if (!snapshot || !item) return false;
   if (snapshot->inventory_count >= DMCP_MAX_INVENTORY) return false;
