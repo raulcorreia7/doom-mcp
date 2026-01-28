@@ -612,3 +612,107 @@ Adapter tests conditionally included only when DMCP_BUILD_ADAPTER_ZDOOM=ON:
 4. **Success/error paths**: All result-returning functions test both outcomes
 5. **Boundary cases**: Test with 0, 1, N, N-1, N values
 6. **Rate-limiting awareness**: Doom tests account for target_hz rate limiting
+
+# Task 10: Documentation - Learnings
+
+## Documentation Strategy
+
+Successfully added comprehensive JSDoc-style documentation to all public API headers and README.md.
+
+### Files Documented
+
+1. **include/mcp/generic/result.h**
+   - Added JSDoc-style documentation for mcp_result_generic_t struct
+   - Documented all helper macros (MCP_RESULT_MAKE, MCP_RESULT_OK, MCP_RESULT_ERROR)
+   - Included breaking change notes and migration examples
+
+2. **include/mcp/generic/protocol.h**
+   - Documented protocol versions, result codes, result type, convenience macros
+   - Added JSDoc-style documentation for mcp_log_level_t enum
+   - Documented mcp_log_callback_t callback type
+   - Documented mcp_method_handler_t callback type
+   - Documented mcp_server_config_t structure and fields
+   - Documented mcp_server_stats_t structure and fields
+   - Documented mcp_default_config() function
+
+3. **include/mcp/generic/constants.h**
+   - Documented all constants with purpose and usage
+   - Grouped by category (protocol, buffer sizes, server config, screenshots, endpoints, array limits)
+
+4. **include/mcp/generic/server.h**
+   - Added comprehensive JSDoc-style documentation for all functions
+   - Documented lifecycle functions (create, destroy, is_running)
+   - Documented method registration (single and batch)
+   - Documented event broadcasting and client count
+   - Documented statistics function
+   - Documented utility functions for JSON-RPC responses
+   - Included breaking changes and migration examples
+
+5. **include/mcp/generic/transport.h**
+   - Documented transport abstraction layer
+   - Documented mcp_transport_callbacks_t with all callback types
+   - Documented mcp_transport_interface_t vtable pattern
+   - Documented mcp_sse_transport extern declaration
+
+6. **include/dmcp/doom/api.h**
+   - Added comprehensive JSDoc-style documentation for all Doom MCP functions
+   - Documented lifecycle functions with breaking changes
+   - Documented game loop integration
+   - Documented screenshot functionality
+   - Documented utility functions (stats, JSON conversion, snapshot helpers)
+   - Included before/after migration examples
+
+7. **include/dmcp/doom/types.h**
+   - Already has some comments but inline helper functions are self-documenting
+   - No changes needed to types.h (types are well-named and clear)
+
+8. **README.md**
+   - Added comprehensive Migration Guide section
+   - Quick Reference Table for all API changes
+   - Updated Architecture section with type-oriented naming convention
+   - Updated Integration section with new API examples using renamed functions
+   - Updated API Reference section with all new functions
+   - Updated Data Types section
+   - Updated Design Principles section
+   - Added Error Handling Pattern section
+   - Updated Protocol Endpoints section
+
+### Documentation Patterns Used
+
+1. **JSDoc-style format**: Used @brief, @param, @return, @note, @warning tags
+2. **Code examples**: Included @code blocks with complete examples
+3. **Breaking changes documentation**: Each renamed function has migration guide
+4. **Before/After examples**: Show exact code changes required
+5. **Thread-safety notes**: Documented thread-safety where applicable
+6. **NULL safety**: Documented NULL parameter handling
+
+### Build Verification
+
+- Build completed successfully with zero errors
+- Only expected -Wpedantic warnings about compound literals in result macros
+- LSP diagnostics clean on all modified header files
+
+### Migration Documentation Structure
+
+The Migration Guide includes:
+
+1. **Type-Oriented Naming Convention** explanation
+2. **Quick Reference Table** for all API renames
+3. **Detailed Migration Examples** for each major API category:
+   - Context creation and destruction
+   - Game loop integration
+   - Generic MCP method registration
+   - Event broadcasting
+   - Client count (with type change)
+   - ZDoom configuration
+   - Result handling (enum to struct)
+
+### Key Documentation Achievements
+
+- All public functions documented with parameter descriptions, return values, error conditions
+- Usage examples provided for complex operations
+- Breaking changes clearly documented with migration paths
+- Type-oriented naming convention explained throughout README
+- Error handling pattern documented with all result codes
+- README updated with current API examples (not old deprecated names)
+

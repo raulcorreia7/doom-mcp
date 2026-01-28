@@ -7,52 +7,205 @@ extern "C" {
 // ============================================================================
 // Protocol Versions
 // ============================================================================
+
+/**
+ * @brief JSON-RPC protocol version
+ *
+ * Identifies the JSON-RPC protocol version this implementation follows.
+ * Used in protocol handshake for compatibility.
+ */
 #define MCP_JSONRPC_VERSION "2.0"
 
 // ============================================================================
 // Buffer Sizes
 // ============================================================================
+
+/**
+ * @brief Default buffer size for I/O operations
+ *
+ * Default size for buffers used in HTTP responses, JSON parsing,
+ * and general I/O operations.
+ */
 #define MCP_BUFFER_SIZE_DEFAULT 8192
-#define MCP_MAX_JSON_SIZE       16384
-#define MCP_HEALTH_BUFFER_SIZE  256
-#define MCP_MAX_PAYLOAD_SIZE    (1024 * 1024)
+
+/**
+ * @brief Maximum JSON payload size
+ *
+ * Maximum allowed size for JSON payloads in requests and responses.
+ * Larger payloads will be rejected.
+ */
+#define MCP_MAX_JSON_SIZE 16384
+
+/**
+ * @brief Health check buffer size
+ *
+ * Size of buffer allocated for health check responses.
+ */
+#define MCP_HEALTH_BUFFER_SIZE 256
+
+/**
+ * @brief Maximum HTTP request payload size
+ *
+ * Maximum size in bytes for HTTP request bodies (1MB).
+ * Requests exceeding this limit are rejected with error.
+ */
+#define MCP_MAX_PAYLOAD_SIZE (1024 * 1024)
 
 // ============================================================================
 // Default Server Configuration
 // ============================================================================
-#define MCP_DEFAULT_PORT               6060
-#define MCP_DEFAULT_TARGET_HZ          10
+
+/**
+ * @brief Default TCP port for MCP server
+ *
+ * Default port that the MCP server listens on for connections.
+ * Can be overridden in mcp_server_config_t.
+ */
+#define MCP_DEFAULT_PORT 6060
+
+/**
+ * @brief Default snapshot rate limit (Hz)
+ *
+ * Default frequency at which game state snapshots are broadcast
+ * to clients. Can be overridden in dmcp_config_t.
+ */
+#define MCP_DEFAULT_TARGET_HZ 10
+
+/**
+ * @brief Default snapshot pool size
+ *
+ * Number of snapshot objects pre-allocated in the pool.
+ * Used for efficient memory allocation in game loop.
+ */
 #define MCP_DEFAULT_SNAPSHOT_POOL_SIZE 16
-#define MCP_DEFAULT_QUEUE_SLOTS        4
-#define MCP_STARTUP_TIMEOUT_SECONDS    2
+
+/**
+ * @brief Default command queue size
+ *
+ * Number of slots in the command queue (agent -> game).
+ * Controls how many pending commands can be queued.
+ */
+#define MCP_DEFAULT_QUEUE_SLOTS 4
+
+/**
+ * @brief Server startup timeout
+ *
+ * Maximum seconds to wait for server to start before
+ * considering startup failed.
+ */
+#define MCP_STARTUP_TIMEOUT_SECONDS 2
 
 // ============================================================================
 // Screenshot Defaults
 // ============================================================================
-#define MCP_DEFAULT_SCREENSHOT_WIDTH  640
+
+/**
+ * @brief Default screenshot width (pixels)
+ *
+ * Default width for screenshot capture when using default config.
+ */
+#define MCP_DEFAULT_SCREENSHOT_WIDTH 640
+
+/**
+ * @brief Default screenshot height (pixels)
+ *
+ * Default height for screenshot capture when using default config.
+ */
 #define MCP_DEFAULT_SCREENSHOT_HEIGHT 480
 
 // ============================================================================
 // HTTP Endpoints
 // ============================================================================
-#define MCP_ENDPOINT_MCP        "/mcp"
-#define MCP_ENDPOINT_SSE        "/sse"
-#define MCP_ENDPOINT_HEALTH     "/health"
+
+/**
+ * @brief JSON-RPC protocol endpoint
+ *
+ * HTTP POST endpoint for MCP protocol handshake and method calls.
+ * Clients send JSON-RPC requests to this endpoint.
+ */
+#define MCP_ENDPOINT_MCP "/mcp"
+
+/**
+ * @brief Server-Sent Events endpoint
+ *
+ * HTTP GET endpoint for SSE stream. Clients connect to this
+ * endpoint to receive real-time events.
+ */
+#define MCP_ENDPOINT_SSE "/sse"
+
+/**
+ * @brief Health check endpoint
+ *
+ * HTTP GET endpoint for health/status checks.
+ * Returns {"status":"ok"} when server is running.
+ */
+#define MCP_ENDPOINT_HEALTH "/health"
+
+/**
+ * @brief Latest screenshot endpoint
+ *
+ * HTTP GET endpoint to retrieve the most recent screenshot as PNG.
+ * Returns PNG image data with Content-Type: image/png.
+ */
 #define MCP_ENDPOINT_SCREENSHOT "/screenshot/latest.png"
 
 // ============================================================================
 // Array Limits
 // ============================================================================
-#define MCP_MAX_ENEMIES    256
-#define MCP_MAX_INVENTORY  64
-#define MCP_MAX_ITEM_NAME  64
+
+/**
+ * @brief Maximum number of enemies in snapshot
+ *
+ * Maximum count of enemy entries that can be included in a
+ * single dmcp_snapshot_t structure.
+ */
+#define MCP_MAX_ENEMIES 256
+
+/**
+ * @brief Maximum inventory item count
+ *
+ * Maximum number of items that can be stored in snapshot inventory.
+ */
+#define MCP_MAX_INVENTORY 64
+
+/**
+ * @brief Maximum item name length
+ *
+ * Maximum string length for item names (including null terminator).
+ */
+#define MCP_MAX_ITEM_NAME 64
+
+/**
+ * @brief Maximum enemy type string length
+ *
+ * Maximum string length for enemy type/class names.
+ */
 #define MCP_MAX_ENEMY_TYPE 128
-#define MCP_MAX_LEVEL_ID   32
+
+/**
+ * @brief Maximum level ID length
+ *
+ * Maximum string length for level/map identifiers.
+ */
+#define MCP_MAX_LEVEL_ID 32
+
+/**
+ * @brief Maximum level name length
+ *
+ * Maximum string length for level/map display names.
+ */
 #define MCP_MAX_LEVEL_NAME 96
 
 // ============================================================================
 // Health Check Response
 // ============================================================================
+
+/**
+ * @brief Health check success response
+ *
+ * JSON response returned by /health endpoint when server is running.
+ * Used by load balancers and health monitors.
+ */
 #define MCP_HEALTH_RESPONSE "{\"status\":\"ok\"}"
 
 #ifdef __cplusplus
