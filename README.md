@@ -4,6 +4,10 @@ A clean, modular SDK for integrating Doom-family engines with AI agents via the 
 
 ## Migration Guide (v0.5.0 Breaking Changes)
 
+**📖 See [MIGRATION.md](MIGRATION.md) for the comprehensive migration guide with detailed examples and troubleshooting.**
+
+This section provides a quick reference. For complete before/after examples, troubleshooting, and version notes, see the full [MIGRATION.md](MIGRATION.md).
+
 This guide helps you migrate from the old API to the new, consistent type-oriented naming convention.
 
 ### Type-Oriented Naming Convention

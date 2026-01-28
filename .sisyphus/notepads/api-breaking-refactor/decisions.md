@@ -171,3 +171,208 @@ endif()
 - Consider parameterized tests for boundary values
 - Add test data fixtures for complex scenarios
 - Consider test tagging for selective execution
+
+# Task 12: Write Migration Guide - Decisions Made
+
+## Decision 1: Create Separate MIGRATION.md File
+
+**Rationale:**
+- README.md already contains migration information but is limited to quick reference
+- Comprehensive migration guide would make README.md too long
+- Separate file allows for detailed examples, troubleshooting, and version notes
+- Users can keep MIGRATION.md open while migrating code
+
+**Alternatives Considered:**
+1. Expand README.md migration section (rejected - would make README too verbose)
+2. Create docs/migration.md (rejected - keep root-level for visibility)
+3. No migration guide (rejected - breaking changes require clear documentation)
+
+**Result:** Created MIGRATION.md (26K, 831 lines) at project root
+
+## Decision 2: Link README.md to MIGRATION.md
+
+**Rationale:**
+- README.md should remain concise and focused on getting started
+- Quick reference table in README.md provides immediate lookup
+- Prominent link ensures users know comprehensive guide exists
+- Reduces duplication while providing both quick access and depth
+
+**Implementation:**
+Added call-to-action at top of Migration Guide section:
+```
+**📖 See [MIGRATION.md](MIGRATION.md) for the comprehensive migration guide...**
+```
+
+**Result:** README.md now points to comprehensive guide while maintaining quick reference
+
+## Decision 3: Organize by API Layer, Not Task Number
+
+**Rationale:**
+- Users care about "Generic MCP API" or "Doom MCP API", not "Task 4"
+- Grouping by API layer makes guide more usable
+- Task numbers included in headers for reference but not primary organization
+- Each API layer user can find their relevant changes quickly
+
+**Structure:**
+1. Generic MCP API (Task 4)
+2. Doom MCP API (Task 5)
+3. Adapter API (Task 6)
+4. Result Types (Task 3)
+5. Configuration (Task 6)
+
+**Result:** Users can quickly find relevant changes based on which API they're using
+
+## Decision 4: Include "Migration Notes" in Quick Reference Table
+
+**Rationale:**
+- Quick reference table needs more than just old/new names
+- Some changes have important nuances (e.g., return type change)
+- Migration notes provide context at a glance
+- Prevents users from missing subtle breaking changes
+
+**Implementation:**
+Added "Migration Notes" column with brief guidance:
+- "Direct rename" for simple changes
+- "Type Change" for result type changes
+- "Add type infix" for renames
+- "Add type infix + return actual count" for complex changes
+
+**Result:** Users can see nuance of each change without scrolling to detailed sections
+
+## Decision 5: Dedicate Section to Result Type Change
+
+**Rationale:**
+- Result type change (enum → struct) is most significant breaking change
+- Affects ALL error handling code
+- Requires learning new pattern (`.code` and `.message` fields)
+- Multiple examples needed for clarity
+
+**Implementation:**
+- Section 4 dedicated entirely to result types
+- Shows old enum vs new struct
+- Documents convenience macros
+- Provides error handling migration examples
+- Lists all result code constants
+
+**Result:** Users understand the most complex change with multiple perspectives
+
+## Decision 6: Highlight Configuration Structure Change
+
+**Rationale:**
+- ZDoom config change from pointer to embedding is non-obvious
+- Changes field access pattern (`.dmcp_config->port` → `.base.port`)
+- Would cause compilation errors without documentation
+- Similar to result type change in significance
+
+**Implementation:**
+- Section 5.5 dedicated to configuration structure change
+- Shows old structure (pointer) vs new structure (embedding)
+- Provides before/after code examples
+- Explains why change was made (consistency)
+
+**Result:** Users understand how to access configuration fields correctly
+
+## Decision 7: Include Complete Code Examples
+
+**Rationale:**
+- Snippets aren't enough for understanding complete patterns
+- Real-world code shows context of how functions are used together
+- Users can copy-paste examples and modify
+- Demonstrates multiple changes in realistic scenarios
+
+**Examples Provided:**
+1. Generic MCP Server - basic server setup
+2. Doom MCP Integration - game loop integration with screenshots
+3. ZDoom Adapter - command processing
+4. Batch Method Registration - atomic multi-method setup
+
+**Result:** Users have working code they can adapt to their needs
+
+## Decision 8: Comprehensive Troubleshooting Section
+
+**Rationale:**
+- Migration will produce errors (compilation, runtime)
+- Common errors should have quick answers
+- Reduces user frustration and support burden
+- Documents edge cases and gotchas
+
+**Troubleshooting Coverage:**
+- Linker errors for undefined symbols
+- Error handling compilation errors
+- Incomplete type errors
+- NULL message handling
+- Batch registration issues
+- Configuration field access
+- Client count function change
+
+**Result:** Users can quickly resolve common migration problems
+
+## Decision 9: Recommend v0.5.0, Provide v1.0.0 Alternative
+
+**Rationale:**
+- v0.5.0 is semantically correct for breaking changes
+- Maintains pre-1.0 status, signaling more changes possible
+- v1.0.0 is viable if API is considered stable
+- Users should understand both options
+
+**Implementation:**
+- Recommended v0.5.0 with clear rationale
+- Provided v1.0.0 as alternative with use case
+- Included release notes template for both
+- Letted users make informed decision
+
+**Result:** Users have version bump guidance with context for decision-making
+
+## Decision 10: Include Migration Checklist
+
+**Rationale:**
+- Users need step-by-step guidance for complete migration
+- Checklist ensures no changes are missed
+- Provides concrete action items
+- Can be checked off as migration progresses
+
+**Checklist Items:**
+- Review Quick Reference Table
+- Update function calls
+- Update error handling
+- Update ZDoom config access
+- Update client count usage
+- Update config function calls
+- Rebuild, test, run
+
+**Result:** Users have concrete migration plan they can follow
+
+## Decision 11: Use Consistent Markdown Formatting
+
+**Rationale:**
+- Professional appearance
+- Readability
+- Tool compatibility (GitHub, renderers)
+- Consistent with existing documentation
+
+**Formatting Rules Applied:**
+- H1 for main title, H2 for sections, H3 for subsections
+- Code blocks with language tags (`c`, `cpp`)
+- Tables for structured data
+- Backticks for inline code
+- Bold for emphasis, italic for notes
+- Anchors for table of contents
+
+**Result:** Professional, readable documentation
+
+## Decision 12: Document All 17 Breaking Changes
+
+**Rationale:**
+- No breaking change should be undocumented
+- Users need complete picture of what changed
+- Prevents surprise compilation errors
+- Comprehensive migration requires knowing all changes
+
+**Verification:**
+- Cross-referenced against plan file and notepad
+- Confirmed all Tasks 3-11 changes documented
+- Checked each section covers its assigned changes
+- Verified all function renames included
+
+**Result:** Complete documentation of all breaking changes
+

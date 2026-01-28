@@ -752,3 +752,123 @@ The Migration Guide includes:
 - Used `curl` to test health endpoint
 - Confirmed server starts, listens on port 6060, responds correctly
 
+
+## Task 12: Write Migration Guide - Learnings
+
+### Migration Guide Structure
+
+Created comprehensive MIGRATION.md file covering all breaking changes:
+
+**File Statistics:**
+- Size: 26K
+- Total lines: 831
+- Quick Reference Table: 17 changes documented
+
+**Organization:**
+1. Overview with explanation of what changed and why
+2. Type-Oriented Naming Convention documentation
+3. Quick Reference Table for all API changes
+4. Breaking Changes by Category (5 main sections):
+   - 1. Generic MCP API (Task 4)
+   - 2. Doom MCP API (Task 5)
+   - 3. Adapter API (Task 6)
+   - 4. Result Types (Task 3)
+   - 5. Configuration (Task 6)
+5. Complete Code Examples (4 examples)
+6. Troubleshooting section with common issues
+7. Version Bump Recommendation
+
+### Documentation Patterns Used
+
+1. **Consistent before/after format**: Each breaking change shows old code and new code side-by-side
+2. **Migration notes**: Each table row includes "Migration Notes" column with specific guidance
+3. **Code examples**: Complete, compilable examples for real-world scenarios
+4. **Troubleshooting Q&A**: Common problems and their solutions
+5. **Quick reference table**: Single location to find all changes at a glance
+
+### Key Learnings
+
+1. **README.md already had migration guide**: The README already contained a migration guide section. Instead of replacing it, I:
+   - Created separate MIGRATION.md for comprehensive guide
+   - Updated README.md to link to MIGRATION.md with clear call-to-action
+   - Kept quick reference in README for immediate accessibility
+
+2. **Breaking change categorization**: Organized changes by API layer (Generic MCP, Doom MCP, Adapter, Result Types, Configuration) rather than by task number. This makes it easier for users to find relevant changes.
+
+3. **Emphasis on error handling**: The result type change (enum → struct) is the most significant change. Dedicated section 4 covers this in detail with code examples showing `.code` and `.message` field access.
+
+4. **Type changes need special attention**: The `mcp_server_has_clients()` → `mcp_server_clients_count()` change involved both rename and return type change (bool → uint64_t). This was highlighted prominently with its own sub-section.
+
+5. **Configuration structure change**: The ZDoom config change from pointer to embedding required careful explanation, as it affects how users access configuration fields (`.dmcp_config->port` → `.base.port`).
+
+6. **Comprehensive troubleshooting**: Included 7 common issues with solutions, covering:
+   - Linker errors for undefined symbols
+   - Error handling compilation errors
+   - Incomplete type errors
+   - NULL message handling
+   - Batch registration issues
+   - Configuration field access
+
+### Documentation Verification
+
+All 17 breaking changes from Tasks 3-11 documented:
+
+**Result Types (2 changes):**
+- mcp_result_t: enum → struct
+- dmcp_result_t: enum → struct
+
+**Generic MCP API (5 changes):**
+- mcp_server_register_method → mcp_server_method_register
+- mcp_server_unregister_method → mcp_server_method_unregister
+- mcp_server_broadcast → mcp_server_event_broadcast
+- mcp_server_has_clients → mcp_server_clients_count
+- mcp_server_get_stats → mcp_server_stats_get
+
+**Doom MCP API (7 changes):**
+- dmcp_create → dmcp_context_create
+- dmcp_destroy → dmcp_context_destroy
+- dmcp_tick → dmcp_context_tick
+- dmcp_is_running → dmcp_context_is_running
+- dmcp_screenshot_requested → dmcp_screenshot_is_requested
+- dmcp_submit_screenshot → dmcp_screenshot_submit
+- dmcp_get_stats → dmcp_stats_get
+
+**Adapter API (3 changes):**
+- dmcp_zdoom_default_config → dmcp_zdoom_config_default
+- dmcp_zdoom_execute_command → dmcp_zdoom_command_execute
+- dmcp_zdoom_process_commands → dmcp_zdoom_commands_process
+
+**Configuration (2 changes):**
+- dmcp_default_config → dmcp_config_default
+- dmcp_zdoom_config structure (pointer → embedding)
+
+### Version Bump Recommendation
+
+Recommended v0.5.0 with rationale:
+- Major API refactoring with breaking changes
+- Maintains pre-1.0 status
+- All deprecated/old APIs removed
+
+Alternative v1.0.0 consideration:
+- Use if API is considered production-ready
+- Indicates stable release with no future breaking changes
+
+Provided release notes template for both options.
+
+### Best Practices Observed
+
+1. **Markdown formatting**: Used consistent header levels, code blocks, tables
+2. **Code block syntax**: All code examples use proper language tags (`c`, `cpp`)
+3. **Cross-references**: Links within document (e.g., "See section 4")
+4. **Table of Contents**: Anchor links for easy navigation
+5. **Inline code**: Used backticks for function names and API elements
+6. **Emphasis**: Used bold and italic for important information
+
+### Integration with README
+
+Instead of duplicating migration information in README.md:
+- Added prominent link to MIGRATION.md at top of Migration Guide section
+- Kept quick reference table in README for immediate access
+- Referenced comprehensive guide for detailed examples
+- This reduces duplication while providing both quick access and depth
+
