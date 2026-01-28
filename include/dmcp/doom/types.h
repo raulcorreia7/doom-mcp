@@ -9,6 +9,7 @@ extern "C" {
 #include <stdint.h>
 
 #include "mcp/generic/constants.h"
+#include "mcp/generic/result.h"
 
 // ============================================================================
 // Doom MCP Version
@@ -27,14 +28,29 @@ extern "C" {
 // ============================================================================
 // Result Codes
 // ============================================================================
-typedef enum {
-  DMCP_OK                    = 0,
-  DMCP_ERROR_INVALID_ARGS    = -1,
-  DMCP_ERROR_ENCODING_FAILED = -2,
-  DMCP_ERROR_DISABLED        = -3,
-  DMCP_ERROR_QUEUE_FULL      = -4,
-  DMCP_ERROR_SERVER_FAILED   = -5,
-} dmcp_result_t;
+
+typedef mcp_result_generic_t dmcp_result_t;
+
+// Result code constants (for comparing .code field)
+#define DMCP_RESULT_CODE_OK              0
+#define DMCP_RESULT_CODE_INVALID_ARGS    -1
+#define DMCP_RESULT_CODE_ENCODING_FAILED -2
+#define DMCP_RESULT_CODE_DISABLED        -3
+#define DMCP_RESULT_CODE_QUEUE_FULL      -4
+#define DMCP_RESULT_CODE_SERVER_FAILED   -5
+
+// Convenience macros for creating results
+#define DMCP_OK MCP_RESULT_OK("Success")
+#define DMCP_ERROR_INVALID_ARGS \
+  MCP_RESULT_ERROR(DMCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments")
+#define DMCP_ERROR_ENCODING_FAILED \
+  MCP_RESULT_ERROR(DMCP_RESULT_CODE_ENCODING_FAILED, "Encoding failed")
+#define DMCP_ERROR_DISABLED \
+  MCP_RESULT_ERROR(DMCP_RESULT_CODE_DISABLED, "Operation disabled")
+#define DMCP_ERROR_QUEUE_FULL \
+  MCP_RESULT_ERROR(DMCP_RESULT_CODE_QUEUE_FULL, "Queue full")
+#define DMCP_ERROR_SERVER_FAILED \
+  MCP_RESULT_ERROR(DMCP_RESULT_CODE_SERVER_FAILED, "Server failed")
 
 // ============================================================================
 // Log Levels

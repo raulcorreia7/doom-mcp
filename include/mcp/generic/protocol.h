@@ -9,6 +9,7 @@ extern "C" {
 #include <stdint.h>
 
 #include "mcp/generic/constants.h"
+#include "mcp/generic/result.h"
 
 // ============================================================================
 // MCP Protocol Version
@@ -20,15 +21,32 @@ extern "C" {
 // ============================================================================
 // Result Codes
 // ============================================================================
-typedef enum {
-  MCP_OK                    = 0,
-  MCP_ERROR_INVALID_ARGS    = -1,
-  MCP_ERROR_ENCODING_FAILED = -2,
-  MCP_ERROR_DISABLED        = -3,
-  MCP_ERROR_QUEUE_FULL      = -4,
-  MCP_ERROR_NOT_FOUND       = -5,
-  MCP_ERROR_INTERNAL        = -6,
-} mcp_result_t;
+
+typedef mcp_result_generic_t mcp_result_t;
+
+// Result code constants (for comparing .code field)
+#define MCP_RESULT_CODE_OK              0
+#define MCP_RESULT_CODE_INVALID_ARGS    -1
+#define MCP_RESULT_CODE_ENCODING_FAILED -2
+#define MCP_RESULT_CODE_DISABLED        -3
+#define MCP_RESULT_CODE_QUEUE_FULL      -4
+#define MCP_RESULT_CODE_NOT_FOUND       -5
+#define MCP_RESULT_CODE_INTERNAL        -6
+
+// Convenience macros for creating results
+#define MCP_OK MCP_RESULT_OK("Success")
+#define MCP_ERROR_INVALID_ARGS \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments")
+#define MCP_ERROR_ENCODING_FAILED \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_ENCODING_FAILED, "Encoding failed")
+#define MCP_ERROR_DISABLED \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_DISABLED, "Operation disabled")
+#define MCP_ERROR_QUEUE_FULL \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Queue full")
+#define MCP_ERROR_NOT_FOUND \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_NOT_FOUND, "Not found")
+#define MCP_ERROR_INTERNAL \
+  MCP_RESULT_ERROR(MCP_RESULT_CODE_INTERNAL, "Internal error")
 
 // ============================================================================
 // Log Levels

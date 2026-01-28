@@ -195,7 +195,7 @@ static bool handle_tools_call(void*       user_data, const char* /*method*/,
 
     dmcp_result_t parse_result = dmcp_parse_command_json("{}", &cmd);
 
-    if (parse_result == DMCP_OK) {
+    if (parse_result.code == DMCP_RESULT_CODE_OK) {
       dmcp_push_command(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
 
       const std::string resp = build_response("Command queued");
