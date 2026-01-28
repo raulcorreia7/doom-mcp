@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(dmcp LANGUAGES C CXX VERSION 0.4.0)
+project(dmcp LANGUAGES C CXX VERSION 0.5.0)
 
 # ============================================================================
 # Options

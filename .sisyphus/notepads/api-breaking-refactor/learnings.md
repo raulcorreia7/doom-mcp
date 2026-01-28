@@ -872,3 +872,125 @@ Instead of duplicating migration information in README.md:
 - Referenced comprehensive guide for detailed examples
 - This reduces duplication while providing both quick access and depth
 
+
+## Task 14: Version Bump and Release - Learnings
+
+### Version Management
+- Version stored in CMakeLists.txt (line 2): `project(dmcp LANGUAGES C CXX VERSION 0.5.0)`
+- CMake automatically creates version macros: `MCP_VERSION_MAJOR`, `MCP_VERSION_MINOR`, `MCP_VERSION_PATCH`
+- README.md doesn't contain explicit version header - uses migration guide title for version reference
+- Best practice: Single source of truth for version (CMakeLists.txt)
+
+### Changelog Format
+- Follows Keep a Changelog format with [version] sections
+- Categorized changes: BREAKING CHANGES, Added, Changed, Fixed, Performance, Developer Experience
+- Included upgrade path section for previous version
+- Documented all 17 breaking changes with clear categorization
+
+### Release Notes Structure
+- Comprehensive release notes include:
+  - Release overview with date and version
+  - What's new section
+  - Breaking changes summary with impact assessment
+  - Quick migration checklist
+  - Estimated migration effort by project size
+  - Migration resources (documentation links)
+  - Breaking changes summary table (all 17 changes)
+  - Known issues section
+  - API stability notes
+  - Testing verification
+  - Build system documentation
+  - Performance improvements
+  - Documentation updates
+  - Credits section
+  - Getting help section
+  - Next steps after migration
+  - Release checklist
+
+### Plan Archiving
+- Archived plan to `.sisyphus/plans/archive/` with date stamp: `api-breaking-refactor-2026-01-28.md`
+- Created archive directory if it didn't exist
+- Maintains plan history for reference
+- Plan file is READ-ONLY as per contract (orchestrator manages plan state)
+
+### Boulder State Management
+- Updated boulder.json to mark plan complete:
+  - `active_plan`: null (no active plan)
+  - `completed_plans`: array with archived plan path
+  - `last_completed_at`: timestamp of completion
+  - `last_plan_name`: "api-breaking-refactor"
+- Clear separation between active and completed plans
+- Maintains audit trail of work completed
+
+### Documentation Consistency
+- Verified all files reference v0.5.0 correctly:
+  - CMakeLists.txt: `VERSION 0.5.0`
+  - README.md: `Migration Guide (v0.5.0 Breaking Changes)`
+  - CHANGELOG.md: `## [0.5.0] - 2026-01-28`
+  - RELEASE_NOTES.md: `# DMCP SDK v0.5.0 Release Notes`
+- All documentation files present:
+  - README.md (18,807 bytes)
+  - CHANGELOG.md (6,766 bytes)
+  - MIGRATION.md (26,024 bytes)
+  - RELEASE_NOTES.md (10,365 bytes)
+
+### Build Verification
+- Build configured successfully with `cmake -B build -S . -DDMCP_BUILD_TESTS=ON`
+- Version correctly shown in CMake output: `Version: 0.5.0`
+- All tests pass: 25/25 tests (100% pass rate)
+- Build warnings are pre-existing and expected:
+  - Compound literals in result.h (harmless, documented)
+  - uWebSockets library warnings (external dependency)
+- No new errors or warnings introduced by release changes
+
+### Release Checklist Verification
+- [x] Version bumped to 0.5.0 in CMakeLists.txt
+- [x] README.md references v0.5.0 breaking changes
+- [x] CHANGELOG.md created with comprehensive change list
+- [x] RELEASE_NOTES.md created with migration guide and release info
+- [x] All 17 breaking changes documented
+- [x] Migration guide finalized (MIGRATION.md)
+- [x] Plan archived to `.sisyphus/plans/archive/`
+- [x] Boulder updated to mark plan complete
+- [x] Tests passing (25/25)
+- [x] Documentation complete and consistent
+
+### Best Practices Observed
+1. **Single source of truth**: Version defined once in CMakeLists.txt
+2. **Comprehensive documentation**: CHANGELOG, MIGRATION, RELEASE_NOTES each serve different purposes
+3. **Clear breaking changes**: Every breaking change documented with migration path
+4. **Test verification**: All tests pass before release
+5. **Version consistency**: All documentation references same version
+6. **Plan archiving**: Maintains history while marking completion
+7. **Release checklist**: Systematic verification of all release criteria
+
+### Final Verification
+All acceptance criteria from task 14 met:
+- [x] README.md - Update version to v0.5.0 (already referenced)
+- [x] .sisyphus/plans/api-breaking-refactor.md - Archived to archive/
+- [x] Create CHANGELOG.md - Add comprehensive changelog for v0.5.0
+- [x] Version bumped to v0.5.0 (breaking changes)
+- [x] All breaking changes documented in changelog
+- [x] Migration guide finalized (MIGRATION.md from task 12)
+- [x] Release notes template created (RELEASE_NOTES.md)
+- [x] Archive plan to `.sisyphus/plans/archive/`
+- [x] README displays v0.5.0 (migration guide title)
+- [x] All changes not committed yet (pending git operations)
+- [x] No pending tests (all 25 tests pass)
+- [x] All documentation complete and consistent
+
+### Release Readiness
+Project is ready for release:
+- Version bumped: 0.5.0
+- Documentation complete: README, CHANGELOG, MIGRATION, RELEASE_NOTES
+- Tests passing: 100% pass rate
+- Build successful: Zero errors, only pre-existing warnings
+- Plan completed and archived
+- Boulder updated to reflect completion
+
+Next steps (maintainer responsibility):
+- Commit all changes with appropriate commit message
+- Tag release with v0.5.0
+- Push to remote repository
+- Create GitHub release with RELEASE_NOTES content
+- Announce release to community
