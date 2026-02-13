@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "types.h"
 
 #ifdef __cplusplus
@@ -33,20 +34,20 @@ typedef enum {
 // ============================================================================
 
 typedef struct {
-  char entity_class[128];    // e.g., "DoomImp", "Clip"
+  char        entity_class[128];  // e.g., "DoomImp", "Clip"
   dmcp_vec2_t position;
-  float angle;               // Degrees
-  int32_t tid;               // Thing ID (0 = auto-assign)
+  float       angle;  // Degrees
+  int32_t     tid;    // Thing ID (0 = auto-assign)
 } dmcp_cmd_spawn_t;
 
 typedef struct {
-  char map_name[32];         // e.g., "MAP01", "E1M1"
-  int32_t skill_level;       // 1-5
-  bool reset_inventory;
+  char    map_name[32];  // e.g., "MAP01", "E1M1"
+  int32_t skill_level;   // 1-5
+  bool    reset_inventory;
 } dmcp_cmd_change_level_t;
 
 typedef struct {
-  char item_class[128];
+  char    item_class[128];
   int32_t amount;
 } dmcp_cmd_give_item_t;
 
@@ -56,11 +57,11 @@ typedef struct {
 
 typedef struct {
   dmcp_vec2_t position;
-  float angle;
+  float       angle;
 } dmcp_cmd_set_position_t;
 
 typedef struct {
-  char command[256];         // Console command
+  char command[256];  // Console command
 } dmcp_cmd_console_t;
 
 typedef struct {
@@ -68,13 +69,13 @@ typedef struct {
 } dmcp_cmd_pause_t;
 
 typedef struct {
-  float scale;               // 1.0 = normal, 0.5 = half speed, 2.0 = double
+  float scale;  // 1.0 = normal, 0.5 = half speed, 2.0 = double
 } dmcp_cmd_timescale_t;
 
 typedef struct {
-  int32_t target_tid;        // Target entity ID
-  float damage;
-  char damage_type[32];      // e.g., "Normal", "Fire", "Ice"
+  int32_t target_tid;  // Target entity ID
+  float   damage;
+  char    damage_type[32];  // e.g., "Normal", "Fire", "Ice"
 } dmcp_cmd_damage_t;
 
 typedef struct {
@@ -87,35 +88,31 @@ typedef struct {
 
 typedef struct {
   dmcp_command_type_t type;
-  uint32_t flags;
-  uint64_t sequence;         // For ordering/acknowledgment
-  
+  uint32_t            flags;
+  uint64_t            sequence;  // For ordering/acknowledgment
+
   union {
-    dmcp_cmd_spawn_t spawn;
+    dmcp_cmd_spawn_t        spawn;
     dmcp_cmd_change_level_t change_level;
-    dmcp_cmd_give_item_t give_item;
-    dmcp_cmd_set_health_t set_health;
+    dmcp_cmd_give_item_t    give_item;
+    dmcp_cmd_set_health_t   set_health;
     dmcp_cmd_set_position_t set_position;
-    dmcp_cmd_console_t console;
-    dmcp_cmd_pause_t pause;
-    dmcp_cmd_timescale_t timescale;
-    dmcp_cmd_damage_t damage;
-    dmcp_cmd_kill_t kill;
+    dmcp_cmd_console_t      console;
+    dmcp_cmd_pause_t        pause;
+    dmcp_cmd_timescale_t    timescale;
+    dmcp_cmd_damage_t       damage;
+    dmcp_cmd_kill_t         kill;
   } data;
+  uint8_t _reserved[16];
 } dmcp_command_t;
-
-// ============================================================================
-// Command Callbacks (Engine implements these)
-// ============================================================================
-
-typedef bool (*dmcp_command_handler_t)(void* user_data, const dmcp_command_t* cmd);
 
 // ============================================================================
 // Command Queue API
 // ============================================================================
 
 // Push a command from agent to game
-dmcp_result_t dmcp_push_command(dmcp_context_t* ctx, const dmcp_command_t* cmd);
+mcp_result_generic_t dmcp_push_command(dmcp_context_t*       ctx,
+                                       const dmcp_command_t* cmd);
 
 // Pop a command for execution (call from game thread)
 bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
@@ -134,29 +131,35 @@ void dmcp_clear_commands(dmcp_context_t* ctx);
 // ============================================================================
 
 // Parse a JSON-RPC command request into a command structure
-// JSON format: {"type": "spawn_entity", "params": {"entity_class": "DoomImp", ...}}
-dmcp_result_t dmcp_parse_command_json(const char* json, dmcp_command_t* out_cmd);
+// JSON format: {"type": "spawn_entity", "params": {"entity_class": "DoomImp",
+// ...}}
+mcp_result_generic_t dmcp_parse_command_json(const char*     json,
+                                             dmcp_command_t* out_cmd);
+
+// Extended version with context for custom parser lookup
+mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx,
+                                                const char*     json,
+                                                dmcp_command_t* out_cmd);
 
 // Serialize command result to JSON
-dmcp_result_t dmcp_format_command_result(const dmcp_command_t* cmd, 
-                                         bool success,
-                                         const char* message,
-                                         char* buffer,
-                                         size_t buffer_size);
+mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd,
+                                                bool                  success,
+                                                const char*           message,
+                                                char*                 buffer,
+                                                size_t buffer_size);
 
 // ============================================================================
 // Command Registration (for custom commands)
 // ============================================================================
 
-typedef dmcp_result_t (*dmcp_custom_command_parser_t)(const char* json_params,
-                                                       dmcp_command_t* out_cmd);
+typedef mcp_result_generic_t (*dmcp_custom_command_parser_t)(
+    const char* json_params, dmcp_command_t* out_cmd);
 
 // Register a custom command parser
 // This allows engines to extend the command system
-dmcp_result_t dmcp_register_command_parser(dmcp_context_t* ctx,
-                                           const char* type_name,
-                                           dmcp_command_type_t type,
-                                           dmcp_custom_command_parser_t parser);
+mcp_result_generic_t dmcp_register_command_parser(
+    dmcp_context_t* ctx, const char* type_name, dmcp_command_type_t type,
+    dmcp_custom_command_parser_t parser);
 
 #ifdef __cplusplus
 }

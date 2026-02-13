@@ -1,5 +1,6 @@
 # DMCP Architecture (Clean & Modular)
 
+**Version**: 0.6.0  
 **Target Architecture**: Engine ↔ Adapter ↔ Doom MCP ↔ Generic MCP Layer
 
 ## Layer Overview
@@ -22,11 +23,15 @@
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DOOM MCP LAYER (Game-Specific)                       │
-│  include/dmcp/doom/schema.h      - Data structures (Snapshot, Player, etc.) │
-│  include/dmcp/doom/api.h         - C API for game data                       │
-│  src/doom/serializer.cpp         - JSON serialization                        │
-│  - Knows about Doom game state                                                │
-│  - No networking/transport logic                                              │
+│  include/dmcp/doom/types.h     - Data structures (Snapshot, Player, etc.)   │
+│  include/dmcp/doom/config.h    - Configuration types                         │
+│  include/dmcp/doom/api.h       - C API for game data                         │
+│  src/doom/context.cpp          - C API implementation                        │
+│  src/doom/handlers.cpp         - MCP method handlers                         │
+│  src/doom/pool.cpp             - Snapshot pooling                            │
+│  src/doom/serialization.cpp    - JSON serialization                          │
+│  - Knows about Doom game state                                              │
+│  - No networking/transport logic                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -34,11 +39,11 @@
 │                     GENERIC MCP LAYER (Protocol & Transport)                 │
 │  include/mcp/generic/protocol.h  - MCP protocol types                        │
 │  include/mcp/generic/server.h    - Generic server interface                  │
-│  include/mcp/generic/transport.h - Abstract transport (SSE/WebSocket)       │
-│  src/mcp/server.cpp              - JSON-RPC + SSE implementation            │
-│  src/mcp/sse_transport.cpp       - SSE over HTTP (uWebSockets)              │
-│  - No game-specific knowledge                                                 │
-│  - Pure MCP protocol implementation                                           │
+│  include/mcp/generic/transport.h - Abstract transport (SSE)                 │
+│  src/mcp/server.cpp              - JSON-RPC + method dispatch               │
+│  src/mcp/transport/sse.cpp       - SSE over HTTP (uWebSockets)              │
+│  - No game-specific knowledge                                                │
+│  - Pure MCP protocol implementation                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -63,27 +68,29 @@ Engine ───────► Adapter ───────► Doom MCP ──
 // mcp/generic/server.h
 mcp_server_t* mcp_server_create(const mcp_server_config_t* config);
 void          mcp_server_destroy(mcp_server_t* server);
-bool          mcp_server_register_handler(mcp_server_t* server, 
-                                          const char* method,
-                                          mcp_handler_fn handler);
-void          mcp_server_broadcast(mcp_server_t* server, 
-                                   const char* event_type,
-                                   const char* json_payload);
+mcp_result_generic_t mcp_server_method_register(mcp_server_t* server,
+                                                 const char* method,
+                                                 mcp_method_handler_t handler,
+                                                 void* user_data);
+void          mcp_server_event_broadcast(mcp_server_t* server,
+                                          const char* event_type,
+                                          const char* json_payload);
 ```
 
 ### Doom MCP Layer (Doom-specific)
 ```c
-// dmcp/doom/api.h
-dmcp_context_t* dmcp_create(const dmcp_config_t* config);
-void            dmcp_submit_snapshot(dmcp_context_t* ctx, 
-                                     const dmcp_snapshot_t* snapshot);
+// dmcp/doom/api.h (or use dmcp/doom/dmcp.h convenience header)
+dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
+void            dmcp_context_destroy(dmcp_context_t* ctx);
+void            dmcp_context_tick(dmcp_context_t* ctx);
 ```
 
 ### Adapter Layer (Engine-specific)
 ```c
 // adapters/zdoom/adapter.h
-dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
-void          dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+dmcp_zdoom_t*        dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
+mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+void                 dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 ```
 
 ## File Structure
@@ -91,43 +98,71 @@ void          dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 ```
 dmcp/
 ├── cmake/
-│   └── dmcp-config.cmake.in
+│   ├── CPM.cmake              # CPM package manager setup
+│   ├── Dependencies.cmake     # External dependencies
+│   ├── CompilerWarnings.cmake # Warning configuration
+│   └── Sanitizers.cmake       # Sanitizer setup
+│
+├── docs/
+│   ├── README.md              # Full documentation
+│   ├── ARCHITECTURE.md        # This file
+│   └── CHANGELOG.md           # Version history
 │
 ├── include/
 │   ├── mcp/
 │   │   └── generic/
-│   │       ├── protocol.h      # MCP protocol types
-│   │       ├── server.h        # Generic server API
-│   │       └── transport.h     # Transport abstraction
+│   │       ├── protocol.h     # MCP protocol types
+│   │       ├── server.h       # Generic server API
+│   │       ├── transport.h    # Transport abstraction
+│   │       ├── constants.h    # Buffer sizes, limits
+│   │       └── result.h       # Result type and macros
 │   │
 │   └── dmcp/
 │       └── doom/
 │           ├── api.h           # Public C API
-│           ├── schema.h        # Data structures
-│           └── types.h         # Type definitions
+│           ├── config.h        # Configuration types
+│           ├── types.h         # Data structures
+│           ├── commands.h      # Command system
+│           └── dmcp.h          # Convenience header
 │
 ├── src/
 │   ├── mcp/
 │   │   ├── server.cpp          # Generic MCP server
-│   │   ├── sse_transport.cpp   # SSE implementation
-│   │   ├── jsonrpc.cpp         # JSON-RPC handling
-│   │   └── protocol.cpp        # Protocol utilities
+│   │   ├── transport/
+│   │   │   └── sse.cpp         # SSE implementation
+│   │   └── json/
+│   │       ├── json.hpp        # JSON abstraction
+│   │       └── yyjson.cpp      # yyjson implementation
 │   │
 │   └── doom/
-│       ├── context.cpp         # Doom MCP context
-│       ├── serializer.cpp      # JSON serialization
-│       └── pool.cpp            # Snapshot pooling
+│       ├── context.cpp         # C API (178 lines)
+│       ├── handlers.cpp        # MCP handlers (201 lines)
+│       ├── pool.cpp            # Pool management (30 lines)
+│       ├── serialization.cpp   # JSON serialization (125 lines)
+│       ├── commands.cpp        # Command processing
+│       └── internal/
+│           ├── pool.hpp        # Pool internals
+│           ├── command_queue.hpp # Queue internals
+│           ├── screenshot.hpp  # Screenshot state
+│           └── context.hpp     # Context internals
 │
 ├── adapters/
 │   └── zdoom/
 │       ├── adapter.h           # Public adapter header
-│       └── adapter.cpp         # ZDoom integration
+│       ├── adapter.cpp         # ZDoom integration
+│       └── commands.cpp        # ZDoom command handlers
 │
 ├── examples/
+│   ├── README.md
 │   └── dummy_server.cpp
 │
 ├── tests/
-│   └── (unit tests)
+│   ├── test_utils.hpp          # Shared fixtures/factories
+│   ├── unit/
+│   │   ├── test_mcp_server.cpp
+│   │   ├── test_doom_context.cpp
+│   │   └── test_zdoom_adapter.cpp
+│   └── integration/            # Future integration tests
 │
 ├── CMakeLists.txt
 └── README.md
@@ -137,21 +172,22 @@ dmcp/
 
 | Target | Type | Dependencies | Purpose |
 |--------|------|--------------|---------|
-| `mcp::generic` | STATIC | uWebSockets, nlohmann_json | Generic MCP protocol |
+| `mcp::generic` | STATIC | yyjson, uWebSockets | Generic MCP protocol |
 | `dmcp::core` | STATIC | mcp::generic | Doom-specific MCP |
-| `dmcp::zdoom` | INTERFACE | dmcp::core | ZDoom adapter |
+| `dmcp::zdoom` | STATIC | dmcp::core | ZDoom adapter |
 
 ## Build Configuration
 
 ```cmake
 # Options
-option(DMCP_BUILD_TESTS "Build tests" ON)
+option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build examples" ON)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
+option(DMCP_ENABLE_SANITIZERS "Enable sanitizers" OFF)
 
 # Consumers can do:
 find_package(dmcp REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::zdoom)
+target_link_libraries(myengine PRIVATE dmcp::core)
 ```
 
 ## Key Design Principles
@@ -159,6 +195,21 @@ target_link_libraries(myengine PRIVATE dmcp::zdoom)
 1. **Separation of Concerns**: Each layer has one job
 2. **Dependency Inversion**: Upper layers depend on abstractions, not implementations
 3. **Minimal Public API**: Only expose what's necessary
-4. **Zero-Copy Where Possible**: Use object pools and pointer passing
+4. **Object Pooling for Reduced Allocations**: Reuses snapshot objects to minimize memory allocation overhead
 5. **C API at Boundaries**: All public APIs are C-compatible
 6. **Optional Components**: Adapters are opt-in via CMake options
+7. **Unified Error Types**: All DMCP functions use `mcp_result_generic_t` from MCP layer
+
+## Source Code Organization
+
+The Doom MCP source is organized by concern:
+
+| File | Lines | Responsibility |
+|------|-------|----------------|
+| `context.cpp` | 178 | C API implementation |
+| `handlers.cpp` | 201 | MCP method handlers (tools/list, tools/call) |
+| `pool.cpp` | 30 | Snapshot pool management |
+| `serialization.cpp` | 125 | JSON serialization of snapshots |
+| `commands.cpp` | ~300 | Command queue and parsing |
+
+This separation makes each file focused and maintainable.

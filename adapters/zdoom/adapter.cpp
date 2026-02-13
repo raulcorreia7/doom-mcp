@@ -248,7 +248,7 @@ static void ZdoomLogCallback(void* user_data, int level, const char* message) {
     return;
   }
 
-  int printLevel = (level >= DMCP_LOG_WARN) ? PRINT_HIGH : PRINT_LOG;
+  int printLevel = (level >= MCP_LOG_WARN) ? PRINT_HIGH : PRINT_LOG;
   Printf(printLevel, "[DMCP] %s\n", message);
 }
 
@@ -295,13 +295,13 @@ dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
   // Create DMCP context
   ctx->dmcp_ctx = dmcp_context_create(&ctx->dmcp_cfg);
   if (!ctx->dmcp_ctx) {
-    Log(ctx, DMCP_LOG_ERROR, "Failed to start DMCP server on port %u",
+    Log(ctx, MCP_LOG_ERROR, "Failed to start DMCP server on port %u",
         ctx->dmcp_cfg.port);
     delete ctx;
     return nullptr;
   }
 
-  Log(ctx, DMCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)",
+  Log(ctx, MCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)",
       ctx->dmcp_cfg.port, ctx->dmcp_cfg.target_hz);
 
   return reinterpret_cast<dmcp_zdoom_t*>(ctx);
@@ -316,47 +316,53 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
     ctx->dmcp_ctx = nullptr;
   }
 
-  Log(ctx, DMCP_LOG_INFO, "DMCP server stopped");
+  Log(ctx, MCP_LOG_INFO, "DMCP server stopped");
   delete ctx;
 }
 
-int dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
+mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
-  if (!ctx || !ctx->dmcp_ctx) return DMCP_ERROR_INVALID_ARGS;
+  if (!ctx || !ctx->dmcp_ctx) {
+    mcp_result_generic_t result = {};
+    result.code          = MCP_RESULT_CODE_INVALID_ARGS;
+    return result;
+  }
 
   // Check should_tick gate
   if (ctx->user_cfg.should_tick_fn &&
       !ctx->user_cfg.should_tick_fn(ctx->user_cfg.should_tick_user)) {
-    return DMCP_OK;
+    return MCP_RESULT_OK("Success");
   }
 
   // Check server health
-  if (!dmcp_is_running(ctx->dmcp_ctx)) {
+  if (!dmcp_context_is_running(ctx->dmcp_ctx)) {
     if (!ctx->log_not_running_emitted) {
-      Log(ctx, DMCP_LOG_WARN, "DMCP server not running; skipping tick");
+      Log(ctx, MCP_LOG_WARN, "DMCP server not running; skipping tick");
       ctx->log_not_running_emitted = true;
     }
-    return DMCP_ERROR_DISABLED;
+    mcp_result_generic_t result = {};
+    result.code          = MCP_RESULT_CODE_DISABLED;
+    return result;
   }
   ctx->log_not_running_emitted = false;
 
   // Process tick
-  dmcp_tick(ctx->dmcp_ctx);
+  dmcp_context_tick(ctx->dmcp_ctx);
 
-  return DMCP_OK;
+  return MCP_RESULT_OK("Success");
 }
 
 bool dmcp_zdoom_is_running(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) return false;
-  return dmcp_is_running(ctx->dmcp_ctx);
+  return dmcp_context_is_running(ctx->dmcp_ctx);
 }
 
 void dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx_handle, dmcp_stats_t* out_stats) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx || !out_stats) return;
 
-  dmcp_get_stats(ctx->dmcp_ctx, out_stats);
+  dmcp_stats_get(ctx->dmcp_ctx, out_stats);
 }
 
 }  // extern "C"

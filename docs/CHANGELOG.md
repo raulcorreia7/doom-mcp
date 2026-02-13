@@ -5,11 +5,79 @@ All notable changes to the Doom Model Context Protocol (DMCP) SDK will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-13
+
+### Breaking Changes
+- Removed `dmcp_result_t` type alias - use `mcp_result_generic_t` or `mcp_result_t` instead
+- Removed all `DMCP_RESULT_CODE_*` macros - use `MCP_RESULT_CODE_*` instead
+- Removed all `DMCP_LOG_*` macros - use `MCP_LOG_*` instead
+- Removed `DMCP_OK` and `DMCP_ERROR_*` macros - use `MCP_RESULT_OK()` and `MCP_RESULT_ERROR()` instead
+- Removed `dmcp_log_level_t` type alias - use `mcp_log_level_t` instead
+- `dmcp_zdoom_tick()` now returns `mcp_result_generic_t` instead of `int`
+- `dmcp_screenshot_submit()` now returns `MCP_RESULT_CODE_DISABLED` (NYI)
+- Added `struct_size` field to `mcp_server_stats_t`, `dmcp_stats_t`, `mcp_transport_callbacks_t`
+- Added `version` field to `mcp_transport_interface_t`
+- Added `_reserved` field to `dmcp_command_t` union
+
+### Added
+- `include/dmcp/doom/config.h` - Configuration types (extracted from types.h)
+- `include/dmcp/doom/dmcp.h` - Convenience header that includes all DMCP headers
+- `src/doom/handlers.cpp` - MCP method handlers (extracted from context.cpp)
+- `src/doom/pool.cpp` - Snapshot pool management (extracted from context.cpp)
+- `src/doom/serialization.cpp` - JSON serialization (extracted from context.cpp)
+- `src/doom/internal/pool.hpp` - Pool internals
+- `src/doom/internal/command_queue.hpp` - Command queue internals
+- `src/doom/internal/screenshot.hpp` - Screenshot state internals
+- `src/doom/internal/context.hpp` - Context internals
+- `cmake/CPM.cmake` - CPM package manager setup
+- `cmake/Dependencies.cmake` - Dependency declarations
+- `cmake/CompilerWarnings.cmake` - Warning flag function
+- `cmake/Sanitizers.cmake` - Sanitizer setup function
+- `tests/test_utils.hpp` - Shared test fixtures and factories
+- `tests/unit/` - Unit test directory
+- `tests/integration/` - Integration test directory (ready for future)
+- SSE transport callbacks now invoked (`on_sse_connect`, `on_sse_disconnect`, `on_sse_send`)
+- Custom command parser lookup in `dmcp_parse_command_json`
+- Command queue size limit (max 64 commands)
+- Thread safety for custom parser registration
+- Command queue tests (5 new test cases)
+- Error path tests (invalid config, buffer overflow)
+
+### Fixed
+- SSE client double-free race condition (zombie flag pattern)
+- JSON command params serialization (was hardcoded `"{}"`)
+- ZDoom adapter now uses current API names
+- `PauseGame` logic bug (removed redundant if/else)
+- Duplicate code block in adapter removed
+- Documentation example using wrong `strcpy` function
+
+### Changed
+- `src/doom/context.cpp` reduced from 541 lines to 178 lines (extracted handlers, pool, serialization)
+- `include/dmcp/doom/types.h` now contains data types only (config moved to config.h)
+- CMake now uses `CONFIGURE_DEPENDS` glob for automatic source detection
+- CMake root reduced from 274 lines to ~100 lines using modular cmake/ files
+- Memory management docs: "Object Pooling" instead of "Zero-Copy"
+- Command parsers now scoped per-context (improved thread safety)
+- Consolidated duplicate lambdas in `handle_tools_call`
+- Version numbers unified across headers
+- Test structure reorganized into unit/integration directories
+
+### Removed
+- nlohmann/json support (yyjson only now)
+- All `DMCP_*` type aliases and macros (use `MCP_*` equivalents)
+- Unused `DMCP_ERROR_SERVER_FAILED` macro
+- Unused `dmcp_command_handler_t` typedef
+- Unused `make_jsonrpc_response()` function
+- Unused `Value::elements()` method
+- Duplicate tests from `test_main.cpp`
+- Duplicate documentation sections
+- `queue_slots` config field (renamed to `_reserved_queue_slots`)
+
 ## [0.5.0] - 2026-01-28
 
 ### BREAKING CHANGES
 
-This release includes a comprehensive API redesign introducing a consistent type-oriented naming convention and rich error handling throughout the codebase. See [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
+This release includes a comprehensive API redesign introducing a consistent type-oriented naming convention and rich error handling throughout the codebase.
 
 #### API Naming Convention
 All public APIs now follow `{namespace}_{type}_{action}` pattern for consistency and discoverability.
@@ -106,27 +174,13 @@ if (result.code != MCP_RESULT_CODE_OK) {
 
 ### Documentation
 
-#### Comprehensive Migration Guide
-- Created [MIGRATION.md](MIGRATION.md) with detailed migration instructions
-- Quick reference table for all 17 breaking changes
-- Before/after code examples for each change
-- Troubleshooting section with common issues
-- Migration checklist
-
-#### API Documentation
 - Added JSDoc-style documentation to all public headers
 - Documented all parameters, return values, error conditions
-- Included breaking change notes and migration examples
-- Updated README with new API examples
-
-#### Examples
-- Updated dummy_server.cpp to use new API
-- Created examples/README.md with migration guidance
-- All examples demonstrate type-oriented naming pattern
+- Updated README with API examples
 
 ### Fixed
 
-- All deprecated APIs removed (no backward compatibility)
+- All deprecated APIs removed
 - All magic numbers replaced with named constants
 - Consistent error messages across all APIs
 - Test infrastructure properly configured for conditional adapter builds
@@ -135,47 +189,17 @@ if (result.code != MCP_RESULT_CODE_OK) {
 
 - Batch method registration uses single mutex lock (reduced contention)
 - Hash map capacity reservation prevents reallocations during batch operations
-- More efficient client count query (returns actual count, no conversion needed)
-
-### Developer Experience
-
-- Type-oriented naming makes API more discoverable
-- Rich error messages reduce debugging time
-- Comprehensive test suite provides confidence
-- Clear migration path for existing users
+- More efficient client count query (returns actual count)
 
 ---
 
 ## [0.4.0] - Previous Release
 
-### Features
 - Initial release of DMCP SDK
 - Generic MCP protocol implementation
 - Doom MCP layer for game state management
 - ZDoom adapter for engine integration
 - Server-Sent Events (SSE) transport
 - JSON-RPC protocol support
-- Screenshot management
-- Command processing system
-
-### API
-- Basic server lifecycle (create, destroy, is_running)
-- Method registration
-- Event broadcasting
-- Statistics tracking
-- Snapshot callbacks
-- Configuration management
-
----
-
-### Upgrade Path from v0.4.0 to v0.5.0
-
-1. **Read the Migration Guide**: Start with [MIGRATION.md](MIGRATION.md)
-2. **Update Function Calls**: Use the Quick Reference Table to rename all API calls
-3. **Update Error Handling**: Change from enum comparison to struct `.code` and `.message` access
-4. **Update Configuration**: Change `dmcp_zdoom_config_t.dmcp_config->port` to `cfg.base.port`
-5. **Rebuild**: Clean build to ensure all references updated
-6. **Run Tests**: Verify your integration works with new API
-7. **Check Examples**: Reference updated examples in `examples/` directory
 
 **Note**: This is a breaking release with no backward compatibility. All deprecated APIs have been removed.

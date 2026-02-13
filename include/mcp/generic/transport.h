@@ -33,6 +33,8 @@ typedef struct mcp_transport_s mcp_transport_t;
  * @note Implementations must be thread-safe
  */
 typedef struct {
+  size_t struct_size;  ///< Must be sizeof(mcp_transport_callbacks_t)
+
   /**
    * @brief Called when a new HTTP request arrives
    *
@@ -104,6 +106,8 @@ typedef struct {
  * @note All implementations must provide all functions
  */
 typedef struct {
+  uint32_t version;  ///< Interface version (currently 1)
+
   /**
    * @brief Transport name
    *

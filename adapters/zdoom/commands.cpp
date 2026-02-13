@@ -103,12 +103,8 @@ static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
 
 // Helper to pause/unpause game
 static bool PauseGame(const dmcp_cmd_pause_t* pause) {
-  // Toggle pause state
-  if (pause->paused) {
-    ExecuteConsoleCommand("pause");
-  } else {
-    ExecuteConsoleCommand("pause");  // Toggle off if already paused
-  }
+  // The 'pause' console command toggles pause state in ZDoom
+  ExecuteConsoleCommand("pause");
   return true;
 }
 
@@ -218,7 +214,7 @@ void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx_handle) {
 
     // Log result
     if (!success) {
-      Log(ctx, DMCP_LOG_WARN, "Command %d failed", cmd.type);
+      Log(ctx, MCP_LOG_WARN, "Command %d failed", cmd.type);
     }
 
     // TODO: Send acknowledgment back to agent if DMCP_CMD_FLAG_RELIABLE was set

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "commands.h"
+#include "config.h"
 #include "types.h"
 
 #ifdef __cplusplus
@@ -236,9 +238,11 @@ bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  * @param frame Screenshot frame data (pixels, width, height, stride)
  * @return Result struct with code and message
  *
+ * @note NYI: Screenshot encoding not yet implemented. Returns
+ * MCP_RESULT_ERROR(-3, "Operation disabled").
  * @note Thread-safe - can be called from any thread
  * @note The frame data is copied, caller retains ownership of pixels
- * @note If queue is full, returns DMCP_ERROR_QUEUE_FULL
+ * @note If queue is full, returns MCP_RESULT_ERROR(-4, "Queue full")
  *
  * Breaking Changes:
  * - Function renamed from dmcp_submit_screenshot to dmcp_screenshot_submit
@@ -263,14 +267,14 @@ bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  *     .stride = width * 4  // RGBA = 4 bytes per pixel
  * };
  *
- * dmcp_result_t result = dmcp_screenshot_submit(ctx, &frame);
- * if (result.code != DMCP_RESULT_CODE_OK) {
+ * mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+ * if (result.code != 0) {
  *     fprintf(stderr, "Screenshot submit failed: %s\n", result.message);
  * }
  * @endcode
  */
-dmcp_result_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
-                                     const dmcp_screenshot_frame_t* frame);
+mcp_result_generic_t dmcp_screenshot_submit(
+    dmcp_context_t* ctx, const dmcp_screenshot_frame_t* frame);
 
 // ============================================================================
 // Utilities
@@ -401,7 +405,7 @@ static inline void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot) {
  *         .position = {enemy->x, enemy->y},
  *         .max_hp = enemy->max_health,
  *     };
- *     strcpy(enemy.type, enemy->className, sizeof(enemy.type));
+ *     dmcp_strcpy(enemy.type, enemy->className, sizeof(enemy.type));
  *
  *     if (!dmcp_snapshot_add_enemy(&snapshot, &enemy)) {
  *         fprintf(stderr, "Enemy array full\n");

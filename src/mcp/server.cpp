@@ -153,16 +153,7 @@ static bool HandleMCPRequest(Server* server, const char* body,
       Value params = req["params"];
       char  handler_response[MCP_BUFFER_SIZE_DEFAULT];
 
-      std::string params_str;
-      if (params) {
-	// Need to serialize params - create a temp doc
-	Builder pb;
-	pb.start_object();
-	// Copy params to builder... simplified for now
-	params_str = "{}";
-      } else {
-	params_str = "{}";
-      }
+      std::string params_str = params ? params.dump() : "{}";
 
       if (it->second.fn(it->second.user_data, method.c_str(),
                         params_str.c_str(), handler_response,
@@ -240,6 +231,7 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
 
   // Initialize transport callbacks
   mcp_transport_callbacks_t callbacks = {};
+  callbacks.struct_size               = sizeof(mcp_transport_callbacks_t);
   callbacks.on_http_request           = mcp::OnHttpRequest;
 
   // Create SSE transport
@@ -356,7 +348,8 @@ void mcp_server_stats_get(const mcp_server_t* server_handle,
                           mcp_server_stats_t* stats) {
   if (!server_handle || !stats) return;
 
-  auto* server = reinterpret_cast<const mcp::Server*>(server_handle);
+  auto* server       = reinterpret_cast<const mcp::Server*>(server_handle);
+  stats->struct_size = sizeof(mcp_server_stats_t);
   stats->connected_clients = server->connected_clients.load();
   stats->requests_handled  = server->requests_handled.load();
   stats->requests_failed   = server->requests_failed.load();

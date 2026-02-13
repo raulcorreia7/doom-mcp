@@ -37,6 +37,8 @@ struct Client {
   uWS::HttpResponse<false>*             response;
   std::string                           id;
   std::chrono::steady_clock::time_point connected_at;
+  bool                                  zombie = false;
+  void*                                 handle = nullptr;
 };
 
 // Transport state
@@ -67,9 +69,6 @@ struct TransportContext {
   std::mutex              start_mutex;
 };
 
-// Thread-local pointer for thread-safe access
-thread_local TransportContext* g_current_ctx = nullptr;
-
 static const std::uint8_t kDefaultScreenshotPng[] = {
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
     0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
@@ -84,9 +83,7 @@ static const std::uint8_t kDefaultScreenshotPng[] = {
 
 static void HandlePostMCP(TransportContext* ctx, uWS::HttpResponse<false>* res,
                           uWS::HttpRequest* req) {
-  const std::string_view request_path =
-      req ? req->getUrl() : std::string_view{};
-  (void)request_path;
+  (void)req;
   res->onAborted([]() {});
 
   res->onData([ctx, res, body = std::string()](std::string_view chunk,
@@ -129,9 +126,7 @@ static void HandlePostMCP(TransportContext* ctx, uWS::HttpResponse<false>* res,
 
 static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
                          uWS::HttpRequest* req) {
-  const std::string_view request_path =
-      req ? req->getUrl() : std::string_view{};
-  (void)request_path;
+  (void)req;
   // Setup SSE headers
   res->cork([res]() {
     res->writeHeader("Content-Type", "text/event-stream");
@@ -151,6 +146,12 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
     ctx->clients.push_back(client);
   }
 
+  if (ctx->callbacks.on_sse_connect) {
+    void* client_handle = client;
+    ctx->callbacks.on_sse_connect(ctx->user_data, &client_handle);
+    client->handle = client_handle;
+  }
+
   // Send initial connection event
   std::string connect_msg =
       "event: connected\ndata: {\"client_id\":\"" + client->id + "\"}\n\n";
@@ -158,7 +159,11 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
 
   // Handle disconnect
   res->onAborted([ctx, client]() {
+    if (ctx->callbacks.on_sse_disconnect && client->handle) {
+      ctx->callbacks.on_sse_disconnect(ctx->user_data, client->handle);
+    }
     std::lock_guard<std::mutex> lock(ctx->clients_mutex);
+    if (client->zombie) return;
     auto it = std::find_if(ctx->clients.begin(), ctx->clients.end(),
                            [client](Client* c) { return c == client; });
     if (it != ctx->clients.end()) {
@@ -171,9 +176,7 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
 static void HandleGetScreenshot(TransportContext*         ctx,
                                 uWS::HttpResponse<false>* res,
                                 uWS::HttpRequest*         req) {
-  const std::string_view request_path =
-      req ? req->getUrl() : std::string_view{};
-  (void)request_path;
+  (void)req;
   res->onAborted([]() {});
 
   std::vector<std::uint8_t> png;
@@ -202,8 +205,6 @@ static void HandleGetScreenshot(TransportContext*         ctx,
 // ============================================================================
 
 static void TransportThreadMain(TransportContext* ctx) {
-  g_current_ctx = ctx;
-
   ctx->app  = std::make_unique<uWS::App>();
   ctx->loop = uWS::Loop::get();
 
@@ -355,24 +356,29 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data,
   if (!transport || !data) return;
   auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
 
-  std::lock_guard<std::mutex>          lock(ctx->clients_mutex);
-  std::vector<mcp::transport::Client*> dead_clients;
+  std::lock_guard<std::mutex> lock(ctx->clients_mutex);
 
   for (auto* client : ctx->clients) {
     std::string_view sv(data, len);
-    if (!client->response->write(sv)) {
-      dead_clients.push_back(client);
+    if (client->response->write(sv)) {
+      if (ctx->callbacks.on_sse_send) {
+	ctx->callbacks.on_sse_send(ctx->user_data, client->handle, sv.data(),
+	                           sv.length());
+      }
+    } else {
+      client->zombie = true;
     }
   }
 
-  // Clean up dead clients
-  for (auto* dead : dead_clients) {
-    auto it = std::find(ctx->clients.begin(), ctx->clients.end(), dead);
-    if (it != ctx->clients.end()) {
-      ctx->clients.erase(it);
-    }
-    delete dead;
-  }
+  ctx->clients.erase(std::remove_if(ctx->clients.begin(), ctx->clients.end(),
+                                    [](mcp::transport::Client* c) {
+				      if (c->zombie) {
+					delete c;
+					return true;
+				      }
+				      return false;
+				    }),
+                     ctx->clients.end());
 }
 
 static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
@@ -388,6 +394,7 @@ static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
 // ============================================================================
 
 const mcp_transport_interface_t mcp_sse_transport = {
+    1,                   // version
     "sse-uws",           // name
     SSE_Create,          // create
     SSE_Destroy,         // destroy

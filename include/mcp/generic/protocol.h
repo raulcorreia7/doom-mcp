@@ -261,6 +261,7 @@ static inline mcp_server_config_t mcp_default_config(void) {
  * @note All fields are unsigned (0 = no events)
  */
 typedef struct {
+  size_t   struct_size;        ///< Must be sizeof(mcp_server_stats_t)
   uint64_t connected_clients;  ///< Total client connections (lifetime)
   uint64_t requests_handled;   ///< Total successful requests processed
   uint64_t requests_failed;    ///< Total failed requests

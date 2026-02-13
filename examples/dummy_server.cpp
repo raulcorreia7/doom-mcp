@@ -94,16 +94,16 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 void LogCallback(void* user_data, int level, const char* message) {
   const char* prefix = "[DMCP]";
   switch (level) {
-    case DMCP_LOG_DEBUG:
+    case MCP_LOG_DEBUG:
       prefix = "[DMCP:D]";
       break;
-    case DMCP_LOG_INFO:
+    case MCP_LOG_INFO:
       prefix = "[DMCP:I]";
       break;
-    case DMCP_LOG_WARN:
+    case MCP_LOG_WARN:
       prefix = "[DMCP:W]";
       break;
-    case DMCP_LOG_ERROR:
+    case MCP_LOG_ERROR:
       prefix = "[DMCP:E]";
       break;
   }
@@ -170,8 +170,8 @@ int main() {
     //       .stride = width * 4  // RGBA = 4 bytes per pixel
     //   };
     //
-    //   dmcp_result_t result = dmcp_screenshot_submit(ctx, &frame);
-    //   if (result.code != DMCP_RESULT_CODE_OK) {
+    //   mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+    //   if (result.code != MCP_RESULT_CODE_OK) {
     //     fprintf(stderr, "Screenshot failed: %s\n", result.message);
     //   }
     //   free(pixels);  // Safe to free after submit (data is copied)
