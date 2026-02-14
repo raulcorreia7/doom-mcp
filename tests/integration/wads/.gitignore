@@ -1,0 +1,5 @@
+# Don't commit downloaded WAD files
+*.wad
+
+# Don't commit log files
+*.log

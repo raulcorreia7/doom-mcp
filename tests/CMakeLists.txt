@@ -31,28 +31,10 @@ include(CTest)
 include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(dmcp_tests)
 
-# Integration tests (optional, requires network)
+# Integration tests (optional, requires network and WAD)
 option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests" OFF)
 
 if(DMCP_BUILD_INTEGRATION_TESTS)
-  add_executable(dmcp_integration_tests
-    integration/test_e2e_mcp.cpp
-  )
-
-  target_link_libraries(dmcp_integration_tests
-    PRIVATE
-      dmcp::core
-      Catch2::Catch2WithMain
-  )
-
-  target_include_directories(dmcp_integration_tests
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-  )
-
-  if(NOT MSVC)
-    target_compile_options(dmcp_integration_tests PRIVATE -Wall -Wextra -Wpedantic)
-  endif()
-
-  catch_discover_tests(dmcp_integration_tests)
+  # Add integration test subdirectory
+  add_subdirectory(integration)
 endif()
