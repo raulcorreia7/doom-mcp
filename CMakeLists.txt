@@ -4,6 +4,7 @@ project(dmcp LANGUAGES C CXX VERSION 0.6.0)
 option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build example servers" ON)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
+option(DMCP_BUILD_ADAPTER_CHOCOLATE "Build Chocolate Doom adapter" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
 
@@ -41,6 +42,10 @@ file(GLOB DMCP_CORE_SOURCES CONFIGURE_DEPENDS
 
 file(GLOB DMCP_ZDOOM_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom/*.cpp"
+)
+
+file(GLOB DMCP_CHOCOLATE_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/chocolate-doom/*.c"
 )
 
 add_library(mcp_generic STATIC 
@@ -122,6 +127,26 @@ if(DMCP_BUILD_ADAPTER_ZDOOM)
   if(NOT MSVC)
     target_compile_options(dmcp_zdoom PRIVATE -w)
   endif()
+endif()
+
+if(DMCP_BUILD_ADAPTER_CHOCOLATE)
+  add_library(dmcp_chocolate STATIC ${DMCP_CHOCOLATE_SOURCES})
+  add_library(dmcp::chocolate ALIAS dmcp_chocolate)
+  
+  target_include_directories(dmcp_chocolate
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapters/chocolate-doom>
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src/doom
+  )
+  
+  target_link_libraries(dmcp_chocolate PUBLIC dmcp::core)
+  
+  target_compile_definitions(dmcp_chocolate PRIVATE CHOCOLATE_DOOM_BUILD)
+  
+  dmcp_enable_warnings(dmcp_chocolate)
 endif()
 
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
