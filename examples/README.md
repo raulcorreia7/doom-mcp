@@ -15,6 +15,10 @@ A minimal example that demonstrates:
 
 **Running the example:**
 ```bash
+# Using Makefile
+make run
+
+# Or using CMake
 cmake -B build -DDMCP_BUILD_EXAMPLES=ON
 cmake --build build
 ./build/dummy_server

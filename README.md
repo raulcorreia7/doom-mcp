@@ -15,25 +15,49 @@ A clean, modular C/C++ SDK for integrating Doom-family engines with AI agents vi
 
 ## Documentation
 
-- **[README.md](docs/README.md)** - Full API documentation and examples
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview
-- **[CHANGELOG.md](docs/CHANGELOG.md)** - Version history
+- **[docs/README.md](docs/README.md)** - Full API documentation and examples
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview
+- **[docs/CHANGELOG.md](docs/CHANGELOG.md)** - Version history
 
 ## Quick Start
 
 ```bash
-# Configure and build
-cmake -B build -S .
-cmake --build build
+# Using Makefile (recommended)
+make check    # Build + test
+make run      # Run example server
 
-# Run example server
-./build/dummy_server
-
-# Test (optional)
+# Or using CMake directly
 cmake -B build -DDMCP_BUILD_TESTS=ON
-cmake --build build
+cmake --build build -j$(nproc)
 ctest --test-dir build
+./build/dummy_server
 ```
+
+## Makefile Targets
+
+```bash
+make help          # Show all targets
+make build         # Build (release)
+make debug         # Build with sanitizers
+make test          # Run unit tests
+make check         # Build + test (full verification)
+make download-wad  # Download DOOM shareware
+make headless      # Run e2e headless tests
+make run           # Run dummy server
+make format        # Format source code
+make clean         # Remove build directory
+```
+
+## CMake Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
+| `DMCP_BUILD_TESTS` | OFF | Build test suite |
+| `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
+| `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
+| `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
 ## Basic Usage
 
@@ -63,19 +87,17 @@ int main() {
 }
 ```
 
-## CMake Options
+## Adapters
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
-| `DMCP_BUILD_TESTS` | OFF | Build test suite |
-| `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
-| `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
-| `DMCP_USE_CCACHE` | ON | Use ccache if available |
+### ZDoom Adapter (`adapters/zdoom/`)
+For GZDoom/ZDoom-based source ports.
+
+### Chocolate Doom Adapter (`adapters/chocolate-doom/`)
+For vanilla-accurate Chocolate Doom. Includes headless testing support.
 
 ## Error Handling
 
-All functions return `mcp_result_generic_t` with error code and message:
+All functions return `mcp_result_generic_t`:
 
 ```c
 mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);

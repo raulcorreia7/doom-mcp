@@ -66,18 +66,32 @@ Examples:
 
 - CMake 3.25+
 - C++17 compiler
-- Optional: ccache for faster rebuilds
+- SDL2 (for adapters)
 
-### Quick Start
+### Using Makefile (Recommended)
+
+```bash
+make help      # Show all targets
+make check     # Build + test
+make run       # Run example server
+make debug     # Debug build with sanitizers
+make headless  # Run headless e2e tests
+```
+
+### Using CMake Directly
 
 ```bash
 # Configure
 cmake -B build -S .
 
 # Build
-cmake --build build
+cmake --build build -j$(nproc)
 
-# Run example
+# Test
+cmake -B build -DDMCP_BUILD_TESTS=ON
+ctest --test-dir build
+
+# Run
 ./build/dummy_server
 ```
 
@@ -86,9 +100,11 @@ cmake --build build
 | Option | Default | Description |
 |--------|---------|-------------|
 | `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
+| `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
+| `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
-| `DMCP_USE_CCACHE` | ON | Use ccache if available |
 
 ## Integration
 
