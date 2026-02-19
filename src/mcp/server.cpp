@@ -251,7 +251,7 @@ static std::string FormatSseEvent(const char* event_type, const char* json_paylo
 // Protocol Helpers
 // ============================================================================
 
-static void BuildCapabilities(Builder& b, bool screenshot_enabled) {
+static void BuildCapabilities(Builder& b, bool screenshot_enabled, const char* server_name) {
   b.start_object();
   b.add("protocolVersion", MCP_PROTOCOL_VERSION);
 
@@ -274,7 +274,7 @@ static void BuildCapabilities(Builder& b, bool screenshot_enabled) {
   // serverInfo object
   Builder info;
   info.start_object();
-  info.add("name", MCP_SERVER_NAME);
+  info.add("name", server_name ? server_name : "doom-mcp");
   info.add("version", MCP_SERVER_VERSION);
   b.add("serverInfo", info);
 }
@@ -372,7 +372,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     }
 
     Builder b;
-    BuildCapabilities(b, true);
+    BuildCapabilities(b, true, server->config.server_name);
 
     std::string resp = BuildJsonRpcResult(id_json, b.finish());
 
