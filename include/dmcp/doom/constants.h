@@ -16,7 +16,7 @@ extern "C" {
  * Maximum count of enemy entries that can be included in a
  * single dmcp_snapshot_t structure.
  */
-#define DMCP_MAX_ENEMIES 256
+#define DMCP_MAX_ENEMIES 1024
 
 /**
  * @brief Maximum inventory item count
