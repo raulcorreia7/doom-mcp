@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dmcp/doom/export.h"
 #include "config.h"
 #include "types.h"
 
@@ -119,31 +120,32 @@ typedef struct {
 // ============================================================================
 
 // Push a command from agent to game
-mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
+DMCP_API mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
 // Pop a command for execution (call from game thread)
-bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+DMCP_API bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
 
 // Check if commands are pending
-bool dmcp_has_commands(const dmcp_context_t* ctx);
+DMCP_API bool dmcp_has_commands(const dmcp_context_t* ctx);
 
 // Get number of pending commands
-uint32_t dmcp_command_count(const dmcp_context_t* ctx);
+DMCP_API uint32_t dmcp_command_count(const dmcp_context_t* ctx);
 
 // Mark command as queued for asynchronous completion tracking.
-mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx,
-                                                     const dmcp_command_t* cmd);
+DMCP_API mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx,
+                                                              const dmcp_command_t* cmd);
 
 // Mark command as completed with success/failure status.
-mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t* ctx, const dmcp_command_t* cmd,
-                                                  bool success, const char* message);
+DMCP_API mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t*       ctx,
+                                                           const dmcp_command_t* cmd, bool success,
+                                                           const char* message);
 
 // Retrieve tracked command execution result by sequence id.
-mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_t sequence,
-                                             dmcp_command_result_t* out_result);
+DMCP_API mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_t sequence,
+                                                      dmcp_command_result_t* out_result);
 
 // Clear all pending commands
-void dmcp_clear_commands(dmcp_context_t* ctx);
+DMCP_API void dmcp_clear_commands(dmcp_context_t* ctx);
 
 // ============================================================================
 // JSON Command Parsing
@@ -152,16 +154,16 @@ void dmcp_clear_commands(dmcp_context_t* ctx);
 // Parse a JSON-RPC command request into a command structure
 // JSON format: {"type": "spawn_entity", "params": {"entity_class": "DoomImp",
 // ...}}
-mcp_result_generic_t dmcp_parse_command_json(const char* json, dmcp_command_t* out_cmd);
+DMCP_API mcp_result_generic_t dmcp_parse_command_json(const char* json, dmcp_command_t* out_cmd);
 
 // Extended version with context for custom parser lookup
-mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx, const char* json,
-                                                dmcp_command_t* out_cmd);
+DMCP_API mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx, const char* json,
+                                                         dmcp_command_t* out_cmd);
 
 // Serialize command result to JSON
-mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
-                                                const char* message, char* buffer,
-                                                size_t buffer_size);
+DMCP_API mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
+                                                         const char* message, char* buffer,
+                                                         size_t buffer_size);
 
 // ============================================================================
 // Command Registration (for custom commands)
@@ -172,9 +174,10 @@ typedef mcp_result_generic_t (*dmcp_custom_command_parser_t)(const char*     jso
 
 // Register a custom command parser
 // This allows engines to extend the command system
-mcp_result_generic_t dmcp_register_command_parser(dmcp_context_t* ctx, const char* type_name,
-                                                  dmcp_command_type_t          type,
-                                                  dmcp_custom_command_parser_t parser);
+DMCP_API mcp_result_generic_t dmcp_register_command_parser(dmcp_context_t*              ctx,
+                                                           const char*                  type_name,
+                                                           dmcp_command_type_t          type,
+                                                           dmcp_custom_command_parser_t parser);
 
 #ifdef __cplusplus
 }

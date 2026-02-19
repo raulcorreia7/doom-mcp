@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mcp/generic/export.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

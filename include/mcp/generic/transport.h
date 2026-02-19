@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mcp/generic/export.h"
 #include "protocol.h"
 
 #ifdef __cplusplus
@@ -203,7 +204,7 @@ typedef struct {
  * @note Supports HTTP/1.1 and SSE protocol
  * @note Non-blocking, event-driven architecture
  */
-extern const mcp_transport_interface_t mcp_sse_transport;
+extern MCP_API const mcp_transport_interface_t mcp_sse_transport;
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dmcp/doom/export.h"
 #include "commands.h"
 #include "config.h"
 #include "types.h"
@@ -65,7 +66,7 @@ extern "C" {
  * dmcp_context_destroy(ctx);
  * @endcode
  */
-dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
+DMCP_API dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
 
 /**
  * @brief Destroy context and free all resources
@@ -99,7 +100,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
  * ctx = NULL;  // Avoid dangling pointer
  * @endcode
  */
-void dmcp_context_destroy(dmcp_context_t* ctx);
+DMCP_API void dmcp_context_destroy(dmcp_context_t* ctx);
 
 /**
  * @brief Check if server is running
@@ -134,7 +135,7 @@ void dmcp_context_destroy(dmcp_context_t* ctx);
  * }
  * @endcode
  */
-bool dmcp_context_is_running(const dmcp_context_t* ctx);
+DMCP_API bool dmcp_context_is_running(const dmcp_context_t* ctx);
 
 // ============================================================================
 // Game Loop Integration
@@ -179,7 +180,7 @@ bool dmcp_context_is_running(const dmcp_context_t* ctx);
  * }
  * @endcode
  */
-void dmcp_context_tick(dmcp_context_t* ctx);
+DMCP_API void dmcp_context_tick(dmcp_context_t* ctx);
 
 // ============================================================================
 // Screenshot
@@ -227,7 +228,7 @@ void dmcp_context_tick(dmcp_context_t* ctx);
  * }
  * @endcode
  */
-bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
+DMCP_API bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
 
 /**
  * @brief Submit a screenshot frame
@@ -275,8 +276,8 @@ bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  * }
  * @endcode
  */
-mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
-                                            const dmcp_screenshot_frame_t* frame);
+DMCP_API mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
+                                                     const dmcp_screenshot_frame_t* frame);
 
 /**
  * @brief Get ASCII representation of latest screenshot
@@ -292,7 +293,7 @@ mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
  * @note The returned string is owned by the context and valid until next screenshot submit
  * @note Thread-safe
  */
-const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx, uint32_t target_width);
+DMCP_API const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx, uint32_t target_width);
 
 /**
  * @brief Get screenshot as JSON with metadata
@@ -309,8 +310,8 @@ const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx, uint32_t target_width
  * @note Output format: {"width":N,"height":N,"ascii":"..."}
  * @note Returns -1 if buffer too small or context is NULL
  */
-int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t buffer_size,
-                            uint32_t target_width);
+DMCP_API int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t buffer_size,
+                                     uint32_t target_width);
 
 // ============================================================================
 // Utilities
@@ -352,7 +353,7 @@ int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t buffer_siz
  * printf("Connected clients: %llu\n", stats.connected_clients);
  * @endcode
  */
-void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
+DMCP_API void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
 
 /**
  * @brief Convert snapshot to JSON string
@@ -381,7 +382,8 @@ void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
  * }
  * @endcode
  */
-int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer, size_t buffer_size);
+DMCP_API int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
+                                   size_t buffer_size);
 
 /**
  * @brief Clear a snapshot structure

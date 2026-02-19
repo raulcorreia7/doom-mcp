@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mcp/generic/export.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -20,7 +22,7 @@ class Value;
 // ============================================================================
 // Document - owns the parsed JSON
 // ============================================================================
-class Document {
+class MCP_API Document {
  public:
   Document();
   ~Document();
@@ -46,7 +48,7 @@ class Document {
 // ============================================================================
 // Value - reference to a JSON value
 // ============================================================================
-class Value {
+class MCP_API Value {
  public:
   Value() = default;
   explicit Value(void* ptr, Document* doc);
@@ -102,7 +104,7 @@ class Value {
 // ============================================================================
 // Builder - for constructing JSON easily
 // ============================================================================
-class Builder {
+class MCP_API Builder {
  public:
   Builder();
   ~Builder();  // Defined in implementation
