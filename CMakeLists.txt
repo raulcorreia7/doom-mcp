@@ -41,15 +41,6 @@ include(Dependencies)
 include(CompilerWarnings)
 include(Sanitizers)
 
-if(DMCP_BUILD_SHARED)
-  if(TARGET uSockets)
-    set_target_properties(uSockets PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  endif()
-  if(TARGET yyjson)
-    set_target_properties(yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  endif()
-endif()
-
 set(MCP_GENERIC_SOURCES
   src/mcp/http_sse_transport.cpp
   src/mcp/server.cpp

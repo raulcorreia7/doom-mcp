@@ -6,6 +6,10 @@ CPMAddPackage(
   OPTIONS "YYJSON_BUILD_TESTS OFF" "YYJSON_BUILD_MISC OFF"
 )
 
+if(DMCP_BUILD_SHARED AND TARGET yyjson)
+  set_target_properties(yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
 CPMFindPackage(
   NAME uSockets
   GITHUB_REPOSITORY uNetworking/uSockets
@@ -18,16 +22,20 @@ if(uSockets_ADDED)
   add_library(uSockets STATIC ${USOCKETS_SOURCES})
   target_include_directories(uSockets PUBLIC "${uSockets_SOURCE_DIR}/src")
   target_compile_definitions(uSockets PRIVATE LIBUS_NO_SSL)
-  
+
   if(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)
     target_link_libraries(uSockets PUBLIC Threads::Threads)
   elseif(WIN32)
     target_link_libraries(uSockets PUBLIC ws2_32)
   endif()
-  
+
   if(NOT MSVC)
     target_compile_options(uSockets PRIVATE -w)
+  endif()
+
+  if(DMCP_BUILD_SHARED)
+    set_target_properties(uSockets PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
 endif()
 
