@@ -560,7 +560,7 @@ TEST_CASE("Doom MCP: Result codes", "[doom][result]") {
 }
 
 TEST_CASE("Doom MCP: Constants", "[doom][constants]") {
-  SECTION("Max enemies limit") { REQUIRE(DMCP_MAX_ENEMIES == 256); }
+  SECTION("Max enemies limit") { REQUIRE(DMCP_MAX_ENEMIES == 1024); }
 
   SECTION("Max inventory limit") { REQUIRE(DMCP_MAX_INVENTORY == 64); }
 

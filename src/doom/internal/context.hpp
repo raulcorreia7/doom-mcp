@@ -10,10 +10,19 @@
 
 #include "command_queue.hpp"
 #include "dmcp/doom/commands.h"
+#include "dmcp/doom/config.h"
 #include "dmcp/doom/types.h"
 #include "mcp/generic/server.h"
 #include "pool.hpp"
 #include "screenshot.hpp"
+
+// Forward declarations for new subsystems
+namespace dmcp {
+class server_manager;
+class command_manager;
+class snapshot_manager;
+class screenshot_manager;
+}  // namespace dmcp
 
 namespace dmcp {
 
@@ -45,6 +54,13 @@ struct context {
   std::deque<uint64_t>                                command_result_order;
   mutable std::mutex                                  command_results_mutex;
   size_t                                              max_command_results = 256;
+
+  // TODO: New subsystem managers (migration in progress)
+  // Will be added when subsystem implementations are complete:
+  // server_manager*    server_mgr = nullptr;
+  // command_manager*   command_mgr = nullptr;
+  // snapshot_manager*  snapshot_mgr = nullptr;
+  // screenshot_manager* screenshot_mgr = nullptr;
 };
 
 }  // namespace dmcp
