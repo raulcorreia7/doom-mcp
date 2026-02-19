@@ -94,15 +94,19 @@ target_compile_definitions(mcp_generic
     MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-set_target_properties(mcp_generic PROPERTIES POSITION_INDEPENDENT_CODE ON)
-if(NOT DMCP_BUILD_SHARED)
-  set_target_properties(mcp_generic PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-  )
-elseif(WIN32)
+# Always use hidden visibility
+set_target_properties(mcp_generic PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+)
+
+if(DMCP_BUILD_SHARED AND WIN32)
   set_target_properties(mcp_generic PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
+
+# Define BUILDING macro when compiling the library
+target_compile_definitions(mcp_generic PRIVATE MCP_BUILDING)
 
 dmcp_enable_warnings(mcp_generic)
 
@@ -126,15 +130,19 @@ target_compile_definitions(dmcp_core
     DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-set_target_properties(dmcp_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
-if(NOT DMCP_BUILD_SHARED)
-  set_target_properties(dmcp_core PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-  )
-elseif(WIN32)
+# Always use hidden visibility
+set_target_properties(dmcp_core PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+)
+
+if(DMCP_BUILD_SHARED AND WIN32)
   set_target_properties(dmcp_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
+
+# Define BUILDING macro when compiling the library
+target_compile_definitions(dmcp_core PRIVATE DMCP_BUILDING)
 
 dmcp_enable_warnings(dmcp_core)
 
