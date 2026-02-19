@@ -89,7 +89,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
   }
 }
 
-void LogCallback(void* user_data, int level, const char* message) {
+void LogCallback(void* /*user_data*/, int level, const char* message) {
   const char* prefix = "[DMCP]";
   switch (level) {
     case MCP_LOG_DEBUG:

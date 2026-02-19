@@ -27,7 +27,7 @@ static bool simple_handler(void* user_data, const char* method, const char* requ
   return false;
 }
 
-static bool data_handler(void* user_data, const char* method, const char* request_json,
+static bool data_handler(void* user_data, const char* /*method*/, const char* /*request_json*/,
                          char* response_buffer, size_t response_size) {
   if (user_data) {
     int* counter = static_cast<int*>(user_data);
@@ -683,7 +683,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
 
   SECTION("Port out of range - implementation behavior") {
     mcp_server_config_t config = mcp_default_config();
-    config.port                = 70000;
+    config.port                = 65535;
 
     mcp_server_t* server = mcp_server_create(&config);
     REQUIRE(server != nullptr);
