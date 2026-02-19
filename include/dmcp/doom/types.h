@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "constants.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,7 +11,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#include "mcp/generic/constants.h"
 #include "mcp/generic/protocol.h"
 #include "mcp/generic/result.h"
 
@@ -57,8 +57,8 @@ typedef struct {
 typedef struct {
   int32_t tic;
   int32_t leveltime;
-  char    level_id[MCP_MAX_LEVEL_ID];
-  char    level_name[MCP_MAX_LEVEL_NAME];
+  char    level_id[DMCP_MAX_LEVEL_ID];
+  char    level_name[DMCP_MAX_LEVEL_NAME];
 
   int32_t kill_count;
   int32_t item_count;
@@ -85,16 +85,13 @@ typedef struct {
   dmcp_vec3_t position;
   float       angle;
   int32_t     target_id;
-  char        type[MCP_MAX_ENEMY_TYPE];
+  char        type[DMCP_MAX_ENEMY_TYPE];
 } dmcp_enemy_t;
 
 typedef struct {
-  char    name[MCP_MAX_ITEM_NAME];
+  char    name[DMCP_MAX_ITEM_NAME];
   int32_t amount;
 } dmcp_item_t;
-
-#define DMCP_MAX_ENEMIES MCP_MAX_ENEMIES
-#define DMCP_MAX_INVENTORY MCP_MAX_INVENTORY
 
 typedef struct dmcp_snapshot_t {
   dmcp_player_t player;

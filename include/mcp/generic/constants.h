@@ -137,53 +137,6 @@ extern "C" {
 #define MCP_ENDPOINT_HEALTH "/health"
 
 // ============================================================================
-// Array Limits
-// ============================================================================
-
-/**
- * @brief Maximum number of enemies in snapshot
- *
- * Maximum count of enemy entries that can be included in a
- * single dmcp_snapshot_t structure.
- */
-#define MCP_MAX_ENEMIES 256
-
-/**
- * @brief Maximum inventory item count
- *
- * Maximum number of items that can be stored in snapshot inventory.
- */
-#define MCP_MAX_INVENTORY 64
-
-/**
- * @brief Maximum item name length
- *
- * Maximum string length for item names (including null terminator).
- */
-#define MCP_MAX_ITEM_NAME 64
-
-/**
- * @brief Maximum enemy type string length
- *
- * Maximum string length for enemy type/class names.
- */
-#define MCP_MAX_ENEMY_TYPE 128
-
-/**
- * @brief Maximum level ID length
- *
- * Maximum string length for level/map identifiers.
- */
-#define MCP_MAX_LEVEL_ID 32
-
-/**
- * @brief Maximum level name length
- *
- * Maximum string length for level/map display names.
- */
-#define MCP_MAX_LEVEL_NAME 96
-
-// ============================================================================
 // Health Check Response
 // ============================================================================
 

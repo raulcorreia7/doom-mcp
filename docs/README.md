@@ -362,8 +362,8 @@ typedef struct {
 // Level state
 typedef struct {
   int32_t tic;
-  char    level_id[MCP_MAX_LEVEL_ID];
-  char    level_name[MCP_MAX_LEVEL_NAME];
+  char    level_id[DMCP_MAX_LEVEL_ID];
+  char    level_name[DMCP_MAX_LEVEL_NAME];
   int32_t kill_count, item_count, secret_count;
 } dmcp_level_t;
 
@@ -372,7 +372,7 @@ typedef struct {
   int32_t     id;
   float       hp, max_hp;
   dmcp_vec2_t position;
-  char        type[MCP_MAX_ENEMY_TYPE];
+  char        type[DMCP_MAX_ENEMY_TYPE];
 } dmcp_enemy_t;
 
 // Full snapshot
