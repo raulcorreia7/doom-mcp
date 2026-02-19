@@ -16,7 +16,7 @@ constexpr float    DEFAULT_TIMESCALE      = 1.0f;
 
 class command_queue {
  public:
-  bool                          push(const dmcp_command_t& cmd);
+  bool push(const dmcp_command_t& cmd, uint64_t* assigned_sequence = nullptr);
   std::optional<dmcp_command_t> pop();
   bool                          empty() const;
   uint32_t                      size() const;

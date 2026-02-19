@@ -59,7 +59,12 @@ typedef struct {
  * return MCP_RESULT_MAKE(-1, "Invalid argument");
  * @endcode
  */
+#ifdef __cplusplus
+#define MCP_RESULT_MAKE(code, msg) \
+  mcp_result_generic_t { (code), (msg) }
+#else
 #define MCP_RESULT_MAKE(code, msg) ((mcp_result_generic_t){(code), (msg)})
+#endif
 
 /**
  * @brief Helper macro to create success result

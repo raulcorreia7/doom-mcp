@@ -24,7 +24,7 @@ static yyjson_mut_val* int_array_to_json(yyjson_mut_doc* doc, const int32_t* arr
 
 static yyjson_mut_val* player_to_json(yyjson_mut_doc* doc, const dmcp_player_t& p) {
   yyjson_mut_val* obj = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_real(doc, obj, "hp", p.hp);
+  yyjson_mut_obj_add_sint(doc, obj, "hp", static_cast<int64_t>(p.hp));
   yyjson_mut_obj_add_real(doc, obj, "armor", p.armor);
   yyjson_mut_obj_add_str(doc, obj, "armortype", p.armortype);
   yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, p.position));
@@ -74,8 +74,8 @@ static yyjson_mut_val* game_to_json(yyjson_mut_doc* doc, const dmcp_game_t& g) {
 static yyjson_mut_val* enemy_to_json(yyjson_mut_doc* doc, const dmcp_enemy_t& e) {
   yyjson_mut_val* obj = yyjson_mut_obj(doc);
   yyjson_mut_obj_add_sint(doc, obj, "id", e.id);
-  yyjson_mut_obj_add_real(doc, obj, "hp", e.hp);
-  yyjson_mut_obj_add_real(doc, obj, "max_hp", e.max_hp);
+  yyjson_mut_obj_add_sint(doc, obj, "hp", static_cast<int64_t>(e.hp));
+  yyjson_mut_obj_add_sint(doc, obj, "max_hp", static_cast<int64_t>(e.max_hp));
   yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, e.position));
   yyjson_mut_obj_add_real(doc, obj, "angle", e.angle);
   yyjson_mut_obj_add_sint(doc, obj, "target_id", e.target_id);

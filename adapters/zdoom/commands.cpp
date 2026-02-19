@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -17,6 +19,21 @@
 
 namespace {
 
+static player_t* GetConsolePlayer() {
+  if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return nullptr;
+  return &players[consoleplayer];
+}
+
+static AActor* FindActorByTid(int tid) {
+  TThinkerIterator<AActor> it;
+  while (AActor* actor = it.Next()) {
+    if (actor->tid == tid) {
+      return actor;
+    }
+  }
+  return nullptr;
+}
+
 // Helper to execute console commands
 static void ExecuteConsoleCommand(const char* cmd) {
   if (!cmd || !cmd[0]) return;
@@ -31,8 +48,8 @@ static bool SpawnEntity(const dmcp_cmd_spawn_t* spawn) {
 
   // Build spawn command
   char cmd[512];
-  snprintf(cmd, sizeof(cmd), "summon %s %f %f %f", spawn->entity_class,
-           spawn->position.x, spawn->position.y, spawn->angle);
+  snprintf(cmd, sizeof(cmd), "summon %s %f %f %f", spawn->entity_class, spawn->position.x,
+           spawn->position.y, spawn->angle);
 
   ExecuteConsoleCommand(cmd);
   return true;
@@ -44,8 +61,7 @@ static bool ChangeLevel(const dmcp_cmd_change_level_t* change) {
 
   char cmd[128];
   if (change->reset_inventory) {
-    snprintf(cmd, sizeof(cmd), "map %s %d", change->map_name,
-             change->skill_level);
+    snprintf(cmd, sizeof(cmd), "map %s %d", change->map_name, change->skill_level);
   } else {
     snprintf(cmd, sizeof(cmd), "changemap %s", change->map_name);
   }
@@ -70,9 +86,7 @@ static bool GiveItem(const dmcp_cmd_give_item_t* give) {
 static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
   if (!health) return false;
 
-  // Get console player
-  if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return false;
-  player_t* player = &players[consoleplayer];
+  player_t* player = GetConsolePlayer();
   if (!player->mo) return false;
 
   // Direct health modification
@@ -86,14 +100,11 @@ static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
 static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
   if (!pos) return false;
 
-  // Get console player
-  if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return false;
-  player_t* player = &players[consoleplayer];
+  player_t* player = GetConsolePlayer();
   if (!player->mo) return false;
 
   // Teleport player to new position
-  player->mo->SetOrigin(
-      DVector3(pos->position.x, pos->position.y, player->mo->Z()), false);
+  player->mo->SetOrigin(DVector3(pos->position.x, pos->position.y, player->mo->Z()), false);
 
   // Set angle
   player->mo->Angles.Yaw = DAngle::fromDeg(pos->angle);
@@ -103,8 +114,11 @@ static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
 
 // Helper to pause/unpause game
 static bool PauseGame(const dmcp_cmd_pause_t* pause) {
-  // The 'pause' console command toggles pause state in ZDoom
-  ExecuteConsoleCommand("pause");
+  if (!pause) return false;
+
+  if (paused != pause->paused) {
+    ExecuteConsoleCommand("pause");
+  }
   return true;
 }
 
@@ -120,37 +134,28 @@ static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
 static bool DamageEntity(const dmcp_cmd_damage_t* damage) {
   if (!damage) return false;
 
-  // Find entity by TID
-  TThinkerIterator<AActor> it;
-  while (AActor* actor = it.Next()) {
-    if (actor->tid == damage->target_tid) {
-      // Apply damage
-      P_DamageMobj(actor, nullptr, nullptr, static_cast<int>(damage->damage),
-                   damage->damage_type);
-      return true;
-    }
+  AActor* actor = FindActorByTid(damage->target_tid);
+  if (!actor) {
+    return false;
   }
 
-  return false;  // Entity not found
+  P_DamageMobj(actor, nullptr, nullptr, static_cast<int>(damage->damage), damage->damage_type);
+  return true;
 }
 
 // Helper to kill entity
 static bool KillEntity(const dmcp_cmd_kill_t* kill) {
   if (!kill) return false;
 
-  // Find entity by TID
-  TThinkerIterator<AActor> it;
-  while (AActor* actor = it.Next()) {
-    if (actor->tid == kill->target_tid) {
-      // Kill the entity
-      P_DamageMobj(actor, nullptr, nullptr,
-                   actor->health * 2,  // Overkill
-                   NAME_None);
-      return true;
-    }
+  AActor* actor = FindActorByTid(kill->target_tid);
+  if (!actor) {
+    return false;
   }
 
-  return false;  // Entity not found
+  P_DamageMobj(actor, nullptr, nullptr,
+               actor->health * 2,  // Overkill
+               NAME_None);
+  return true;
 }
 
 }  // namespace
@@ -159,8 +164,7 @@ static bool KillEntity(const dmcp_cmd_kill_t* kill) {
 // Public API
 // ============================================================================
 
-bool dmcp_zdoom_command_execute(dmcp_zdoom_t*         ctx_handle,
-                                const dmcp_command_t* cmd) {
+bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* cmd) {
   if (!cmd) return false;
 
   switch (cmd->type) {
@@ -212,11 +216,12 @@ void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx_handle) {
   while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
     bool success = dmcp_zdoom_command_execute(ctx_handle, &cmd);
 
+    dmcp_command_result_complete(ctx->dmcp_ctx, &cmd, success,
+                                 success ? "Command executed" : "Command failed in engine");
+
     // Log result
     if (!success) {
       Log(ctx, MCP_LOG_WARN, "Command %d failed", cmd.type);
     }
-
-    // TODO: Send acknowledgment back to agent if DMCP_CMD_FLAG_RELIABLE was set
   }
 }

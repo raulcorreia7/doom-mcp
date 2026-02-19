@@ -106,12 +106,20 @@ typedef struct {
   uint8_t _reserved[16];
 } dmcp_command_t;
 
+typedef struct {
+  uint64_t            sequence;
+  dmcp_command_type_t command_type;
+  bool                completed;
+  bool                success;
+  char                message[128];
+} dmcp_command_result_t;
+
 // ============================================================================
 // Command Queue API
 // ============================================================================
 
 // Push a command from agent to game
-mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx, const dmcp_command_t* cmd);
+mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
 // Pop a command for execution (call from game thread)
 bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
@@ -121,6 +129,18 @@ bool dmcp_has_commands(const dmcp_context_t* ctx);
 
 // Get number of pending commands
 uint32_t dmcp_command_count(const dmcp_context_t* ctx);
+
+// Mark command as queued for asynchronous completion tracking.
+mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx,
+                                                     const dmcp_command_t* cmd);
+
+// Mark command as completed with success/failure status.
+mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t* ctx, const dmcp_command_t* cmd,
+                                                  bool success, const char* message);
+
+// Retrieve tracked command execution result by sequence id.
+mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_t sequence,
+                                             dmcp_command_result_t* out_result);
 
 // Clear all pending commands
 void dmcp_clear_commands(dmcp_context_t* ctx);

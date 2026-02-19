@@ -31,6 +31,10 @@ cmake -B build -DDMCP_BUILD_TESTS=ON
 cmake --build build -j$(nproc)
 ctest --test-dir build
 ./build/dummy_server
+
+# Build shared libraries (.so/.dll)
+cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
+cmake --build build-shared -j$(nproc)
 ```
 
 ## Makefile Targets
@@ -54,10 +58,16 @@ make clean         # Remove build directory
 |--------|---------|-------------|
 | `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration test targets |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
-| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
+| `DMCP_BUILD_SHARED` | OFF | Build shared libraries (`.so`/`.dll`) |
+| `DMCP_INSTALL` | ON | Enable install rules for headers/libs |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
+
+Notes:
+- With `DMCP_BUILD_SHARED=OFF`, install copies headers only (no static archives).
+- Adapter targets need engine-specific include paths/generated headers.
 
 ## Basic Usage
 
@@ -252,10 +262,42 @@ curl -X POST http://localhost:6060/mcp \
       "name": "execute_command",
       "arguments": {
         "type": "spawn_entity",
-        "entity_type": "zombieman",
-        "x": 1000,
-        "y": 500
+        "params": {
+          "entity_class": "DoomImp",
+          "position": {"x": 1000, "y": 500},
+          "angle": 90
+        }
       }
+    }
+  }'
+```
+
+#### 5b. Direct JSON-RPC Method Aliases (agent compatibility)
+
+The server also accepts direct method calls for agentic clients that do not use
+`tools/call` wrappers.
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 41,
+    "method": "get_game_state",
+    "params": {}
+  }'
+```
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 42,
+    "method": "execute_command",
+    "params": {
+      "type": "set_player_health",
+      "value": 100
     }
   }'
 ```
@@ -357,9 +399,23 @@ Queue a command to be executed by the game:
 
 | Command Type | Description | Parameters |
 |--------------|-------------|------------|
-| `spawn_entity` | Spawn an enemy/item | `entity_type`, `x`, `y`, `z` |
-| `change_level` | Switch to different map | `episode`, `map` |
-| `give_item` | Give player an item | `item`, `amount` |
+| `spawn_entity` | Spawn an enemy/item | `entity_class`, `position.x`, `position.y`, `angle`, `tid` |
+| `change_level` | Switch map | `map_name`, `skill_level`, `reset_inventory` |
+| `give_item` | Give player an item | `item_class`, `amount` |
+| `set_player_health` | Set health | `health` |
+| `set_player_position` | Move player | `x`, `y`, `angle` |
+| `execute_console` | Run engine console command | `command` |
+| `pause_game` | Pause/unpause game | `paused` |
+| `set_timescale` | Adjust simulation speed | `scale` |
+| `damage_entity` | Damage specific target | `target_tid`, `damage`, `damage_type` |
+| `kill_entity` | Kill specific target | `target_tid` |
+
+Agent-friendly aliases accepted by parser:
+- `teleport_player` -> `set_player_position`
+- `item`/`quantity` -> `item_class`/`amount`
+- `level` -> `map_name`
+- `value` -> `health`
+- `entity`/`class` -> `entity_class`
 
 ## Error Handling
 

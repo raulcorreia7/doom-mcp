@@ -1,13 +1,14 @@
 // Chocolate Doom Adapter for DMCP SDK
 // Provides MCP protocol integration for Chocolate Doom engine
 
-#ifndef DMCP_CHOCOLATE_ADAPTER_H
-#define DMCP_CHOCOLATE_ADAPTER_H
+#ifndef DMCP_ADAPTER_H
+#define DMCP_ADAPTER_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "dmcp/doom/dmcp.h"
+#include "dmcp_ascii.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +28,8 @@ typedef struct {
 static inline dmcp_chocolate_config_t dmcp_chocolate_config_default(void) {
   dmcp_chocolate_config_t cfg = {0};
   cfg.base                    = dmcp_config_default();
-  cfg.base.target_hz          = 35;  // Doom runs at 35 tics/sec
+  cfg.base.target_hz          = 35;     // Doom runs at 35 tics/sec
+  cfg.base.screenshot.enable  = false;  // Disable ASCII screenshot path by default
   cfg.iwad_path               = NULL;
   cfg.pwad_path               = NULL;
   return cfg;
@@ -70,8 +72,7 @@ void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats);
 
 // Execute a command received via MCP
 // Returns true if command was handled
-bool dmcp_chocolate_command_execute(dmcp_chocolate_t*     ctx,
-                                    const dmcp_command_t* cmd);
+bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* cmd);
 
 // ============================================================================
 // Snapshot Population (called by adapter during tick)
@@ -91,4 +92,4 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap);
 }
 #endif
 
-#endif  // DMCP_CHOCOLATE_ADAPTER_H
+#endif  // DMCP_ADAPTER_H

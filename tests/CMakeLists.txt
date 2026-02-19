@@ -34,8 +34,6 @@ include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(dmcp_tests)
 
 # Integration tests (optional, requires network and WAD)
-option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests" OFF)
-
 if(DMCP_BUILD_INTEGRATION_TESTS)
   # Add integration test subdirectory
   add_subdirectory(integration)

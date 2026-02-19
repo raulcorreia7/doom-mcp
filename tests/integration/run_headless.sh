@@ -237,6 +237,14 @@ else
 	fail "Tools list failed"
 fi
 
+if echo "$TOOLS" | grep -q 'spawn_entity'; then
+	pass "Tools list contains spawn_entity"
+else
+	echo "Tools list response:"
+	printf '%s\n' "$TOOLS" | pretty_json
+	fail "Tools list missing spawn_entity"
+fi
+
 # Test 4: Get game state
 echo ""
 echo "Test 4: Get game state"
@@ -252,9 +260,37 @@ else
 	warn "Game state may be empty (game not started)"
 fi
 
-# Test 5: Game state route
+# Test 5: Direct method alias (get_game_state)
 echo ""
-echo "Test 5: GET /game/state"
+echo "Test 5: Direct JSON-RPC get_game_state"
+STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
+	-H "Content-Type: application/json" \
+	-d '{"jsonrpc":"2.0","id":4,"method":"get_game_state","params":{}}')
+if echo "$STATE_NATIVE" | grep -q '"result"'; then
+	pass "Direct method get_game_state is available"
+else
+	echo "Direct get_game_state response:"
+	printf '%s\n' "$STATE_NATIVE" | pretty_json
+	fail "Direct get_game_state method failed"
+fi
+
+# Test 6: Direct method alias (execute_command)
+echo ""
+echo "Test 6: Direct JSON-RPC execute_command"
+COMMAND_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
+	-H "Content-Type: application/json" \
+	-d '{"jsonrpc":"2.0","id":5,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}')
+if echo "$COMMAND_NATIVE" | grep -q '"queued"'; then
+	pass "Direct method execute_command is available"
+else
+	echo "Direct execute_command response:"
+	printf '%s\n' "$COMMAND_NATIVE" | pretty_json
+	fail "Direct execute_command method failed"
+fi
+
+# Test 7: Game state route
+echo ""
+echo "Test 7: GET /game/state"
 GAME_STATE_ROUTE=$(curl -s -m 2 "http://localhost:$DMCP_PORT/game/state" || true)
 if echo "$GAME_STATE_ROUTE" | grep -q '"player"'; then
 	pass "Game state route returns player data"
@@ -264,9 +300,9 @@ else
 	fail "Game state route failed"
 fi
 
-# Test 6: SSE streaming (quick check)
+# Test 8: SSE streaming (quick check)
 echo ""
-echo "Test 6: SSE endpoint"
+echo "Test 8: SSE endpoint"
 SSE_CHECK=$(curl -s -m 2 "http://localhost:$DMCP_PORT/mcp" 2>/dev/null | head -1 || true)
 if [ -n "$SSE_CHECK" ]; then
 	pass "SSE stream on /mcp is accessible"
@@ -274,9 +310,9 @@ else
 	warn "SSE stream on /mcp had no immediate data"
 fi
 
-# Test 7: Unknown endpoint error hygiene
+# Test 9: Unknown endpoint error hygiene
 echo ""
-echo "Test 7: Unknown endpoint returns generic error"
+echo "Test 9: Unknown endpoint returns generic error"
 UNKNOWN_RESPONSE=$(curl -s -i -m 2 "http://localhost:$DMCP_PORT/does-not-exist" || true)
 if echo "$UNKNOWN_RESPONSE" | grep -q '"code":"not_found"'; then
 	if echo "$UNKNOWN_RESPONSE" | grep -qi 'uWebSockets'; then
@@ -289,9 +325,9 @@ else
 	fail "Unknown endpoint did not return generic not_found error"
 fi
 
-# Test 8: Multiple requests
+# Test 10: Multiple requests
 echo ""
-echo "Test 8: Multiple concurrent requests"
+echo "Test 10: Multiple concurrent requests"
 REQUEST_PIDS=()
 for i in {1..5}; do
 	curl -s -m 2 "http://localhost:$DMCP_PORT/health" >/dev/null &

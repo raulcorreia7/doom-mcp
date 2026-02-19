@@ -1,7 +1,8 @@
 BasedOnStyle: Google
-UseTab: AlignWithSpaces
-AlignArrayOfStructures: Right
+IndentWidth: 2
+UseTab: Never
+ColumnLimit: 100
 AlignConsecutiveAssignments: Consecutive
-AlignConsecutiveBitFields: Consecutive
 AlignConsecutiveDeclarations: Consecutive
-AlignConsecutiveMacros: Consecutive
+IndentPPDirectives: None
+SortIncludes: Never

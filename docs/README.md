@@ -338,6 +338,14 @@ void          dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
 | `/game/state` | GET | Current game snapshot as JSON |
 | `/game/screenshot` | GET | Latest screenshot payload as JSON |
 
+Direct JSON-RPC method aliases are also available for agent compatibility:
+
+- `get_game_state`
+- `get_screenshot`
+- `execute_command`
+
+These aliases map to the same underlying handlers used by `tools/call`.
+
 ## Data Types
 
 ```c

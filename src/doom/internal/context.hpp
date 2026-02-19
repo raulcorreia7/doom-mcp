@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "command_queue.hpp"
+#include "dmcp/doom/commands.h"
 #include "dmcp/doom/types.h"
 #include "mcp/generic/server.h"
 #include "pool.hpp"
@@ -38,6 +40,11 @@ struct context {
   std::unordered_map<std::string, std::pair<dmcp_command_type_t, dmcp_custom_command_parser_t>>
              custom_parsers;
   std::mutex custom_parsers_mutex;
+
+  std::unordered_map<uint64_t, dmcp_command_result_t> command_results;
+  std::deque<uint64_t>                                command_result_order;
+  mutable std::mutex                                  command_results_mutex;
+  size_t                                              max_command_results = 256;
 };
 
 }  // namespace dmcp

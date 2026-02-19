@@ -56,8 +56,32 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
     return nullptr;
   }
 
-  mcp_server_method_register(ctx->server, "tools/list", dmcp::handle_tools_list, ctx.get());
-  mcp_server_method_register(ctx->server, "tools/call", dmcp::handle_tools_call, ctx.get());
+  auto register_method = [&](const char* method_name, mcp_method_handler_t handler) {
+    mcp_result_t result = mcp_server_method_register(ctx->server, method_name, handler, ctx.get());
+    if (result.code != MCP_RESULT_CODE_OK) {
+      dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register method %s: %s", method_name,
+               result.message ? result.message : "unknown error");
+    }
+  };
+
+  register_method("tools/list", dmcp::handle_tools_list);
+  register_method("tools/call", dmcp::handle_tools_call);
+
+  // Agent compatibility aliases: allow direct JSON-RPC method calls without
+  // requiring tools/call wrappers.
+  register_method("get_game_state", dmcp::handle_method_get_game_state);
+  register_method("get_screenshot", dmcp::handle_method_get_screenshot);
+  register_method("execute_command", dmcp::handle_method_execute_command);
+  register_method("get_command_result", dmcp::handle_method_get_command_result);
+
+  const char* command_method_aliases[] = {
+      "spawn_entity",    "change_level",        "give_item",       "set_player_health",
+      "teleport_player", "set_player_position", "execute_console", "pause_game",
+      "set_timescale",   "damage_entity",       "kill_entity",
+  };
+  for (const char* method_name : command_method_aliases) {
+    register_method(method_name, dmcp::handle_method_execute_command);
+  }
 
   mcp_result_t route_state_result = mcp_server_route_register(
       ctx->server, "GET", "/game/state", dmcp::handle_route_game_state, ctx.get());

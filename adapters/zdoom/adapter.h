@@ -71,8 +71,8 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 // ============================================================================
 
 // Call once per game tic (from G_Ticker)
-// Returns DMCP_OK on success
-dmcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+// Returns MCP_OK on success
+mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 
 // ============================================================================
 // State

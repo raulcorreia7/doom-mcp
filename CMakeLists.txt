@@ -3,10 +3,23 @@ project(dmcp LANGUAGES C CXX VERSION 0.6.0)
 
 option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build example servers" ON)
+option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests" OFF)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 option(DMCP_BUILD_ADAPTER_CHOCOLATE "Build Chocolate Doom adapter" OFF)
+option(DMCP_BUILD_SHARED "Build shared libraries (.so/.dll)" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
+option(DMCP_INSTALL "Install headers and CMake package" ON)
+
+set(DMCP_ZDOOM_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated include directories for ZDoom SDK headers")
+set(DMCP_CHOCOLATE_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src" CACHE PATH "Chocolate Doom source include directory")
+set(DMCP_CHOCOLATE_DOOM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src/doom" CACHE PATH "Chocolate Doom doom include directory")
+set(DMCP_CHOCOLATE_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/build" CACHE PATH "Chocolate Doom generated headers directory (must contain config.h)")
+
+set(DMCP_LIBRARY_TYPE STATIC)
+if(DMCP_BUILD_SHARED)
+  set(DMCP_LIBRARY_TYPE SHARED)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -28,27 +41,34 @@ include(Dependencies)
 include(CompilerWarnings)
 include(Sanitizers)
 
-file(GLOB MCP_GENERIC_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/mcp/*.cpp"
+if(DMCP_BUILD_SHARED)
+  if(TARGET uSockets)
+    set_target_properties(uSockets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endif()
+  if(TARGET yyjson)
+    set_target_properties(yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endif()
+endif()
+
+set(MCP_GENERIC_SOURCES
+  src/mcp/http_sse_transport.cpp
+  src/mcp/server.cpp
 )
 
-file(GLOB MCP_JSON_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/mcp/json/*.cpp"
+set(MCP_JSON_SOURCES
+  src/mcp/json/yyjson.cpp
 )
 
-file(GLOB DMCP_CORE_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/doom/*.cpp"
+set(DMCP_CORE_SOURCES
+  src/doom/commands.cpp
+  src/doom/context.cpp
+  src/doom/mcp_handlers.cpp
+  src/doom/pool.cpp
+  src/doom/screenshot.cpp
+  src/doom/serialization.cpp
 )
 
-file(GLOB DMCP_ZDOOM_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom/*.cpp"
-)
-
-file(GLOB DMCP_CHOCOLATE_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/chocolate-doom/*.c"
-)
-
-add_library(mcp_generic STATIC 
+add_library(mcp_generic ${DMCP_LIBRARY_TYPE}
   ${MCP_GENERIC_SOURCES}
   ${MCP_JSON_SOURCES}
 )
@@ -74,15 +94,19 @@ target_compile_definitions(mcp_generic
     MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-set_target_properties(mcp_generic PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN ON
-)
+set_target_properties(mcp_generic PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT DMCP_BUILD_SHARED)
+  set_target_properties(mcp_generic PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+elseif(WIN32)
+  set_target_properties(mcp_generic PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
 dmcp_enable_warnings(mcp_generic)
 
-add_library(dmcp_core STATIC ${DMCP_CORE_SOURCES})
+add_library(dmcp_core ${DMCP_LIBRARY_TYPE} ${DMCP_CORE_SOURCES})
 add_library(dmcp::core ALIAS dmcp_core)
 
 target_include_directories(dmcp_core
@@ -102,51 +126,24 @@ target_compile_definitions(dmcp_core
     DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-set_target_properties(dmcp_core PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN ON
-)
+set_target_properties(dmcp_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT DMCP_BUILD_SHARED)
+  set_target_properties(dmcp_core PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+elseif(WIN32)
+  set_target_properties(dmcp_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
 dmcp_enable_warnings(dmcp_core)
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
-  add_library(dmcp_zdoom STATIC ${DMCP_ZDOOM_SOURCES})
-  add_library(dmcp::zdoom ALIAS dmcp_zdoom)
-  
-  target_include_directories(dmcp_zdoom
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapters/zdoom>
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
-      ${DMCP_ZDOOM_INCLUDE_DIRS}
-  )
-  
-  target_link_libraries(dmcp_zdoom PUBLIC dmcp::core)
-  
-  if(NOT MSVC)
-    target_compile_options(dmcp_zdoom PRIVATE -w)
-  endif()
+  add_subdirectory(adapters/zdoom)
 endif()
 
 if(DMCP_BUILD_ADAPTER_CHOCOLATE)
-  add_library(dmcp_chocolate STATIC ${DMCP_CHOCOLATE_SOURCES})
-  add_library(dmcp::chocolate ALIAS dmcp_chocolate)
-  
-  target_include_directories(dmcp_chocolate
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapters/chocolate-doom>
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src
-      ${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src/doom
-  )
-  
-  target_link_libraries(dmcp_chocolate PUBLIC dmcp::core)
-  
-  target_compile_definitions(dmcp_chocolate PRIVATE CHOCOLATE_DOOM_BUILD)
-  
-  dmcp_enable_warnings(dmcp_chocolate)
+  add_subdirectory(adapters/chocolate-doom)
 endif()
 
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -171,10 +168,55 @@ if(DMCP_ENABLE_SANITIZERS AND DMCP_BUILD_EXAMPLES AND NOT MSVC)
   target_link_options(dummy_server PRIVATE -fsanitize=address,undefined)
 endif()
 
+if(DMCP_INSTALL)
+  include(GNUInstallDirs)
+
+  install(
+    DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+
+  if(DMCP_BUILD_SHARED)
+    install(
+      TARGETS mcp_generic dmcp_core
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    if(TARGET dmcp_zdoom)
+      install(
+        TARGETS dmcp_zdoom
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+      )
+    endif()
+
+    if(TARGET dmcp_chocolate)
+      install(
+        TARGETS dmcp_chocolate
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+      )
+    endif()
+  else()
+    message(STATUS "  Install libraries: skipped for static builds")
+  endif()
+endif()
+
 message(STATUS "")
 message(STATUS "DMCP ${PROJECT_VERSION}")
 message(STATUS "  Examples: ${DMCP_BUILD_EXAMPLES}")
 message(STATUS "  Tests: ${DMCP_BUILD_TESTS}")
+message(STATUS "  Integration tests: ${DMCP_BUILD_INTEGRATION_TESTS}")
 message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
+message(STATUS "  Chocolate Adapter: ${DMCP_BUILD_ADAPTER_CHOCOLATE}")
+message(STATUS "  Shared libs: ${DMCP_BUILD_SHARED}")
+message(STATUS "  Install package: ${DMCP_INSTALL}")
 message(STATUS "  Sanitizers: ${DMCP_ENABLE_SANITIZERS}")
 message(STATUS "")
