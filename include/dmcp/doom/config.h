@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "dmcp/doom/export.h"
 #include "mcp/generic/constants.h"
 
 #ifdef __cplusplus
