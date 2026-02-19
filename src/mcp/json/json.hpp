@@ -71,6 +71,7 @@ class Value {
   void  set_member(std::string_view key, bool val);
   void  set_member(std::string_view key, int64_t val);
   void  set_member(std::string_view key, double val);
+  void  set_member(std::string_view key, const char* val);
   void  set_member(std::string_view key, std::string_view val);
   void  set_member(std::string_view key, const Value& val);
 
@@ -144,8 +145,7 @@ class Builder {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-inline std::string make_jsonrpc_error(std::string_view id, int code,
-                                      std::string_view message) {
+inline std::string make_jsonrpc_error(std::string_view id, int code, std::string_view message) {
   Builder b;
   b.start_object();
   b.add("jsonrpc", "2.0");

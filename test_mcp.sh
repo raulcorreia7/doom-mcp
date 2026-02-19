@@ -8,7 +8,7 @@ sleep 2
 
 # Function to check if server is up
 check_server() {
-	curl -s http://localhost:6060/mcp >/dev/null
+	curl -s http://localhost:6060/health >/dev/null
 	return $?
 }
 
@@ -24,7 +24,7 @@ curl -s -X POST http://localhost:6060/mcp | jq .
 
 echo -e "\n--- 2. Consuming Snapshots (SSE) ---"
 # Connect to SSE stream in background, capture output
-curl -N -s http://localhost:6060/sse >sse_stream.txt &
+curl -N -s http://localhost:6060/mcp >sse_stream.txt &
 SSE_PID=$!
 
 # Wait for ~3 seconds (at 35Hz, this should be ~100 snapshots)
@@ -42,10 +42,8 @@ if [ "$SNAPSHOT_COUNT" -lt 30 ]; then
 	exit 1
 fi
 
-echo -e "\n--- 3. Screenshot Test (NYI) ---"
-echo "NOTE: Screenshot feature is not yet implemented"
-curl -s http://localhost:6060/screenshot/latest.png -o screenshot_placeholder.png
-echo "Screenshot endpoint returns placeholder"
+echo -e "\n--- 3. Game Screenshot Route ---"
+curl -s http://localhost:6060/game/screenshot | jq .
 
 echo -e "\n--- Server Logs ---"
 cat server.log

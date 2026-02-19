@@ -18,7 +18,7 @@ add_custom_target(test_headless
 )
 
 # Add to ctest only if Chocolate Doom binary exists
-if(EXISTS "${CMAKE_SOURCE_DIR}/chocolate-doom/build/src/doom/chocolate-doom")
+if(EXISTS "${CMAKE_SOURCE_DIR}/chocolate-doom/build/src/chocolate-doom")
     add_test(
         NAME "Integration: Headless Doom"
         COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_headless.sh
@@ -27,6 +27,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/chocolate-doom/build/src/doom/chocolate-doom")
     
     set_tests_properties("Integration: Headless Doom" PROPERTIES
         TIMEOUT 120
+        ENVIRONMENT "DMCP_PORT=7060"
+        RUN_SERIAL TRUE
         LABELS "integration;e2e;headless"
     )
 endif()

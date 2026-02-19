@@ -60,13 +60,9 @@ void command_queue::clear() {
   count_.store(0, std::memory_order_release);
 }
 
-bool command_queue::empty() const {
-  return count_.load(std::memory_order_acquire) == 0;
-}
+bool command_queue::empty() const { return count_.load(std::memory_order_acquire) == 0; }
 
-uint32_t command_queue::size() const {
-  return count_.load(std::memory_order_acquire);
-}
+uint32_t command_queue::size() const { return count_.load(std::memory_order_acquire); }
 
 uint64_t command_queue::next_sequence() { return next_sequence_.fetch_add(1); }
 
@@ -78,8 +74,7 @@ uint64_t command_queue::next_sequence() { return next_sequence_.fetch_add(1); }
 
 extern "C" {
 
-mcp_result_generic_t dmcp_push_command(dmcp_context_t*       ctx_handle,
-                                       const dmcp_command_t* cmd) {
+mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx_handle, const dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd) {
     return MCP_ERROR_INVALID_ARGS;
   }
@@ -90,8 +85,7 @@ mcp_result_generic_t dmcp_push_command(dmcp_context_t*       ctx_handle,
   }
 
   if (!ctx->cmd_queue->push(*cmd)) {
-    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL,
-                            "Command queue is full");
+    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Command queue is full");
   }
   return MCP_OK;
 }
@@ -158,8 +152,7 @@ void dmcp_clear_commands(dmcp_context_t* ctx_handle) {
 // JSON Parsing
 // ============================================================================
 
-mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
-                                             dmcp_command_t* out_cmd) {
+mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_t* out_cmd) {
   if (!json_str || !out_cmd) {
     return MCP_ERROR_INVALID_ARGS;
   }
@@ -175,8 +168,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
   const std::string_view type_str = root["type"].get_string();
   dmcp::json_value       params   = root["params"];
 
-  auto parse_string = [](dmcp::json_value val,
-                         std::string_view default_val = {}) {
+  auto parse_string = [](dmcp::json_value val, std::string_view default_val = {}) {
     return val ? val.get_string(default_val) : default_val;
   };
 
@@ -202,8 +194,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
     out_cmd->data.spawn.position.x = parse_double(params["position"]["x"]);
     out_cmd->data.spawn.position.y = parse_double(params["position"]["y"]);
     out_cmd->data.spawn.angle      = parse_double(params["angle"]);
-    out_cmd->data.spawn.tid =
-	static_cast<std::int32_t>(parse_int(params["tid"]));
+    out_cmd->data.spawn.tid        = static_cast<std::int32_t>(parse_int(params["tid"]));
 
   } else if (type_str == "change_level") {
     out_cmd->type = DMCP_CMD_CHANGE_LEVEL;
@@ -213,9 +204,8 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
                 sizeof(out_cmd->data.change_level.map_name));
 
     out_cmd->data.change_level.skill_level =
-	static_cast<std::int32_t>(parse_int(params["skill_level"], 3));
-    out_cmd->data.change_level.reset_inventory =
-	parse_bool(params["reset_inventory"]);
+        static_cast<std::int32_t>(parse_int(params["skill_level"], 3));
+    out_cmd->data.change_level.reset_inventory = parse_bool(params["reset_inventory"]);
 
   } else if (type_str == "give_item") {
     out_cmd->type = DMCP_CMD_GIVE_ITEM;
@@ -224,8 +214,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
     dmcp_strcpy(out_cmd->data.give_item.item_class, item_class.data(),
                 sizeof(out_cmd->data.give_item.item_class));
 
-    out_cmd->data.give_item.amount =
-	static_cast<std::int32_t>(parse_int(params["amount"], 1));
+    out_cmd->data.give_item.amount = static_cast<std::int32_t>(parse_int(params["amount"], 1));
 
   } else if (type_str == "set_player_health") {
     out_cmd->type                   = DMCP_CMD_SET_PLAYER_HEALTH;
@@ -253,20 +242,17 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
     out_cmd->data.timescale.scale = parse_double(params["scale"], 1.0);
 
   } else if (type_str == "damage_entity") {
-    out_cmd->type = DMCP_CMD_DAMAGE_ENTITY;
-    out_cmd->data.damage.target_tid =
-	static_cast<std::int32_t>(parse_int(params["target_tid"]));
-    out_cmd->data.damage.damage = parse_double(params["damage"]);
+    out_cmd->type                   = DMCP_CMD_DAMAGE_ENTITY;
+    out_cmd->data.damage.target_tid = static_cast<std::int32_t>(parse_int(params["target_tid"]));
+    out_cmd->data.damage.damage     = parse_double(params["damage"]);
 
-    const std::string_view damage_type =
-	parse_string(params["damage_type"], "Normal");
+    const std::string_view damage_type = parse_string(params["damage_type"], "Normal");
     dmcp_strcpy(out_cmd->data.damage.damage_type, damage_type.data(),
                 sizeof(out_cmd->data.damage.damage_type));
 
   } else if (type_str == "kill_entity") {
-    out_cmd->type = DMCP_CMD_KILL_ENTITY;
-    out_cmd->data.kill.target_tid =
-	static_cast<std::int32_t>(parse_int(params["target_tid"]));
+    out_cmd->type                 = DMCP_CMD_KILL_ENTITY;
+    out_cmd->data.kill.target_tid = static_cast<std::int32_t>(parse_int(params["target_tid"]));
 
   } else {
     out_cmd->type = DMCP_CMD_UNKNOWN;
@@ -278,8 +264,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char*     json_str,
   return MCP_OK;
 }
 
-mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx_handle,
-                                                const char*     json_str,
+mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx_handle, const char* json_str,
                                                 dmcp_command_t* out_cmd) {
   if (!json_str || !out_cmd) {
     return MCP_ERROR_INVALID_ARGS;
@@ -296,11 +281,10 @@ mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx_handle,
   const std::string_view type_str = root["type"].get_string();
   dmcp::json_value       params   = root["params"];
 
-  auto* ctx =
-      ctx_handle ? reinterpret_cast<dmcp::context*>(ctx_handle) : nullptr;
+  auto* ctx = ctx_handle ? reinterpret_cast<dmcp::context*>(ctx_handle) : nullptr;
   if (ctx) {
     std::lock_guard<std::mutex> lock(ctx->custom_parsers_mutex);
-    auto it = ctx->custom_parsers.find(std::string(type_str));
+    auto                        it = ctx->custom_parsers.find(std::string(type_str));
     if (it != ctx->custom_parsers.end()) {
       std::string params_json = params ? params.dump() : "{}";
       return it->second.second(params_json.c_str(), out_cmd);
@@ -310,10 +294,8 @@ mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx_handle,
   return dmcp_parse_command_json(json_str, out_cmd);
 }
 
-mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd,
-                                                bool                  success,
-                                                const char*           message,
-                                                char*                 buffer,
+mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
+                                                const char* message, char* buffer,
                                                 size_t buffer_size) {
   if (!cmd || !buffer || buffer_size == 0) {
     return MCP_ERROR_INVALID_ARGS;
@@ -336,9 +318,9 @@ mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd,
   return MCP_OK;
 }
 
-mcp_result_generic_t dmcp_register_command_parser(
-    dmcp_context_t* ctx_handle, const char* type_name, dmcp_command_type_t type,
-    dmcp_custom_command_parser_t parser) {
+mcp_result_generic_t dmcp_register_command_parser(dmcp_context_t* ctx_handle, const char* type_name,
+                                                  dmcp_command_type_t          type,
+                                                  dmcp_custom_command_parser_t parser) {
   if (!ctx_handle || !type_name || !parser) {
     return MCP_ERROR_INVALID_ARGS;
   }

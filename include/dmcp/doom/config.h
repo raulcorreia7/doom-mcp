@@ -13,11 +13,9 @@ extern "C" {
 typedef struct dmcp_context_s dmcp_context_t;
 struct dmcp_snapshot_t;
 
-typedef void (*dmcp_log_callback_t)(void* user_data, int level,
-                                    const char* message);
+typedef void (*dmcp_log_callback_t)(void* user_data, int level, const char* message);
 
-typedef void (*dmcp_snapshot_callback_t)(void*                   user_data,
-                                         struct dmcp_snapshot_t* snapshot);
+typedef void (*dmcp_snapshot_callback_t)(void* user_data, struct dmcp_snapshot_t* snapshot);
 
 typedef struct {
   uint32_t struct_size;

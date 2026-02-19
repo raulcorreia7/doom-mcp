@@ -333,9 +333,10 @@ void          dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/mcp` | POST | MCP protocol handshake |
-| `/sse` | GET | Server-Sent Events stream |
+| `/mcp` | GET | Server-Sent Events stream |
 | `/health` | GET | Health check |
-| `/screenshot/latest.png` | GET | Latest screenshot (PNG image) |
+| `/game/state` | GET | Current game snapshot as JSON |
+| `/game/screenshot` | GET | Latest screenshot payload as JSON |
 
 ## Data Types
 

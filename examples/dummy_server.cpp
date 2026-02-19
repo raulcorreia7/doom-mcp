@@ -52,10 +52,8 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 
   // Level info
   snapshot->level.tic = state->tic;
-  dmcp_strcpy(snapshot->level.level_id, "E1M1",
-              sizeof(snapshot->level.level_id));
-  dmcp_strcpy(snapshot->level.level_name, "Hangar",
-              sizeof(snapshot->level.level_name));
+  dmcp_strcpy(snapshot->level.level_id, "E1M1", sizeof(snapshot->level.level_id));
+  dmcp_strcpy(snapshot->level.level_name, "Hangar", sizeof(snapshot->level.level_name));
   snapshot->level.kill_count   = 5;
   snapshot->level.item_count   = 2;
   snapshot->level.secret_count = 1;
@@ -63,7 +61,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
   // Player
   snapshot->player.hp         = state->player_health;
   snapshot->player.armor      = 25.0f;
-  snapshot->player.ammo       = state->player_ammo;
+  snapshot->player.ammo[0]    = state->player_ammo;
   snapshot->player.position.x = state->player_x;
   snapshot->player.position.y = state->player_y;
 
@@ -134,12 +132,13 @@ int main() {
     return 1;
   }
 
-  printf("Dummy server running on port %d. Press Ctrl+C to stop.\n",
-         config.port);
+  printf("Dummy server running on port %d. Press Ctrl+C to stop.\n", config.port);
   printf("Endpoints:\n");
-  printf("  POST /mcp       - MCP protocol endpoint\n");
-  printf("  GET /sse        - Server-Sent Events stream\n");
+  printf("  POST /mcp       - MCP JSON-RPC endpoint\n");
+  printf("  GET /mcp        - Server-Sent Events stream\n");
   printf("  GET /health     - Health check\n\n");
+  printf("  GET /game/state - Current game snapshot\n");
+  printf("  GET /game/screenshot - Screenshot JSON (if enabled)\n\n");
 
   // Main loop
   while (g_running) {
@@ -178,9 +177,8 @@ int main() {
     // }
 
     // Maintain ~35Hz
-    auto end = std::chrono::steady_clock::now();
-    auto elapsed =
-	std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto end     = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (elapsed.count() < 28) {
       std::this_thread::sleep_for(std::chrono::milliseconds(28) - elapsed);
     }

@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#include <string.h>
+
 // ============================================================================
 // Doom MCP Public API
 //
@@ -273,8 +275,42 @@ bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  * }
  * @endcode
  */
-mcp_result_generic_t dmcp_screenshot_submit(
-    dmcp_context_t* ctx, const dmcp_screenshot_frame_t* frame);
+mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
+                                            const dmcp_screenshot_frame_t* frame);
+
+/**
+ * @brief Get ASCII representation of latest screenshot
+ *
+ * Returns the ASCII art representation of the most recently submitted
+ * screenshot frame.
+ *
+ * @param ctx Context handle
+ * @param target_width Target width in characters (default 160)
+ * @return Pointer to ASCII string, or NULL if no screenshot available
+ *
+ * @note Returns NULL if context is NULL or no screenshot submitted
+ * @note The returned string is owned by the context and valid until next screenshot submit
+ * @note Thread-safe
+ */
+const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx, uint32_t target_width);
+
+/**
+ * @brief Get screenshot as JSON with metadata
+ *
+ * Serializes the latest screenshot as JSON including metadata
+ * (dimensions, format, ASCII art).
+ *
+ * @param ctx Context handle
+ * @param buffer Output buffer for JSON string
+ * @param buffer_size Size of output buffer
+ * @param target_width Target width in characters (default 160)
+ * @return Number of bytes written, or -1 on error
+ *
+ * @note Output format: {"width":N,"height":N,"ascii":"..."}
+ * @note Returns -1 if buffer too small or context is NULL
+ */
+int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t buffer_size,
+                            uint32_t target_width);
 
 // ============================================================================
 // Utilities
@@ -345,8 +381,7 @@ void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
  * }
  * @endcode
  */
-int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
-                          size_t buffer_size);
+int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer, size_t buffer_size);
 
 /**
  * @brief Clear a snapshot structure
@@ -365,19 +400,7 @@ int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
  */
 static inline void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot) {
   if (!snapshot) return;
-  snapshot->player.hp           = 0;
-  snapshot->player.armor        = 0;
-  snapshot->player.position.x   = 0;
-  snapshot->player.position.y   = 0;
-  snapshot->player.ammo         = 0;
-  snapshot->level.tic           = 0;
-  snapshot->level.level_id[0]   = '\0';
-  snapshot->level.level_name[0] = '\0';
-  snapshot->level.kill_count    = 0;
-  snapshot->level.item_count    = 0;
-  snapshot->level.secret_count  = 0;
-  snapshot->enemy_count         = 0;
-  snapshot->inventory_count     = 0;
+  memset(snapshot, 0, sizeof(dmcp_snapshot_t));
 }
 
 /**
@@ -414,8 +437,7 @@ static inline void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot) {
  * }
  * @endcode
  */
-static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t*    snapshot,
-                                           const dmcp_enemy_t* enemy) {
+static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t* snapshot, const dmcp_enemy_t* enemy) {
   if (!snapshot || !enemy) return false;
   if (snapshot->enemy_count >= DMCP_MAX_ENEMIES) return false;
   snapshot->enemies[snapshot->enemy_count++] = *enemy;
@@ -452,8 +474,7 @@ static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t*    snapshot,
  * }
  * @endcode
  */
-static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t*   snapshot,
-                                          const dmcp_item_t* item) {
+static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t* snapshot, const dmcp_item_t* item) {
   if (!snapshot || !item) return false;
   if (snapshot->inventory_count >= DMCP_MAX_INVENTORY) return false;
   snapshot->inventory[snapshot->inventory_count++] = *item;
@@ -482,8 +503,9 @@ static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t*   snapshot,
  * @endcode
  */
 static inline void dmcp_strcpy(char* dest, const char* src, size_t dest_size) {
+  size_t i;
   if (!dest || !src || dest_size == 0) return;
-  size_t i = 0;
+  i = 0;
   while (i < dest_size - 1 && src[i] != '\0') {
     dest[i] = src[i];
     i++;

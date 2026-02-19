@@ -14,32 +14,77 @@ extern "C" {
 #include "mcp/generic/protocol.h"
 #include "mcp/generic/result.h"
 
+#define DMCP_MAX_STRING 64
+#define DMCP_MAX_WEAPONS 9
+#define DMCP_MAX_AMMO_TYPES 4
+#define DMCP_MAX_POWERUPS 6
+#define DMCP_MAX_KEYS 6
+
 typedef struct {
   float x;
   float y;
 } dmcp_vec2_t;
 
 typedef struct {
+  float x;
+  float y;
+  float z;
+} dmcp_vec3_t;
+
+typedef struct {
   float       hp;
   float       armor;
-  dmcp_vec2_t position;
-  int32_t     ammo;
+  char        armortype[DMCP_MAX_STRING];
+  dmcp_vec3_t position;
+  float       angle;
+
+  char    readyweapon[DMCP_MAX_STRING];
+  char    pendingweapon[DMCP_MAX_STRING];
+  int32_t weaponowned[DMCP_MAX_WEAPONS];
+
+  int32_t ammo[DMCP_MAX_AMMO_TYPES];
+  int32_t maxammo[DMCP_MAX_AMMO_TYPES];
+  int32_t backpack;
+
+  int32_t powers[DMCP_MAX_POWERUPS];
+  int32_t cards[DMCP_MAX_KEYS];
+
+  char    playerstate[DMCP_MAX_STRING];
+  int32_t cheats;
+  int32_t damagecount;
 } dmcp_player_t;
 
 typedef struct {
   int32_t tic;
+  int32_t leveltime;
   char    level_id[MCP_MAX_LEVEL_ID];
   char    level_name[MCP_MAX_LEVEL_NAME];
+
   int32_t kill_count;
   int32_t item_count;
   int32_t secret_count;
+  int32_t totalkills;
+  int32_t totalitems;
+  int32_t totalsecrets;
+
+  char    skill[DMCP_MAX_STRING];
+  char    gamestate[DMCP_MAX_STRING];
+  int32_t paused;
 } dmcp_level_t;
+
+typedef struct {
+  char    mode[DMCP_MAX_STRING];
+  int32_t respawnmonsters;
+  int32_t consoleplayer;
+} dmcp_game_t;
 
 typedef struct {
   int32_t     id;
   float       hp;
   float       max_hp;
-  dmcp_vec2_t position;
+  dmcp_vec3_t position;
+  float       angle;
+  int32_t     target_id;
   char        type[MCP_MAX_ENEMY_TYPE];
 } dmcp_enemy_t;
 
@@ -48,12 +93,13 @@ typedef struct {
   int32_t amount;
 } dmcp_item_t;
 
-#define DMCP_MAX_ENEMIES   MCP_MAX_ENEMIES
+#define DMCP_MAX_ENEMIES MCP_MAX_ENEMIES
 #define DMCP_MAX_INVENTORY MCP_MAX_INVENTORY
 
 typedef struct dmcp_snapshot_t {
   dmcp_player_t player;
   dmcp_level_t  level;
+  dmcp_game_t   game;
 
   dmcp_enemy_t enemies[DMCP_MAX_ENEMIES];
   uint32_t     enemy_count;

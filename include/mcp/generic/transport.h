@@ -43,21 +43,20 @@ typedef struct {
    *
    * @param user_data User data pointer
    * @param method HTTP method (GET, POST, etc.)
-   * @param path Request path (/mcp, /sse, /health, etc.)
+   * @param path Request path (/mcp, /health, etc.)
    * @param body Request body (NULL if none or GET request)
    * @param response_buffer Output buffer for response
    * @param response_size Size of response buffer
    * @param http_status OUT: HTTP status code to return
    * @return true if handled, false otherwise
    */
-  bool (*on_http_request)(void* user_data, const char* method, const char* path,
-                          const char* body, char* response_buffer,
-                          size_t response_size, int* http_status);
+  bool (*on_http_request)(void* user_data, const char* method, const char* path, const char* body,
+                          char* response_buffer, size_t response_size, int* http_status);
 
   /**
    * @brief Called when a new SSE client connects
    *
-   * Invoked when a client connects to the SSE endpoint (/sse).
+   * Invoked when a client connects to the SSE stream endpoint (/mcp).
    * Returns an opaque client handle for this connection.
    *
    * @param user_data User data pointer
@@ -89,8 +88,7 @@ typedef struct {
    * @param len Length of data in bytes
    * @return true if sent successfully, false on failure
    */
-  bool (*on_sse_send)(void* user_data, void* client_handle, const char* data,
-                      size_t len);
+  bool (*on_sse_send)(void* user_data, void* client_handle, const char* data, size_t len);
 
 } mcp_transport_callbacks_t;
 
@@ -126,9 +124,8 @@ typedef struct {
    * @param user_data User data passed to callbacks
    * @return Transport handle on success, NULL on failure
    */
-  mcp_transport_t* (*create)(uint16_t                         port,
-                             const mcp_transport_callbacks_t* callbacks,
-                             void*                            user_data);
+  mcp_transport_t* (*create)(uint16_t port, const mcp_transport_callbacks_t* callbacks,
+                             void* user_data);
 
   /**
    * @brief Destroy transport instance

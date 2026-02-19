@@ -43,6 +43,7 @@ dmcp-release
 test_*
 *_test
 !test_mcp.sh
+!tests/e2e/test_*.py
 
 # Coverage reports
 *.gcda
@@ -66,6 +67,11 @@ clang-tidy-report.xml
 # Temporary files
 *.tmp
 *.temp
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
 # Package files
 *.tar.gz
@@ -147,6 +153,9 @@ vgcore.*
 .gdb_history
 
 # CMake presets (user-specific)
-CMakeUserPresets.jsonscreenshot*.png
+CMakeUserPresets.json
+
+# Local capture artifacts
+screenshot*.png
 sse_stream.txt
 dummy_server

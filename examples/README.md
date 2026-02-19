@@ -27,8 +27,10 @@ cmake --build build
 The server will:
 - Listen on port 6060
 - Accept MCP protocol connections at `/mcp`
-- Stream server-sent events at `/sse`
+- Stream server-sent events at `/mcp`
 - Provide health checks at `/health`
+- Serve game snapshot at `/game/state`
+- Serve screenshot JSON at `/game/screenshot`
 - Broadcast snapshots at 10 Hz (configurable via `target_hz`)
 
 ## Code Patterns

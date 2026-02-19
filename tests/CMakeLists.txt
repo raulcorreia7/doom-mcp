@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.25)
 set(UNIT_TEST_SOURCES
   unit/test_mcp_server.cpp
   unit/test_doom_context.cpp
+  unit/test_screenshot.cpp
 )
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
@@ -21,6 +22,7 @@ target_link_libraries(dmcp_tests
 target_include_directories(dmcp_tests
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 if(NOT MSVC)

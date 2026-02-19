@@ -95,6 +95,272 @@ For GZDoom/ZDoom-based source ports.
 ### Chocolate Doom Adapter (`adapters/chocolate-doom/`)
 For vanilla-accurate Chocolate Doom. Includes headless testing support.
 
+## API Endpoints
+
+The DMCP server exposes the following HTTP endpoints:
+
+### HTTP Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/mcp` | POST | JSON-RPC 2.0 protocol endpoint for MCP method calls |
+| `/mcp` | GET | Server-Sent Events stream for real-time state updates |
+| `/health` | GET | Health check endpoint |
+| `/game/state` | GET | Current game snapshot as JSON |
+| `/game/screenshot` | GET | Latest screenshot payload as JSON (if enabled) |
+
+### Default Configuration
+
+- **Port**: 6060
+- **Protocol**: JSON-RPC 2.0
+- **Transport**: HTTP + SSE (Server-Sent Events)
+
+## Consumer Setup & Interaction
+
+### Using cURL
+
+#### 1. Health Check
+
+Check if the server is running:
+
+```bash
+curl http://localhost:6060/health
+```
+
+Response:
+```json
+{"status": "ok", "clients": 0}
+```
+
+#### 2. MCP Protocol - Initialize
+
+Initialize the MCP connection:
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {}
+  }'
+```
+
+Response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {
+      "notifications": true,
+      "tools": {"listChanged": true}
+    },
+    "serverInfo": {
+      "name": "doom-mcp",
+      "version": "0.6.0"
+    }
+  }
+}
+```
+
+#### 3. List Available Tools
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list"
+  }'
+```
+
+Response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "result": {
+    "tools": [
+      {
+        "name": "get_game_state",
+        "description": "Get current game state including player position, health, enemies",
+        "inputSchema": {"type": "object", "properties": {}}
+      },
+      {
+        "name": "get_screenshot",
+        "description": "Capture a screenshot of the current game state",
+        "inputSchema": {"type": "object", "properties": {}}
+      },
+      {
+        "name": "execute_command",
+        "description": "Execute a game command (spawn enemy, change level, etc.)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string"},
+            "params": {"type": "object"}
+          },
+          "required": ["type"]
+        }
+      }
+    ]
+  }
+}
+```
+
+#### 4. Get Game State
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {"name": "get_game_state"}
+  }'
+```
+
+Response (truncated):
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "3",
+  "result": {
+    "content": [{
+      "type": "text",
+      "text": "{\"player\":{\"hp\":100,...}, \"level\":{...}, \"enemies\":[...]}"
+    }]
+  }
+}
+```
+
+#### 5. Execute Command
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "execute_command",
+      "arguments": {
+        "type": "spawn_entity",
+        "entity_type": "zombieman",
+        "x": 1000,
+        "y": 500
+      }
+    }
+  }'
+```
+
+#### 6. Get Screenshot
+
+```bash
+curl http://localhost:6060/game/screenshot
+```
+
+#### 7. SSE Stream (Real-time Updates)
+
+Connect to the SSE endpoint for real-time state updates:
+
+```bash
+curl http://localhost:6060/mcp
+```
+
+Response (SSE format):
+```
+event: connected
+data: {"client_id":"client_0"}
+
+event: state
+data: {"player":{"hp":100,...},"level":{...}}
+
+event: state
+data: {"player":{"hp":95,...},"level":{...}}
+```
+
+### Using an MCP Client (Python Example)
+
+```python
+import requests
+import json
+
+class DMCPClient:
+    def __init__(self, base_url="http://localhost:6060"):
+        self.base_url = base_url
+        self.mcp_url = f"{base_url}/mcp"
+    
+    def initialize(self):
+        """Initialize MCP connection"""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        }
+        resp = requests.post(self.mcp_url, json=payload)
+        return resp.json()
+    
+    def get_game_state(self):
+        """Get current game state"""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "get_game_state"}
+        }
+        resp = requests.post(self.mcp_url, json=payload)
+        result = resp.json()
+        
+        # Parse the JSON content
+        if "result" in result and "content" in result["result"]:
+            for item in result["result"]["content"]:
+                if item.get("type") == "text":
+                    return json.loads(item["text"])
+        return result
+    
+    def health_check(self):
+        """Check server health"""
+        resp = requests.get(f"{self.base_url}/health")
+        return resp.json()
+
+# Usage
+client = DMCPClient()
+print(client.health_check())  # {'status': 'ok', 'clients': 0}
+print(client.get_game_state())  # Full game state
+```
+
+## Available Tools
+
+### `get_game_state`
+
+Returns the complete game state including:
+- **Player**: Health, armor, position, weapons, ammo, powerups, keys
+- **Level**: Current map, time, skill, kill/item/secret counts
+- **Game**: Mode (single_player/cooperative/deathmatch), respawn settings
+- **Enemies**: Array of visible enemies with position, health, type
+
+### `get_screenshot`
+
+Returns an ASCII representation of the current game view. Useful for visual debugging.
+
+### `execute_command`
+
+Queue a command to be executed by the game:
+
+| Command Type | Description | Parameters |
+|--------------|-------------|------------|
+| `spawn_entity` | Spawn an enemy/item | `entity_type`, `x`, `y`, `z` |
+| `change_level` | Switch to different map | `episode`, `map` |
+| `give_item` | Give player an item | `item`, `amount` |
+
 ## Error Handling
 
 All functions return `mcp_result_generic_t`:
@@ -105,6 +371,26 @@ if (result.code != MCP_RESULT_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }
 ```
+
+JSON-RPC error responses follow the standard format:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "error": {
+    "code": -32601,
+    "message": "Method not found"
+  }
+}
+```
+
+Common error codes:
+- `-32600`: Invalid Request
+- `-32601`: Method not found
+- `-32602`: Invalid params
+- `-32603`: Internal error
+- `-32000`: Server error
 
 ## License
 

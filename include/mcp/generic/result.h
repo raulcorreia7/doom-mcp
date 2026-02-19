@@ -44,9 +44,8 @@ extern "C" {
  * @endcode
  */
 typedef struct {
-  int32_t code;  ///< Error code (0 = success, negative = error)
-  const char*
-      message;  ///< Static error message string (thread-local if needed)
+  int32_t     code;     ///< Error code (0 = success, negative = error)
+  const char* message;  ///< Static error message string (thread-local if needed)
 } mcp_result_generic_t;
 
 /**
@@ -75,8 +74,7 @@ typedef struct {
  * return MCP_RESULT_OK("Operation completed successfully");
  * @endcode
  */
-#define MCP_RESULT_OK(message) \
-  MCP_RESULT_MAKE(0, (message) ? (message) : "Success")
+#define MCP_RESULT_OK(message) MCP_RESULT_MAKE(0, (message) ? (message) : "Success")
 
 /**
  * @brief Helper macro to create error result

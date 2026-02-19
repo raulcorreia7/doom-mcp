@@ -118,20 +118,13 @@ extern "C" {
 // ============================================================================
 
 /**
- * @brief JSON-RPC protocol endpoint
+ * @brief MCP protocol endpoint
  *
- * HTTP POST endpoint for MCP protocol handshake and method calls.
- * Clients send JSON-RPC requests to this endpoint.
+ * Unified endpoint for MCP communication:
+ * - HTTP POST for JSON-RPC method calls
+ * - HTTP GET for SSE stream
  */
 #define MCP_ENDPOINT_MCP "/mcp"
-
-/**
- * @brief Server-Sent Events endpoint
- *
- * HTTP GET endpoint for SSE stream. Clients connect to this
- * endpoint to receive real-time events.
- */
-#define MCP_ENDPOINT_SSE "/sse"
 
 /**
  * @brief Health check endpoint
@@ -140,14 +133,6 @@ extern "C" {
  * Returns {"status":"ok"} when server is running.
  */
 #define MCP_ENDPOINT_HEALTH "/health"
-
-/**
- * @brief Latest screenshot endpoint
- *
- * HTTP GET endpoint to retrieve the most recent screenshot as PNG.
- * Returns PNG image data with Content-Type: image/png.
- */
-#define MCP_ENDPOINT_SCREENSHOT "/screenshot/latest.png"
 
 // ============================================================================
 // Array Limits

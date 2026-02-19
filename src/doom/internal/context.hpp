@@ -23,6 +23,9 @@ struct context {
   std::vector<pool_entry> pool;
   std::mutex              pool_mutex;
 
+  dmcp_snapshot_t last_snapshot{};
+  std::mutex      last_snapshot_mutex;
+
   std::chrono::nanoseconds              min_interval{};
   std::chrono::steady_clock::time_point last_snapshot_time;
 
@@ -32,9 +35,8 @@ struct context {
   std::atomic<uint64_t> dropped_screenshots{0};
   std::atomic<bool>     drop_warning_emitted{false};
 
-  std::unordered_map<
-      std::string, std::pair<dmcp_command_type_t, dmcp_custom_command_parser_t>>
-	     custom_parsers;
+  std::unordered_map<std::string, std::pair<dmcp_command_type_t, dmcp_custom_command_parser_t>>
+             custom_parsers;
   std::mutex custom_parsers_mutex;
 };
 

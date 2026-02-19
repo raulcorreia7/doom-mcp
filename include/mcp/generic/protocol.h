@@ -21,7 +21,7 @@ extern "C" {
  * This string identifies the MCP protocol version this implementation
  * follows. Used in protocol handshake and for compatibility checking.
  */
-#define MCP_PROTOCOL_VERSION "2025-06-18"
+#define MCP_PROTOCOL_VERSION "2025-03-26"
 
 /**
  * @brief Server identification name
@@ -36,7 +36,7 @@ extern "C" {
  * Version follows semantic versioning (MAJOR.MINOR.PATCH).
  * Updated with each release.
  */
-#define MCP_SERVER_VERSION "0.3.0"
+#define MCP_SERVER_VERSION "0.6.0"
 
 // ============================================================================
 // Result Codes
@@ -62,13 +62,13 @@ typedef mcp_result_generic_t mcp_result_t;
  * - Negative = Error codes (defined below)
  * - Positive = Reserved for future use
  */
-#define MCP_RESULT_CODE_OK              0
-#define MCP_RESULT_CODE_INVALID_ARGS    -1
+#define MCP_RESULT_CODE_OK 0
+#define MCP_RESULT_CODE_INVALID_ARGS -1
 #define MCP_RESULT_CODE_ENCODING_FAILED -2
-#define MCP_RESULT_CODE_DISABLED        -3
-#define MCP_RESULT_CODE_QUEUE_FULL      -4
-#define MCP_RESULT_CODE_NOT_FOUND       -5
-#define MCP_RESULT_CODE_INTERNAL        -6
+#define MCP_RESULT_CODE_DISABLED -3
+#define MCP_RESULT_CODE_QUEUE_FULL -4
+#define MCP_RESULT_CODE_NOT_FOUND -5
+#define MCP_RESULT_CODE_INTERNAL -6
 
 /**
  * @brief Convenience macros for creating results
@@ -81,28 +81,23 @@ typedef mcp_result_generic_t mcp_result_t;
 #define MCP_OK MCP_RESULT_OK("Success")
 
 /** @brief Invalid arguments error */
-#define MCP_ERROR_INVALID_ARGS \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments")
+#define MCP_ERROR_INVALID_ARGS MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments")
 
 /** @brief JSON encoding/decoding failed */
 #define MCP_ERROR_ENCODING_FAILED \
   MCP_RESULT_ERROR(MCP_RESULT_CODE_ENCODING_FAILED, "Encoding failed")
 
 /** @brief Operation is disabled (e.g., screenshots) */
-#define MCP_ERROR_DISABLED \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_DISABLED, "Operation disabled")
+#define MCP_ERROR_DISABLED MCP_RESULT_ERROR(MCP_RESULT_CODE_DISABLED, "Operation disabled")
 
 /** @brief Queue is full, cannot add more items */
-#define MCP_ERROR_QUEUE_FULL \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Queue full")
+#define MCP_ERROR_QUEUE_FULL MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Queue full")
 
 /** @brief Requested resource or method not found */
-#define MCP_ERROR_NOT_FOUND \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_NOT_FOUND, "Not found")
+#define MCP_ERROR_NOT_FOUND MCP_RESULT_ERROR(MCP_RESULT_CODE_NOT_FOUND, "Not found")
 
 /** @brief Internal error occurred */
-#define MCP_ERROR_INTERNAL \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_INTERNAL, "Internal error")
+#define MCP_ERROR_INTERNAL MCP_RESULT_ERROR(MCP_RESULT_CODE_INTERNAL, "Internal error")
 
 // ============================================================================
 // Log Levels
@@ -152,8 +147,7 @@ typedef enum {
  * cfg.on_log = OnLog;
  * @endcode
  */
-typedef void (*mcp_log_callback_t)(void* user_data, int level,
-                                   const char* message);
+typedef void (*mcp_log_callback_t)(void* user_data, int level, const char* message);
 
 /**
  * @brief JSON-RPC method handler function type
@@ -185,10 +179,8 @@ typedef void (*mcp_log_callback_t)(void* user_data, int level,
  * mcp_server_method_register(server, "tools/call", OnToolCall, NULL);
  * @endcode
  */
-typedef bool (*mcp_method_handler_t)(void* user_data, const char* method,
-                                     const char* request_json,
-                                     char*       response_buffer,
-                                     size_t      response_size);
+typedef bool (*mcp_method_handler_t)(void* user_data, const char* method, const char* request_json,
+                                     char* response_buffer, size_t response_size);
 
 // ============================================================================
 // Server Configuration
@@ -213,7 +205,7 @@ typedef struct {
   size_t   max_payload_size;         ///< Max request body size in bytes
 
   // Logging
-  mcp_log_callback_t on_log;  ///< Optional log callback (NULL to disable)
+  mcp_log_callback_t on_log;         ///< Optional log callback (NULL to disable)
   void*              log_user_data;  ///< User data passed to log callback
 
 } mcp_server_config_t;

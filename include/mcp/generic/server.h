@@ -18,6 +18,25 @@ extern "C" {
  */
 typedef struct mcp_server_s mcp_server_t;
 
+/**
+ * @brief HTTP route handler callback type
+ *
+ * Called for registered HTTP routes. Handlers can inspect request metadata,
+ * parse the optional body, and write a response payload and status.
+ *
+ * @param user_data User data pointer passed during registration
+ * @param method HTTP method (for example: "GET", "POST")
+ * @param path Request path (for example: "/game/state")
+ * @param body Request body as JSON/text when present (NULL for bodyless requests)
+ * @param response_buffer Output buffer for response body
+ * @param response_size Size of response buffer in bytes
+ * @param http_status OUT: HTTP status code to return
+ * @return true if the route was handled, false to fallback to default handling
+ */
+typedef bool (*mcp_route_handler_t)(void* user_data, const char* method, const char* path,
+                                    const char* body, char* response_buffer, size_t response_size,
+                                    int* http_status);
+
 // ============================================================================
 // Lifecycle
 // ============================================================================
@@ -98,6 +117,36 @@ void mcp_server_destroy(mcp_server_t* server);
 bool mcp_server_is_running(const mcp_server_t* server);
 
 // ============================================================================
+// Route Registration
+// ============================================================================
+
+/**
+ * @brief Register an HTTP route handler
+ *
+ * Registers a handler for a concrete HTTP method/path pair.
+ *
+ * @param server Server handle
+ * @param method HTTP method (for example: "GET", "POST")
+ * @param path Route path (for example: "/game/state")
+ * @param handler Route handler callback
+ * @param user_data User data passed to handler
+ * @return Result struct with code and message
+ */
+mcp_result_t mcp_server_route_register(mcp_server_t* server, const char* method, const char* path,
+                                       mcp_route_handler_t handler, void* user_data);
+
+/**
+ * @brief Unregister an HTTP route handler
+ *
+ * Removes a previously registered route handler for a method/path pair.
+ *
+ * @param server Server handle
+ * @param method HTTP method
+ * @param path Route path
+ */
+void mcp_server_route_unregister(mcp_server_t* server, const char* method, const char* path);
+
+// ============================================================================
 // Method Registration
 // ============================================================================
 
@@ -152,10 +201,8 @@ bool mcp_server_is_running(const mcp_server_t* server);
  * }
  * @endcode
  */
-mcp_result_t mcp_server_method_register(mcp_server_t*        server,
-                                        const char*          method,
-                                        mcp_method_handler_t handler,
-                                        void*                user_data);
+mcp_result_t mcp_server_method_register(mcp_server_t* server, const char* method,
+                                        mcp_method_handler_t handler, void* user_data);
 
 /**
  * @brief Unregister a method handler
@@ -214,9 +261,8 @@ typedef struct {
   void*                user_data;  ///< User data passed to handler
 } mcp_method_registration_t;
 
-mcp_result_t mcp_server_methods_register(
-    mcp_server_t* server, const mcp_method_registration_t* methods,
-    size_t count);
+mcp_result_t mcp_server_methods_register(mcp_server_t*                    server,
+                                         const mcp_method_registration_t* methods, size_t count);
 
 // ============================================================================
 // Event Broadcasting (SSE)
@@ -347,8 +393,7 @@ uint64_t mcp_server_clients_count(const mcp_server_t* server);
  * printf("Failed: %llu\n", stats.requests_failed);
  * @endcode
  */
-void mcp_server_stats_get(const mcp_server_t* server,
-                          mcp_server_stats_t* stats);
+void mcp_server_stats_get(const mcp_server_t* server, mcp_server_stats_t* stats);
 
 // ============================================================================
 // Utility Functions
@@ -378,8 +423,8 @@ void mcp_server_stats_get(const mcp_server_t* server,
  * // response = {"jsonrpc":"2.0","id":"123","result":{"value":42}}
  * @endcode
  */
-size_t mcp_format_success_response(char* buffer, size_t buffer_size,
-                                   const char* id, const char* result_json);
+size_t mcp_format_success_response(char* buffer, size_t buffer_size, const char* id,
+                                   const char* result_json);
 
 /**
  * @brief Helper to create a JSON-RPC 2.0 error response
@@ -408,8 +453,7 @@ size_t mcp_format_success_response(char* buffer, size_t buffer_size,
  * found"}}
  * @endcode
  */
-size_t mcp_format_error_response(char* buffer, size_t buffer_size,
-                                 const char* id, int error_code,
+size_t mcp_format_error_response(char* buffer, size_t buffer_size, const char* id, int error_code,
                                  const char* error_message);
 
 #ifdef __cplusplus
