@@ -74,7 +74,7 @@ target_include_directories(mcp_generic
 )
 
 target_link_libraries(mcp_generic
-  PUBLIC yyjson uWebSockets
+  PRIVATE yyjson uWebSockets
 )
 
 target_compile_definitions(mcp_generic
@@ -169,15 +169,18 @@ endif()
 
 if(DMCP_INSTALL)
   include(GNUInstallDirs)
+  include(CMakePackageConfigHelpers)
 
   install(
     DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   )
 
+  # Install targets and create export (only for shared builds)
   if(DMCP_BUILD_SHARED)
     install(
       TARGETS mcp_generic dmcp_core
+      EXPORT dmcp-targets
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -187,6 +190,7 @@ if(DMCP_INSTALL)
     if(TARGET dmcp_zdoom)
       install(
         TARGETS dmcp_zdoom
+        EXPORT dmcp-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -197,14 +201,36 @@ if(DMCP_INSTALL)
     if(TARGET dmcp_chocolate)
       install(
         TARGETS dmcp_chocolate
+        EXPORT dmcp-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
       )
     endif()
-  else()
-    message(STATUS "  Install libraries: skipped for static builds")
+  endif()
+
+  # Export targets and install package config (only for shared builds)
+  if(DMCP_BUILD_SHARED)
+    # Install export file
+    install(
+      EXPORT dmcp-targets
+      FILE dmcp-targets.cmake
+      NAMESPACE dmcp::
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
+    )
+
+    # Generate and install package config
+    configure_package_config_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp-config.cmake.in
+      ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
+      INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
+    )
+
+    install(
+      FILES ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
+    )
   endif()
 endif()
 
