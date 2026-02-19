@@ -1,13 +1,15 @@
 #include <App.h>
 #include <Loop.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <cstring>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -23,14 +25,30 @@
 #endif
 
 // ============================================================================
-// SSE Transport Implementation using uWebSockets
+// HTTP + SSE Transport Implementation using uWebSockets
 // ============================================================================
 
 namespace mcp {
 namespace transport {
 
+static constexpr const char* kJsonErrorNotFound =
+    "{\"error\":{\"code\":\"not_found\",\"message\":\"Endpoint not found\"}}";
+static constexpr const char* kJsonErrorPayloadTooLarge =
+    "{\"error\":{\"code\":\"payload_too_large\",\"message\":\"Payload too large\"}}";
+
+static void WriteJsonErrorResponse(uWS::HttpResponse<false>* res, std::string_view status,
+                                   std::string_view payload) {
+  res->writeStatus(status);
+  res->writeHeader("Content-Type", "application/json");
+  res->writeHeader("Access-Control-Allow-Origin", "*");
+  res->writeHeader("Cache-Control", "no-store");
+  res->end(payload);
+}
+
 // Forward declaration
 struct TransportContext;
+static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
+                         uWS::HttpRequest* req);
 
 // Client connection
 struct Client {
@@ -57,10 +75,6 @@ struct TransportContext {
   std::mutex            clients_mutex;
   std::atomic<uint64_t> client_counter{0};
 
-  // Screenshot
-  std::vector<std::uint8_t> latest_screenshot_png;
-  std::mutex                screenshot_mutex;
-
   // Threading
   std::thread             thread;
   std::atomic<bool>       running{false};
@@ -69,58 +83,105 @@ struct TransportContext {
   std::mutex              start_mutex;
 };
 
-static const std::uint8_t kDefaultScreenshotPng[] = {
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-    0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-    0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
-
 // ============================================================================
 // HTTP Handlers
 // ============================================================================
 
-static void HandlePostMCP(TransportContext* ctx, uWS::HttpResponse<false>* res,
-                          uWS::HttpRequest* req) {
-  (void)req;
+static std::string NormalizeHttpMethod(std::string_view method) {
+  std::string normalized(method);
+  for (char& c : normalized) {
+    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+  }
+  return normalized;
+}
+
+static bool MethodCanHaveBody(std::string_view method) {
+  return method == "POST" || method == "PUT" || method == "PATCH";
+}
+
+static void WriteOptionsResponse(uWS::HttpResponse<false>* res) {
+  res->writeStatus("204");
+  res->writeHeader("Access-Control-Allow-Origin", "*");
+  res->writeHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+  res->writeHeader("Access-Control-Allow-Headers", "Content-Type");
+  res->end();
+}
+
+static void WriteHandledResponse(uWS::HttpResponse<false>* res, int http_status, const char* body) {
+  res->writeStatus(std::to_string(http_status));
+  res->writeHeader("Access-Control-Allow-Origin", "*");
+  res->writeHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+  res->writeHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (!body || body[0] == '\0' || http_status == 204) {
+    res->end();
+    return;
+  }
+
+  res->writeHeader("Content-Type", "application/json");
+  res->end(body);
+}
+
+static void DispatchHttpRequest(TransportContext* ctx, uWS::HttpResponse<false>* res,
+                                std::string_view method, std::string_view path,
+                                const char* body_or_null) {
+  if (!ctx->callbacks.on_http_request) {
+    WriteJsonErrorResponse(res, "404", kJsonErrorNotFound);
+    return;
+  }
+
+  char response[MCP_BUFFER_SIZE_DEFAULT] = {};
+  int  http_status                       = 200;
+
+  std::string method_str(method);
+  std::string path_str(path);
+  bool        handled =
+      ctx->callbacks.on_http_request(ctx->user_data, method_str.c_str(), path_str.c_str(),
+                                     body_or_null, response, sizeof(response), &http_status);
+
+  if (!handled) {
+    WriteJsonErrorResponse(res, "404", kJsonErrorNotFound);
+    return;
+  }
+
+  WriteHandledResponse(res, http_status, response);
+}
+
+static void HandleHttpRequest(TransportContext* ctx, uWS::HttpResponse<false>* res,
+                              uWS::HttpRequest* req) {
+  std::string method = NormalizeHttpMethod(req->getMethod());
+  std::string path(req->getUrl());
+
+  if (method == "GET" && path == MCP_ENDPOINT_MCP) {
+    HandleGetSSE(ctx, res, req);
+    return;
+  }
+
+  if (method == "OPTIONS") {
+    WriteOptionsResponse(res);
+    return;
+  }
+
   res->onAborted([]() {});
 
-  res->onData([ctx, res, body = std::string()](std::string_view chunk,
-                                               bool             last) mutable {
-    // Size limit check
+  if (!MethodCanHaveBody(method)) {
+    DispatchHttpRequest(ctx, res, method, path, nullptr);
+    return;
+  }
+
+  res->onData([ctx, res, method = std::move(method), path = std::move(path), body = std::string()](
+                  std::string_view chunk, bool last) mutable {
     if (body.size() + chunk.size() > MCP_MAX_PAYLOAD_SIZE) {
-      res->writeStatus("413 Payload Too Large");
-      res->end("Payload too large");
+      WriteJsonErrorResponse(res, "413", kJsonErrorPayloadTooLarge);
       return;
     }
 
     body.append(chunk.data(), chunk.size());
-    if (!last) return;
-
-    // Process request
-    char response[MCP_BUFFER_SIZE_DEFAULT];
-    int  http_status = 200;
-
-    if (ctx->callbacks.on_http_request) {
-      bool handled = ctx->callbacks.on_http_request(
-	  ctx->user_data, "POST", MCP_ENDPOINT_MCP, body.c_str(), response,
-	  sizeof(response), &http_status);
-
-      if (handled) {
-	res->writeStatus(std::to_string(http_status));
-	if (response[0] != '\0') {
-	  res->writeHeader("Content-Type", "application/json");
-	  res->end(response);
-	} else {
-	  res->end();
-	}
-	return;
-      }
+    if (!last) {
+      return;
     }
 
-    res->writeStatus("404 Not Found");
-    res->end("Not found");
+    DispatchHttpRequest(ctx, res, method, path, body.c_str());
   });
 }
 
@@ -153,8 +214,7 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
   }
 
   // Send initial connection event
-  std::string connect_msg =
-      "event: connected\ndata: {\"client_id\":\"" + client->id + "\"}\n\n";
+  std::string connect_msg = "event: connected\ndata: {\"client_id\":\"" + client->id + "\"}\n\n";
   res->write(connect_msg);
 
   // Handle disconnect
@@ -173,33 +233,6 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
   });
 }
 
-static void HandleGetScreenshot(TransportContext*         ctx,
-                                uWS::HttpResponse<false>* res,
-                                uWS::HttpRequest*         req) {
-  (void)req;
-  res->onAborted([]() {});
-
-  std::vector<std::uint8_t> png;
-  {
-    std::lock_guard<std::mutex> lock(ctx->screenshot_mutex);
-    if (ctx->latest_screenshot_png.empty()) {
-      res->writeStatus("404 Not Found");
-      res->end("Screenshot not available");
-      return;
-    }
-    png = ctx->latest_screenshot_png;
-  }
-
-  res->cork([res, size = png.size()]() {
-    res->writeHeader("Content-Type", "image/png");
-    res->writeHeader("Content-Length", std::to_string(size));
-    res->writeHeader("Cache-Control", "no-cache");
-  });
-
-  res->end(
-      std::string_view(reinterpret_cast<const char*>(png.data()), png.size()));
-}
-
 // ============================================================================
 // Thread Main
 // ============================================================================
@@ -207,32 +240,11 @@ static void HandleGetScreenshot(TransportContext*         ctx,
 static void TransportThreadMain(TransportContext* ctx) {
   ctx->app  = std::make_unique<uWS::App>();
   ctx->loop = uWS::Loop::get();
+  ctx->loop->setSilent(true);
 
   // Setup routes
-  ctx->app->post(MCP_ENDPOINT_MCP,
-                 [ctx](auto* res, auto* req) { HandlePostMCP(ctx, res, req); });
-
-  ctx->app->get(MCP_ENDPOINT_SSE,
-                [ctx](auto* res, auto* req) { HandleGetSSE(ctx, res, req); });
-
-  ctx->app->get(MCP_ENDPOINT_SCREENSHOT, [ctx](auto* res, auto* req) {
-    HandleGetScreenshot(ctx, res, req);
-  });
-
-  ctx->app->get(MCP_ENDPOINT_HEALTH, [ctx](auto* res, auto*) {
-    char response[MCP_HEALTH_BUFFER_SIZE];
-    int  status = 200;
-    if (ctx->callbacks.on_http_request) {
-      ctx->callbacks.on_http_request(ctx->user_data, "GET", MCP_ENDPOINT_HEALTH,
-                                     nullptr, response, sizeof(response),
-                                     &status);
-    } else {
-      std::strcpy(response, MCP_HEALTH_RESPONSE);
-    }
-    res->writeHeader("Content-Type", "application/json");
-    res->writeStatus(std::to_string(status));
-    res->end(response);
-  });
+  ctx->app->get(MCP_ENDPOINT_MCP, [ctx](auto* res, auto* req) { HandleGetSSE(ctx, res, req); });
+  ctx->app->any("/*", [ctx](auto* res, auto* req) { HandleHttpRequest(ctx, res, req); });
 
   // Start listening
   ctx->app->listen(ctx->port, [ctx](us_listen_socket_t* token) {
@@ -268,9 +280,8 @@ static void TransportThreadMain(TransportContext* ctx) {
 
 extern "C" {
 
-static mcp_transport_t* SSE_Create(uint16_t                         port,
-                                   const mcp_transport_callbacks_t* callbacks,
-                                   void*                            user_data) {
+static mcp_transport_t* SSE_Create(uint16_t port, const mcp_transport_callbacks_t* callbacks,
+                                   void* user_data) {
   auto* ctx = new mcp::transport::TransportContext();
   ctx->port = port;
   if (callbacks) {
@@ -279,10 +290,6 @@ static mcp_transport_t* SSE_Create(uint16_t                         port,
   ctx->user_data     = user_data;
   ctx->listen_socket = nullptr;
   ctx->loop          = nullptr;
-  ctx->latest_screenshot_png.assign(
-      mcp::transport::kDefaultScreenshotPng,
-      mcp::transport::kDefaultScreenshotPng +
-	  sizeof(mcp::transport::kDefaultScreenshotPng));
 
   return reinterpret_cast<mcp_transport_t*>(ctx);
 }
@@ -295,6 +302,9 @@ static void SSE_Destroy(mcp_transport_t* transport) {
   {
     std::lock_guard<std::mutex> lock(ctx->clients_mutex);
     for (auto* client : ctx->clients) {
+      if (ctx->callbacks.on_sse_disconnect && client->handle) {
+        ctx->callbacks.on_sse_disconnect(ctx->user_data, client->handle);
+      }
       delete client;
     }
     ctx->clients.clear();
@@ -313,9 +323,8 @@ static bool SSE_Start(mcp_transport_t* transport) {
   ctx->thread = std::thread(mcp::transport::TransportThreadMain, ctx);
 
   // Wait for startup with timeout
-  if (!ctx->start_cv.wait_for(
-	  lock, std::chrono::seconds(MCP_STARTUP_TIMEOUT_SECONDS),
-	  [ctx] { return ctx->running || ctx->stopping; })) {
+  if (!ctx->start_cv.wait_for(lock, std::chrono::seconds(MCP_STARTUP_TIMEOUT_SECONDS),
+                              [ctx] { return ctx->running || ctx->stopping; })) {
     ctx->thread.join();
     return false;
   }
@@ -332,8 +341,8 @@ static void SSE_Stop(mcp_transport_t* transport) {
   if (ctx->loop && ctx->app) {
     ctx->loop->defer([ctx]() {
       if (ctx->listen_socket) {
-	us_listen_socket_close(0, ctx->listen_socket);
-	ctx->listen_socket = nullptr;
+        us_listen_socket_close(0, ctx->listen_socket);
+        ctx->listen_socket = nullptr;
       }
       ctx->app->close();
     });
@@ -346,13 +355,11 @@ static void SSE_Stop(mcp_transport_t* transport) {
 
 static bool SSE_IsRunning(const mcp_transport_t* transport) {
   if (!transport) return false;
-  auto* ctx =
-      reinterpret_cast<const mcp::transport::TransportContext*>(transport);
+  auto* ctx = reinterpret_cast<const mcp::transport::TransportContext*>(transport);
   return ctx->running.load();
 }
 
-static void SSE_Broadcast(mcp_transport_t* transport, const char* data,
-                          size_t len) {
+static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t len) {
   if (!transport || !data) return;
   auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
 
@@ -362,8 +369,7 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data,
     std::string_view sv(data, len);
     if (client->response->write(sv)) {
       if (ctx->callbacks.on_sse_send) {
-	ctx->callbacks.on_sse_send(ctx->user_data, client->handle, sv.data(),
-	                           sv.length());
+        ctx->callbacks.on_sse_send(ctx->user_data, client->handle, sv.data(), sv.length());
       }
     } else {
       client->zombie = true;
@@ -371,20 +377,24 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data,
   }
 
   ctx->clients.erase(std::remove_if(ctx->clients.begin(), ctx->clients.end(),
-                                    [](mcp::transport::Client* c) {
-				      if (c->zombie) {
-					delete c;
-					return true;
-				      }
-				      return false;
-				    }),
+                                    [ctx](mcp::transport::Client* c) {
+                                      if (!c->zombie) {
+                                        return false;
+                                      }
+
+                                      if (ctx->callbacks.on_sse_disconnect && c->handle) {
+                                        ctx->callbacks.on_sse_disconnect(ctx->user_data, c->handle);
+                                      }
+                                      delete c;
+                                      return true;
+                                    }),
                      ctx->clients.end());
 }
 
 static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
   if (!transport) return 0;
-  auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(
-      const_cast<mcp_transport_t*>(transport));
+  auto* ctx =
+      reinterpret_cast<mcp::transport::TransportContext*>(const_cast<mcp_transport_t*>(transport));
   std::lock_guard<std::mutex> lock(ctx->clients_mutex);
   return ctx->clients.size();
 }

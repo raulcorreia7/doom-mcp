@@ -27,7 +27,7 @@
 │  include/dmcp/doom/config.h    - Configuration types                         │
 │  include/dmcp/doom/api.h       - C API for game data                         │
 │  src/doom/context.cpp          - C API implementation                        │
-│  src/doom/handlers.cpp         - MCP method handlers                         │
+│  src/doom/mcp_handlers.cpp     - MCP tools + HTTP route handlers             │
 │  src/doom/pool.cpp             - Snapshot pooling                            │
 │  src/doom/serialization.cpp    - JSON serialization                          │
 │  - Knows about Doom game state                                              │
@@ -41,7 +41,7 @@
 │  include/mcp/generic/server.h    - Generic server interface                  │
 │  include/mcp/generic/transport.h - Abstract transport (SSE)                 │
 │  src/mcp/server.cpp              - JSON-RPC + method dispatch               │
-│  src/mcp/transport/sse.cpp       - SSE over HTTP (uWebSockets)              │
+│  src/mcp/http_sse_transport.cpp  - HTTP + SSE transport (uWebSockets)       │
 │  - No game-specific knowledge                                                │
 │  - Pure MCP protocol implementation                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -96,7 +96,7 @@ void                 dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 ## File Structure
 
 ```
-dmcp/
+doom-mcp/
 ├── cmake/
 │   ├── CPM.cmake              # CPM package manager setup
 │   ├── Dependencies.cmake     # External dependencies
@@ -106,7 +106,8 @@ dmcp/
 ├── docs/
 │   ├── README.md              # Full documentation
 │   ├── ARCHITECTURE.md        # This file
-│   └── CHANGELOG.md           # Version history
+│   ├── CHANGELOG.md           # Version history
+│   └── plans/                 # Active development plans
 │
 ├── include/
 │   ├── mcp/
@@ -128,17 +129,17 @@ dmcp/
 ├── src/
 │   ├── mcp/
 │   │   ├── server.cpp          # Generic MCP server
-│   │   ├── transport/
-│   │   │   └── sse.cpp         # SSE implementation
+│   │   ├── http_sse_transport.cpp # HTTP + SSE implementation
 │   │   └── json/
 │   │       ├── json.hpp        # JSON abstraction
 │   │       └── yyjson.cpp      # yyjson implementation
 │   │
 │   └── doom/
-│       ├── context.cpp         # C API (178 lines)
-│       ├── handlers.cpp        # MCP handlers (201 lines)
-│       ├── pool.cpp            # Pool management (30 lines)
-│       ├── serialization.cpp   # JSON serialization (125 lines)
+│       ├── context.cpp         # C API implementation
+│       ├── mcp_handlers.cpp    # MCP tools + routes
+│       ├── pool.cpp            # Pool management
+│       ├── serialization.cpp   # JSON serialization
+│       ├── screenshot.cpp      # ASCII conversion
 │       ├── commands.cpp        # Command processing
 │       └── internal/
 │           ├── pool.hpp        # Pool internals
@@ -147,10 +148,22 @@ dmcp/
 │           └── context.hpp     # Context internals
 │
 ├── adapters/
-│   └── zdoom/
-│       ├── adapter.h           # Public adapter header
-│       ├── adapter.cpp         # ZDoom integration
-│       └── commands.cpp        # ZDoom command handlers
+│   ├── zdoom/
+│   │   ├── adapter.h           # Public adapter header
+│   │   ├── adapter.cpp         # ZDoom integration
+│   │   └── commands.cpp        # ZDoom command handlers
+│   │
+│   └── chocolate-doom/
+│       ├── dmcp_adapter.h      # Public adapter header
+│       ├── dmcp_adapter.c      # Lifecycle: create/destroy/tick
+│       ├── dmcp_ascii.h        # ASCII screenshot API
+│       ├── dmcp_ascii.c        # ASCII capture implementation
+│       ├── dmcp_mappings.h     # Type conversion utilities
+│       ├── enemy_types.h       # Enemy lookup table
+│       ├── state_player.c      # Player state extraction
+│       ├── state_level.c       # Level/game state extraction
+│       ├── state_enemies.c     # Enemy enumeration
+│       └── commands.c          # Command execution
 │
 ├── examples/
 │   ├── README.md
@@ -158,13 +171,14 @@ dmcp/
 │
 ├── tests/
 │   ├── test_utils.hpp          # Shared fixtures/factories
-│   ├── unit/
-│   │   ├── test_mcp_server.cpp
-│   │   ├── test_doom_context.cpp
-│   │   └── test_zdoom_adapter.cpp
-│   └── integration/            # Future integration tests
+│   ├── unit/                   # Unit tests (Catch2)
+│   ├── integration/            # Integration tests
+│   └── e2e/                    # E2E tests (pytest)
 │
+├── chocolate-doom/             # Chocolate Doom submodule
 ├── CMakeLists.txt
+├── Makefile
+├── AGENTS.md
 └── README.md
 ```
 
@@ -207,7 +221,7 @@ The Doom MCP source is organized by concern:
 | File | Lines | Responsibility |
 |------|-------|----------------|
 | `context.cpp` | 178 | C API implementation |
-| `handlers.cpp` | 201 | MCP method handlers (tools/list, tools/call) |
+| `mcp_handlers.cpp` | ~320 | MCP tool and route handlers |
 | `pool.cpp` | 30 | Snapshot pool management |
 | `serialization.cpp` | 125 | JSON serialization of snapshots |
 | `commands.cpp` | ~300 | Command queue and parsing |

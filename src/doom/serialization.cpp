@@ -1,125 +1,124 @@
-#include <cstdio>
-#include <cstring>
+#include <cstdint>
 #include <string>
 
-#include "internal/context.hpp"
-#include "mcp/generic/constants.h"
+#include "internal/serialization.hpp"
+#include "yyjson.h"
 
 namespace dmcp {
 
-static void AppendString(char*& buf, size_t& remaining, const char* str) {
-  size_t len = std::strlen(str);
-  if (len >= remaining) len = remaining - 1;
-  std::memcpy(buf, str, len);
-  buf += len;
-  remaining -= len;
-  *buf = '\0';
+static yyjson_mut_val* vec3_to_json(yyjson_mut_doc* doc, const dmcp_vec3_t& v) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_real(doc, obj, "x", v.x);
+  yyjson_mut_obj_add_real(doc, obj, "y", v.y);
+  yyjson_mut_obj_add_real(doc, obj, "z", v.z);
+  return obj;
 }
 
-static void AppendFloat(char*& buf, size_t& remaining, float val) {
-  char temp[32];
-  std::snprintf(temp, sizeof(temp), "%.2f", val);
-  AppendString(buf, remaining, temp);
+static yyjson_mut_val* int_array_to_json(yyjson_mut_doc* doc, const int32_t* arr, size_t count) {
+  yyjson_mut_val* arr_val = yyjson_mut_arr(doc);
+  for (size_t i = 0; i < count; i++) {
+    yyjson_mut_arr_append(arr_val, yyjson_mut_sint(doc, arr[i]));
+  }
+  return arr_val;
 }
 
-static void AppendInt(char*& buf, size_t& remaining, int val) {
-  char temp[32];
-  std::snprintf(temp, sizeof(temp), "%d", val);
-  AppendString(buf, remaining, temp);
+static yyjson_mut_val* player_to_json(yyjson_mut_doc* doc, const dmcp_player_t& p) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_real(doc, obj, "hp", p.hp);
+  yyjson_mut_obj_add_real(doc, obj, "armor", p.armor);
+  yyjson_mut_obj_add_str(doc, obj, "armortype", p.armortype);
+  yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, p.position));
+  yyjson_mut_obj_add_real(doc, obj, "angle", p.angle);
+  yyjson_mut_obj_add_str(doc, obj, "readyweapon", p.readyweapon);
+  yyjson_mut_obj_add_str(doc, obj, "pendingweapon", p.pendingweapon);
+  yyjson_mut_obj_add_val(doc, obj, "weaponowned",
+                         int_array_to_json(doc, p.weaponowned, DMCP_MAX_WEAPONS));
+  yyjson_mut_obj_add_val(doc, obj, "ammo", int_array_to_json(doc, p.ammo, DMCP_MAX_AMMO_TYPES));
+  yyjson_mut_obj_add_val(doc, obj, "maxammo",
+                         int_array_to_json(doc, p.maxammo, DMCP_MAX_AMMO_TYPES));
+  yyjson_mut_obj_add_bool(doc, obj, "backpack", p.backpack);
+  yyjson_mut_obj_add_val(doc, obj, "powers", int_array_to_json(doc, p.powers, DMCP_MAX_POWERUPS));
+  yyjson_mut_obj_add_val(doc, obj, "cards", int_array_to_json(doc, p.cards, DMCP_MAX_KEYS));
+  yyjson_mut_obj_add_str(doc, obj, "playerstate", p.playerstate);
+  yyjson_mut_obj_add_sint(doc, obj, "cheats", p.cheats);
+  yyjson_mut_obj_add_sint(doc, obj, "damagecount", p.damagecount);
+  return obj;
+}
+
+static yyjson_mut_val* level_to_json(yyjson_mut_doc* doc, const dmcp_level_t& l) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_sint(doc, obj, "tic", l.tic);
+  yyjson_mut_obj_add_sint(doc, obj, "leveltime", l.leveltime);
+  yyjson_mut_obj_add_str(doc, obj, "level_id", l.level_id);
+  yyjson_mut_obj_add_str(doc, obj, "level_name", l.level_name);
+  yyjson_mut_obj_add_sint(doc, obj, "kill_count", l.kill_count);
+  yyjson_mut_obj_add_sint(doc, obj, "item_count", l.item_count);
+  yyjson_mut_obj_add_sint(doc, obj, "secret_count", l.secret_count);
+  yyjson_mut_obj_add_sint(doc, obj, "totalkills", l.totalkills);
+  yyjson_mut_obj_add_sint(doc, obj, "totalitems", l.totalitems);
+  yyjson_mut_obj_add_sint(doc, obj, "totalsecrets", l.totalsecrets);
+  yyjson_mut_obj_add_str(doc, obj, "skill", l.skill);
+  yyjson_mut_obj_add_str(doc, obj, "gamestate", l.gamestate);
+  yyjson_mut_obj_add_bool(doc, obj, "paused", l.paused != 0);
+  return obj;
+}
+
+static yyjson_mut_val* game_to_json(yyjson_mut_doc* doc, const dmcp_game_t& g) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_str(doc, obj, "mode", g.mode);
+  yyjson_mut_obj_add_bool(doc, obj, "respawnmonsters", g.respawnmonsters);
+  yyjson_mut_obj_add_sint(doc, obj, "consoleplayer", g.consoleplayer);
+  return obj;
+}
+
+static yyjson_mut_val* enemy_to_json(yyjson_mut_doc* doc, const dmcp_enemy_t& e) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_sint(doc, obj, "id", e.id);
+  yyjson_mut_obj_add_real(doc, obj, "hp", e.hp);
+  yyjson_mut_obj_add_real(doc, obj, "max_hp", e.max_hp);
+  yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, e.position));
+  yyjson_mut_obj_add_real(doc, obj, "angle", e.angle);
+  yyjson_mut_obj_add_sint(doc, obj, "target_id", e.target_id);
+  yyjson_mut_obj_add_str(doc, obj, "type", e.type);
+  return obj;
+}
+
+static yyjson_mut_val* item_to_json(yyjson_mut_doc* doc, const dmcp_item_t& i) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_str(doc, obj, "name", i.name);
+  yyjson_mut_obj_add_sint(doc, obj, "amount", i.amount);
+  return obj;
 }
 
 std::string snapshot_to_json(const dmcp_snapshot_t& snapshot) {
-  char   buffer[MCP_MAX_JSON_SIZE];
-  char*  p         = buffer;
-  size_t remaining = sizeof(buffer);
+  yyjson_mut_doc* doc  = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* root = yyjson_mut_obj(doc);
+  yyjson_mut_doc_set_root(doc, root);
 
-  AppendString(p, remaining, "{");
+  yyjson_mut_obj_add_val(doc, root, "player", player_to_json(doc, snapshot.player));
+  yyjson_mut_obj_add_val(doc, root, "level", level_to_json(doc, snapshot.level));
+  yyjson_mut_obj_add_val(doc, root, "game", game_to_json(doc, snapshot.game));
 
-  AppendString(p, remaining, "\"player\":{");
-  AppendString(p, remaining, "\"hp\":");
-  AppendFloat(p, remaining, snapshot.player.hp);
-  AppendString(p, remaining, ",\"armor\":");
-  AppendFloat(p, remaining, snapshot.player.armor);
-  AppendString(p, remaining, ",\"ammo\":");
-  AppendInt(p, remaining, snapshot.player.ammo);
-  AppendString(p, remaining, ",\"position\":{");
-  AppendString(p, remaining, "\"x\":");
-  AppendFloat(p, remaining, snapshot.player.position.x);
-  AppendString(p, remaining, ",\"y\":");
-  AppendFloat(p, remaining, snapshot.player.position.y);
-  AppendString(p, remaining, "}}");
-
-  AppendString(p, remaining, ",\"inventory\":[");
-  for (std::uint32_t i = 0; i < snapshot.inventory_count; i++) {
-    if (i > 0) AppendString(p, remaining, ",");
-    AppendString(p, remaining, "{\"name\":\"");
-    for (const char* c = snapshot.inventory[i].name; *c; c++) {
-      if (*c == '"' || *c == '\\') {
-	if (remaining > 1) {
-	  *p++ = '\\';
-	  remaining--;
-	}
-      }
-      if (remaining > 1) {
-	*p++ = *c;
-	remaining--;
-      }
-    }
-    AppendString(p, remaining, "\",\"amount\":");
-    AppendInt(p, remaining, snapshot.inventory[i].amount);
-    AppendString(p, remaining, "}");
-  }
-  AppendString(p, remaining, "]");
-
-  AppendString(p, remaining, ",\"level\":{");
-  AppendString(p, remaining, "\"tic\":");
-  AppendInt(p, remaining, snapshot.level.tic);
-  AppendString(p, remaining, ",\"id\":\"");
-  AppendString(p, remaining, snapshot.level.level_id);
-  AppendString(p, remaining, "\",\"name\":\"");
-  AppendString(p, remaining, snapshot.level.level_name);
-  AppendString(p, remaining, "\",\"kill_count\":");
-  AppendInt(p, remaining, snapshot.level.kill_count);
-  AppendString(p, remaining, ",\"item_count\":");
-  AppendInt(p, remaining, snapshot.level.item_count);
-  AppendString(p, remaining, ",\"secret_count\":");
-  AppendInt(p, remaining, snapshot.level.secret_count);
-  AppendString(p, remaining, "}");
-
-  AppendString(p, remaining, ",\"enemies\":[");
+  yyjson_mut_val* enemies = yyjson_mut_arr(doc);
   for (std::uint32_t i = 0; i < snapshot.enemy_count; i++) {
-    if (i > 0) AppendString(p, remaining, ",");
-    AppendString(p, remaining, "{\"id\":");
-    AppendInt(p, remaining, snapshot.enemies[i].id);
-    AppendString(p, remaining, ",\"hp\":");
-    AppendFloat(p, remaining, snapshot.enemies[i].hp);
-    AppendString(p, remaining, ",\"max_hp\":");
-    AppendFloat(p, remaining, snapshot.enemies[i].max_hp);
-    AppendString(p, remaining, ",\"position\":{");
-    AppendString(p, remaining, "\"x\":");
-    AppendFloat(p, remaining, snapshot.enemies[i].position.x);
-    AppendString(p, remaining, ",\"y\":");
-    AppendFloat(p, remaining, snapshot.enemies[i].position.y);
-    AppendString(p, remaining, "},\"type\":\"");
-    for (const char* c = snapshot.enemies[i].type; *c; c++) {
-      if (*c == '"' || *c == '\\') {
-	if (remaining > 1) {
-	  *p++ = '\\';
-	  remaining--;
-	}
-      }
-      if (remaining > 1) {
-	*p++ = *c;
-	remaining--;
-      }
-    }
-    AppendString(p, remaining, "\"}");
+    yyjson_mut_arr_append(enemies, enemy_to_json(doc, snapshot.enemies[i]));
   }
-  AppendString(p, remaining, "]");
+  yyjson_mut_obj_add_val(doc, root, "enemies", enemies);
+  yyjson_mut_obj_add_uint(doc, root, "enemy_count", snapshot.enemy_count);
 
-  AppendString(p, remaining, "}");
+  yyjson_mut_val* inventory = yyjson_mut_arr(doc);
+  for (std::uint32_t i = 0; i < snapshot.inventory_count; i++) {
+    yyjson_mut_arr_append(inventory, item_to_json(doc, snapshot.inventory[i]));
+  }
+  yyjson_mut_obj_add_val(doc, root, "inventory", inventory);
+  yyjson_mut_obj_add_uint(doc, root, "inventory_count", snapshot.inventory_count);
 
-  return std::string{buffer, static_cast<size_t>(p - buffer)};
+  char*       json = yyjson_mut_write(doc, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  std::string result(json ? json : "{}");
+  if (json) free(json);
+  yyjson_mut_doc_free(doc);
+
+  return result;
 }
 
 }  // namespace dmcp
