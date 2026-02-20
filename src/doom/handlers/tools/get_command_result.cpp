@@ -6,13 +6,7 @@ bool handle_tool_get_command_result(context* ctx, const json_value& params, char
                                     size_t response_size) {
   dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_command_result");
 
-  json_value request = params["arguments"];
-  if (!request.is_object()) {
-    request = params["params"];
-  }
-  if (!request.is_object()) {
-    request = params;
-  }
+  json_value request = extract_tool_arguments(params);
 
   uint64_t sequence = 0;
   if (!parse_sequence_field(request["sequence"], &sequence)) {

@@ -3,8 +3,6 @@
 
 namespace dmcp {
 
-using json_document = ::mcp::json::Document;
-
 bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*request_json*/,
                        char* response_buffer, size_t response_size) {
   auto* ctx = static_cast<context*>(user_data);
