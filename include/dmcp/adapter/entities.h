@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,10 +64,7 @@ static inline bool dmcp_entity_is_monster(const char* name) {
       DMCP_ENTITY_SPIDERBOSS, DMCP_ENTITY_CYBERDEMON,  DMCP_ENTITY_BOSSBRAIN};
 
   for (int i = 0; i < 18; i++) {
-    const char* m = monsters[i];
-    int         j = 0;
-    while (name[j] && m[j] && name[j] == m[j]) j++;
-    if (name[j] == '\0' && m[j] == '\0') return true;
+    if (strcmp(name, monsters[i]) == 0) return true;
   }
   return false;
 }
@@ -79,10 +77,7 @@ static inline bool dmcp_item_is_weapon(const char* name) {
                            DMCP_ITEM_CHAINSAW,       DMCP_ITEM_SUPERSHOTGUN};
 
   for (int i = 0; i < 8; i++) {
-    const char* w = weapons[i];
-    int         j = 0;
-    while (name[j] && w[j] && name[j] == w[j]) j++;
-    if (name[j] == '\0' && w[j] == '\0') return true;
+    if (strcmp(name, weapons[i]) == 0) return true;
   }
   return false;
 }

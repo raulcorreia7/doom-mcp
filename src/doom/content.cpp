@@ -1,26 +1,13 @@
 #include "dmcp/adapter/content.h"
-#include <cctype>
+#include "dmcp/adapter/utils.h"
 #include <cstdio>
 #include <cstring>
 
 namespace {
 
-bool str_equals_ci(const char* a, const char* b) {
-  if (!a || !b) return false;
-  while (*a && *b) {
-    if (std::tolower(static_cast<unsigned char>(*a)) !=
-        std::tolower(static_cast<unsigned char>(*b))) {
-      return false;
-    }
-    ++a;
-    ++b;
-  }
-  return *a == '\0' && *b == '\0';
-}
-
 bool matches_any(const char* name, const char* const* list, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    if (str_equals_ci(name, list[i])) {
+    if (dmcp_str_equals_ci(name, list[i])) {
       return true;
     }
   }

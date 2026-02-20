@@ -1,12 +1,26 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
+#include <ctype.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define DMCP_FRACUNIT 65536
+
+static inline int dmcp_str_equals_ci(const char* a, const char* b) {
+  if (!a || !b) return 0;
+  while (*a && *b) {
+    if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
+      return 0;
+    }
+    ++a;
+    ++b;
+  }
+  return *a == '\0' && *b == '\0';
+}
 
 static inline float dmcp_fixed_to_float(int32_t fixed_val) {
   return (float)fixed_val / (float)DMCP_FRACUNIT;
