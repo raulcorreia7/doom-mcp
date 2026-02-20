@@ -18,28 +18,55 @@ static json_builder build_content_array(const char* const* items, size_t count,
   return arr;
 }
 
-bool handle_tool_get_available_content(context* ctx, const json_value& params,
-                                       char* response_buffer, size_t response_size) {
-  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_available_content");
+namespace {
 
-  dmcp_gamemode_t mode = DMCP_GAMEMODE_RETAIL;
+// Parse game mode from string
+static dmcp_gamemode_t parse_game_mode(std::string_view mode_str) {
+  if (mode_str == "shareware") return DMCP_GAMEMODE_SHAREWARE;
+  if (mode_str == "registered") return DMCP_GAMEMODE_REGISTERED;
+  if (mode_str == "commercial" || mode_str == "doom2") return DMCP_GAMEMODE_COMMERCIAL;
+  if (mode_str == "retail" || mode_str == "ultimate") return DMCP_GAMEMODE_RETAIL;
+  return DMCP_GAMEMODE_RETAIL;
+}
 
+// Get game mode from snapshot, fallback to parameter, then retail
+static dmcp_gamemode_t determine_game_mode(context* ctx, const json_value& params) {
+  // First priority: use actual game mode from snapshot
+  dmcp_gamemode_t snapshot_mode = DMCP_GAMEMODE_UNKNOWN;
+  {
+    std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
+    const dmcp_game_t&          game = ctx->last_snapshot.game;
+    if (game.version[0] != '\0') {
+      snapshot_mode = parse_game_mode(game.version);
+      if (snapshot_mode != DMCP_GAMEMODE_UNKNOWN) {
+        return snapshot_mode;
+      }
+    }
+  }
+
+  // Second priority: use parameter override
   json_value args = extract_tool_arguments(params);
   if (args.is_object()) {
     json_value mode_val = args["game_mode"];
     if (mode_val.is_string()) {
-      const std::string mode_str(mode_val.get_string());
-      if (mode_str == "shareware") {
-        mode = DMCP_GAMEMODE_SHAREWARE;
-      } else if (mode_str == "registered") {
-        mode = DMCP_GAMEMODE_REGISTERED;
-      } else if (mode_str == "commercial" || mode_str == "doom2") {
-        mode = DMCP_GAMEMODE_COMMERCIAL;
-      } else if (mode_str == "retail" || mode_str == "ultimate") {
-        mode = DMCP_GAMEMODE_RETAIL;
+      dmcp_gamemode_t param_mode = parse_game_mode(mode_val.get_string());
+      if (param_mode != DMCP_GAMEMODE_UNKNOWN) {
+        return param_mode;
       }
     }
   }
+
+  // Final fallback: retail mode
+  return DMCP_GAMEMODE_RETAIL;
+}
+
+}  // namespace
+
+bool handle_tool_get_available_content(context* ctx, const json_value& params,
+                                       char* response_buffer, size_t response_size) {
+  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_available_content");
+
+  dmcp_gamemode_t mode = determine_game_mode(ctx, params);
 
   json_builder result;
   result.start_object();
@@ -105,7 +132,8 @@ json_builder build_get_available_content_schema() {
   mode_prop.start_object();
   mode_prop.add("type", "string");
   mode_prop.add("description",
-                "Game mode to filter content: shareware, registered, commercial, retail (default)");
+                "Optional override for game mode (auto-detected from running game if not "
+                "specified): shareware, registered, commercial, retail");
   json_builder mode_enum;
   mode_enum.start_array();
   mode_enum.push("shareware");

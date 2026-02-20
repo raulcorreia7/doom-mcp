@@ -33,7 +33,9 @@ help:
 	@echo "DMCP SDK - Development Makefile"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  make              - Build (release)"
+	@echo "  make              - Build DMCP (default)"
+	@echo "  make dmcp         - Build DMCP library + examples"
+	@echo "  make all          - Build DMCP + Chocolate Doom"
 	@echo "  make debug        - Build with sanitizers"
 	@echo "  make release      - Build optimized"
 	@echo "  make clean        - Remove build directory"
@@ -64,15 +66,24 @@ help:
 # Build
 # ==============================================================================
 
-.PHONY: all build configure
-all: build
+.PHONY: all dmcp build configure
+
+# Default target builds just DMCP (not chocolate-doom)
+default: dmcp
+
+# Build everything including Chocolate Doom
+all: dmcp chocolate-doom
+
+# Build DMCP library and examples
+dmcp: configure
+	cmake --build $(BUILD_DIR) -j$(JOBS)
+
+# Alias for backward compatibility
+build: dmcp
 
 configure:
 	@mkdir -p $(BUILD_DIR)
 	cmake -B $(BUILD_DIR) $(CMAKE_ARGS)
-
-build: configure
-	cmake --build $(BUILD_DIR) -j$(JOBS)
 
 debug:
 	@$(MAKE) BUILD_TYPE=Debug
@@ -229,7 +240,7 @@ CHOCOLATE_BUILD_DIR ?= chocolate-doom/build
 CHOCOLATE_SOURCE_DIR ?= chocolate-doom
 
 .PHONY: chocolate-doom chocolate-doom-clean
-chocolate-doom: build
+chocolate-doom: dmcp
 	@echo "Building Chocolate Doom with DMCP..."
 	@mkdir -p $(CHOCOLATE_BUILD_DIR)
 	@cmake -S $(CHOCOLATE_SOURCE_DIR) -B $(CHOCOLATE_BUILD_DIR) \
@@ -248,7 +259,7 @@ chocolate-doom-clean:
 # ==============================================================================
 
 .PHONY: b c r d t
-b: build
+b: dmcp
 c: clean
 r: run
 d: debug
