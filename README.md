@@ -16,6 +16,7 @@ A clean, modular C/C++ SDK for integrating Doom-family engines with AI agents vi
 ## Documentation
 
 - **[docs/README.md](docs/README.md)** - Full API documentation and examples
+- **[docs/INTEGRATION.md](docs/INTEGRATION.md)** - Connect to Claude, Cline, Continue, and other MCP tools
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview
 - **[docs/CHANGELOG.md](docs/CHANGELOG.md)** - Version history
 
@@ -378,6 +379,22 @@ client = DMCPClient()
 print(client.health_check())  # {'status': 'ok', 'clients': 0}
 print(client.get_game_state())  # Full game state
 ```
+
+### MCP Client Configuration
+
+Connect your MCP client to the running DMCP server:
+
+```json
+{
+  "mcpServers": {
+    "doom": {
+      "url": "http://localhost:6060/mcp"
+    }
+  }
+}
+```
+
+First start the Doom engine with DMCP enabled (see [docs/INTEGRATION.md](docs/INTEGRATION.md)), then add the configuration above to your MCP client (Claude, Cline, Continue, Opencode, etc.).
 
 ## Available Tools
 

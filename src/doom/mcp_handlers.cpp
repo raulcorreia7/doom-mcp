@@ -280,6 +280,9 @@ static std::string get_game_state_json(context* ctx) {
     snapshot_copy = ctx->last_snapshot;
   }
 
+  dmcp_log(ctx, MCP_LOG_DEBUG, "get_game_state_json: player.hp=%d level.tic=%d enemy_count=%u",
+           snapshot_copy.player.hp, snapshot_copy.level.tic, snapshot_copy.enemy_count);
+
   const std::string payload = dmcp::snapshot_to_json(snapshot_copy);
   return payload.empty() ? "{}" : payload;
 }
@@ -351,6 +354,9 @@ static std::string build_command_result_json(const dmcp_command_result_t& result
 
   payload.add("completed", result.completed);
   payload.add("success", result.success);
+  if (result.entity_id >= 0) {
+    payload.add("entity_id", static_cast<int64_t>(result.entity_id));
+  }
   if (result.message[0] != '\0') {
     payload.add("message", result.message);
   }
@@ -440,10 +446,19 @@ static bool queue_command_and_respond(context* ctx, std::string_view command_jso
 }
 
 static bool handle_tool_get_game_state(context* ctx, char* response_buffer, size_t response_size) {
-  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_game_state");
+  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_game_state: entering");
   const std::string payload = get_game_state_json(ctx);
-  const std::string resp    = build_content_response(payload, false);
-  return write_json_response(resp, response_buffer, response_size);
+  if (payload.empty()) {
+    dmcp_log(ctx, MCP_LOG_WARN, "tools/call get_game_state: payload empty");
+  } else {
+    dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_game_state: payload size=%zu", payload.size());
+  }
+  const std::string resp = build_content_response(payload, false);
+  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_game_state: wrapped size=%zu buffer=%zu",
+           resp.size(), response_size);
+  bool success = write_json_response(resp, response_buffer, response_size);
+  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_game_state: write_json_response=%d", success);
+  return success;
 }
 
 static bool handle_tool_get_screenshot(context* ctx, char* response_buffer, size_t response_size) {
@@ -704,13 +719,22 @@ bool handle_method_get_game_state(void* user_data, const char* method, const cha
   (void)request_json;
 
   auto* ctx = static_cast<context*>(user_data);
-  if (!ctx || !method || std::strcmp(method, "get_game_state") != 0) {
+  if (!ctx) {
+    return false;
+  }
+  if (!method || std::strcmp(method, "get_game_state") != 0) {
+    dmcp_log(ctx, MCP_LOG_WARN, "method get_game_state: invalid method param");
     return false;
   }
 
-  dmcp_log(ctx, MCP_LOG_DEBUG, "method get_game_state");
+  dmcp_log(ctx, MCP_LOG_DEBUG, "method get_game_state: entering");
   const std::string payload = get_game_state_json(ctx);
-  return write_json_response(payload, response_buffer, response_size);
+  if (payload.empty()) {
+    dmcp_log(ctx, MCP_LOG_WARN, "method get_game_state: payload empty");
+  }
+  bool success = write_json_response(payload, response_buffer, response_size);
+  dmcp_log(ctx, MCP_LOG_DEBUG, "method get_game_state: success=%d", success);
+  return success;
 }
 
 bool handle_method_get_screenshot(void* user_data, const char* method, const char* request_json,

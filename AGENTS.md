@@ -66,8 +66,3 @@ cmake --build chocolate-doom/build
 - Follow existing type-oriented naming patterns (`mcp_*`, `dmcp_*`).
 - Prefer minimal targeted diffs; avoid broad refactors in `chocolate-doom/` unless the task explicitly requires engine hook changes.
 - Do not commit generated/runtime artifacts such as `build/`, `tests/e2e/doom.log`, `tests/e2e/__pycache__/`, or downloaded WAD files.
-
-## Current Focus (2026-02-17)
-
-- Active plan: `docs/plans/e2e-full-state-validation-2026-02-17.md`
-- E2E state tests exist in `tests/e2e/` and should remain aligned with human-readable enum/string mappings in adapter + serialization code.

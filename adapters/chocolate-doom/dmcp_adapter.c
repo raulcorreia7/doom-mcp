@@ -80,19 +80,25 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
   dmcp_chocolate_t* ctx = (dmcp_chocolate_t*)user_data;
   if (!ctx || !snap) return;
 
+  // Always fetch latest game state dynamically
   dmcp_chocolate_populate_player(snap);
   dmcp_chocolate_populate_level(snap);
   dmcp_chocolate_populate_enemies(snap);
 
-  if (gamestate != ctx->last_gamestate) {
+  // Get current game state dynamically
+  int current_gamestate = gamestate;
+  if (current_gamestate != ctx->last_gamestate) {
     dmcp_adapter_log(MCP_LOG_INFO, "state transition: %s -> %s",
-                     gamestate_to_string(ctx->last_gamestate), gamestate_to_string(gamestate));
-    ctx->last_gamestate = gamestate;
+                     gamestate_to_string(ctx->last_gamestate),
+                     gamestate_to_string(current_gamestate));
+    ctx->last_gamestate = current_gamestate;
   }
 
-  if (paused != ctx->last_paused) {
-    dmcp_adapter_log(MCP_LOG_INFO, "pause state: %s", paused ? "paused" : "resumed");
-    ctx->last_paused = paused;
+  // Get current pause state dynamically
+  bool current_paused = paused;
+  if (current_paused != ctx->last_paused) {
+    dmcp_adapter_log(MCP_LOG_INFO, "pause state: %s", current_paused ? "paused" : "resumed");
+    ctx->last_paused = current_paused;
   }
 }
 
@@ -165,9 +171,22 @@ void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx) {
 
   cmd_count = 0;
   while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
-    bool result = dmcp_chocolate_command_execute(ctx, &cmd);
-    dmcp_command_result_complete(ctx->dmcp_ctx, &cmd, result,
-                                 result ? "Command executed" : "Command failed in engine");
+    bool        result = dmcp_chocolate_command_execute(ctx, &cmd);
+    const char* message;
+    if (result) {
+      message = "Command executed successfully";
+    } else if (cmd.type == DMCP_CMD_GIVE_ITEM || cmd.type == DMCP_CMD_SPAWN_ENTITY) {
+      if (gamemode == shareware) {
+        message =
+            "Item/monster not available in shareware (Plasma, BFG, Super Shotgun, Cyberdemon, "
+            "etc.)";
+      } else {
+        message = "Command failed: invalid item/monster or unavailable in current mode";
+      }
+    } else {
+      message = "Command failed in engine";
+    }
+    dmcp_command_result_complete(ctx->dmcp_ctx, &cmd, result, message);
     dmcp_adapter_log(MCP_LOG_DEBUG, "command executed: type=%d result=%s", cmd.type,
                      result ? "success" : "failed");
     cmd_count++;

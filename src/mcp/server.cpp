@@ -425,6 +425,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     std::lock_guard<std::mutex> lock(server->methods_mutex);
     auto                        it = server->methods.find(method);
     if (it != server->methods.end()) {
+      ServerLog(server, MCP_LOG_DEBUG, "Method found in registry: %s", method.c_str());
       Value params = req["params"];
       char  handler_response[MCP_BUFFER_SIZE_DEFAULT];
 

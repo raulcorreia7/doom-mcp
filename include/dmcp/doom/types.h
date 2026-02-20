@@ -74,6 +74,7 @@ typedef struct {
 
 typedef struct {
   char    mode[DMCP_MAX_STRING];
+  char    version[DMCP_MAX_STRING];
   int32_t respawnmonsters;
   int32_t consoleplayer;
 } dmcp_game_t;

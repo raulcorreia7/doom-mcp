@@ -242,6 +242,30 @@ dmcp_zdoom_commands_process(mcp);
 dmcp_zdoom_destroy(mcp);
 ```
 
+### Adapter Helpers (Optional Shared Utilities)
+
+The adapter helpers provide common utilities for engine adapters to reduce code duplication:
+
+```c
+#include "dmcp/adapter/utils.h"
+#include "dmcp/adapter/entities.h"
+#include "dmcp/adapter/validation.h"
+
+// Coordinate conversions
+fixed_t fixed_val = player->x;
+float world_x = dmcp_fixed_to_float(fixed_val);
+float degrees = dmcp_angle_to_degrees(player->angle);
+float radians = dmcp_angle_to_radians(player->angle);
+
+// Entity names
+const char* name = dmcp_entity_name(MT_POSSESSED);  // "Zombieman"
+
+// Input validation
+if (!dmcp_validate_health(health)) {
+    // Handle invalid health value
+}
+```
+
 ## API Reference
 
 ### Generic MCP API
@@ -326,6 +350,25 @@ void          dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx, dmcp_stats_t* out_stats);
 // Command processing
 bool          dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx, const dmcp_command_t* cmd);
 void          dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
+```
+
+### Adapter Helpers API
+
+```c
+// dmcp/adapter/utils.h - Coordinate and angle conversions
+static inline float dmcp_fixed_to_float(int32_t fixed_val);
+static inline int32_t dmcp_float_to_fixed(float val);
+static inline float dmcp_angle_to_degrees(uint32_t angle);
+static inline uint32_t dmcp_degrees_to_angle(float degrees);
+static inline float dmcp_angle_to_radians(uint32_t angle);
+static inline uint32_t dmcp_radians_to_angle(float radians);
+
+// dmcp/adapter/entities.h - Entity name mappings
+static inline const char* dmcp_entity_name(int mobj_type);
+
+// dmcp/adapter/validation.h - Input validation
+bool dmcp_validate_health(int32_t health);
+bool dmcp_validate_timescale(float timescale);
 ```
 
 ## Protocol Endpoints

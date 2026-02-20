@@ -52,6 +52,7 @@ set(MCP_JSON_SOURCES
 
 set(DMCP_CORE_SOURCES
   src/doom/commands.cpp
+  src/doom/commands/parsers.cpp
   src/doom/context.cpp
   src/doom/mcp_handlers.cpp
   src/doom/pool.cpp

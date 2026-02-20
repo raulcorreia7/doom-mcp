@@ -1,0 +1,37 @@
+Generic MCP: Server lifecycle 3 0.000800516
+Generic MCP: Single method registration 3 0.000678292
+Generic MCP: Batch method registration 3 0.000647052
+Generic MCP: Route registration 3 0.000579205
+Generic MCP: Event broadcasting 3 0.000815166
+Generic MCP: Client count 3 0.000477698
+Generic MCP: Statistics 3 0.000493051
+Generic MCP: JSON-RPC response formatting 3 0.000390938
+Generic MCP: Constants 3 0.000352234
+Generic MCP: Result codes 3 0.000443491
+Generic MCP: Server configuration 3 0.000452751
+Generic MCP: Error messages 3 0.000541268
+Generic MCP: Thread safety 3 0.000770792
+Generic MCP: Server create with invalid config 3 0.000551372
+Generic MCP: Response buffer overflow 3 0.000505525
+Doom MCP: Context lifecycle 3 0.000769109
+Doom MCP: Game loop integration 3 0.000760786
+Doom MCP: Screenshot functionality 3 0.00148286
+Doom MCP: Statistics 3 0.000649919
+Doom MCP: Snapshot utilities 3 0.000414851
+Doom MCP: String utilities 3 0.000395651
+Doom MCP: Configuration 3 0.000525911
+Doom MCP: Result codes 3 0.000462395
+Doom MCP: Constants 3 0.000403715
+Doom MCP: Snapshot to JSON 3 0.000414221
+Doom MCP: Error messages 3 0.000414251
+Doom MCP: Command queue lifecycle 3 0.000568348
+Doom MCP: Command queue push/pop 3 0.000673305
+Doom MCP: Command queue overflow 3 0.000551431
+Doom MCP: Command result tracking 3 0.000584568
+Doom MCP: JSON command parsing 3 0.00146038
+Doom MCP: Custom command parser 3 0.000510255
+ASCII conversion basics 3 0.000420975
+ASCII conversion output dimensions 3 0.000593582
+ASCII conversion produces valid output 3 0.000624092
+screenshot_state conversion 3 0.000655562
+---

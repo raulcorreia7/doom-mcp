@@ -24,11 +24,13 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
   count = 0;
   if (!snap) return 0;
 
+  // Traverse current thinker list dynamically
   for (th = thinkercap.next; th != &thinkercap && count < DMCP_MAX_ENEMIES; th = th->next) {
     if (!th) {
       continue;
     }
 
+    // Check if this thinker is a valid mobj thinker
     if (th->function.acp1 != (actionf_p1)P_MobjThinker) {
       continue;
     }
@@ -39,6 +41,7 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
       continue;
     }
 
+    // Check if this is a valid enemy (countkill, not corpse, has health)
     if ((mo->flags & MF_COUNTKILL) && !(mo->flags & MF_CORPSE) && mo->health > 0) {
       memset(&enemy, 0, sizeof(enemy));
 
@@ -46,11 +49,13 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
       enemy.hp     = (float)mo->health;
       enemy.max_hp = (float)mo->info->spawnhealth;
 
+      // Get current position and angle
       enemy.position.x = dmcp_fixed_to_float(mo->x);
       enemy.position.y = dmcp_fixed_to_float(mo->y);
       enemy.position.z = dmcp_fixed_to_float(mo->z);
       enemy.angle      = dmcp_angle_to_radians(mo->angle);
 
+      // Find target index dynamically
       if (mo->target) {
         target_found = -1;
         target_idx   = 0;
@@ -65,6 +70,7 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
         enemy.target_id = -1;
       }
 
+      // Get current enemy type name
       type_name = dmcp_enemy_type_name(mo->type);
       dmcp_strcpy_safe(enemy.type, type_name, sizeof(enemy.type));
 

@@ -475,7 +475,7 @@ TEST_CASE("Generic MCP: Constants", "[api][constants]") {
   SECTION("Default target Hz constant") { REQUIRE(MCP_DEFAULT_TARGET_HZ == 10); }
 
   SECTION("Buffer size constants") {
-    REQUIRE(MCP_BUFFER_SIZE_DEFAULT == 8192);
+    REQUIRE(MCP_BUFFER_SIZE_DEFAULT == 16384);
     REQUIRE(MCP_MAX_JSON_SIZE == 16384);
     REQUIRE(MCP_HEALTH_BUFFER_SIZE == 256);
     REQUIRE(MCP_MAX_PAYLOAD_SIZE == (1024 * 1024));

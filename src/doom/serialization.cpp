@@ -66,6 +66,7 @@ static yyjson_mut_val* level_to_json(yyjson_mut_doc* doc, const dmcp_level_t& l)
 static yyjson_mut_val* game_to_json(yyjson_mut_doc* doc, const dmcp_game_t& g) {
   yyjson_mut_val* obj = yyjson_mut_obj(doc);
   yyjson_mut_obj_add_str(doc, obj, "mode", g.mode);
+  yyjson_mut_obj_add_str(doc, obj, "version", g.version);
   yyjson_mut_obj_add_bool(doc, obj, "respawnmonsters", g.respawnmonsters);
   yyjson_mut_obj_add_sint(doc, obj, "consoleplayer", g.consoleplayer);
   return obj;

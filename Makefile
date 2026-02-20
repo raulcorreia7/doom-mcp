@@ -56,6 +56,7 @@ help:
 	@echo ""
 	@echo "Other:"
 	@echo "  make install      - Install to $(PREFIX)"
+	@echo "  make chocolate-doom - Build Chocolate Doom with DMCP"
 	@echo "  make info         - Show configuration"
 	@echo "  make compdb       - Generate compile_commands.json"
 
@@ -219,6 +220,28 @@ size:
 compdb: configure
 	@ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
 	@echo "compile_commands.json linked"
+
+# ==============================================================================
+# Chocolate Doom
+# ==============================================================================
+
+CHOCOLATE_BUILD_DIR ?= chocolate-doom/build
+CHOCOLATE_SOURCE_DIR ?= chocolate-doom
+
+.PHONY: chocolate-doom chocolate-doom-clean
+chocolate-doom: build
+	@echo "Building Chocolate Doom with DMCP..."
+	@mkdir -p $(CHOCOLATE_BUILD_DIR)
+	@cmake -S $(CHOCOLATE_SOURCE_DIR) -B $(CHOCOLATE_BUILD_DIR) \
+		-DDMCP_ENABLE=ON \
+		-DDMCP_INCLUDE_DIR=$$(pwd)/include \
+		-DDMCP_LIB_DIR=$$(pwd)/$(BUILD_DIR)
+	@cmake --build $(CHOCOLATE_BUILD_DIR) -j$(JOBS)
+	@echo ""
+	@echo "Chocolate Doom built: $(CHOCOLATE_BUILD_DIR)/src/chocolate-doom"
+
+chocolate-doom-clean:
+	rm -rf $(CHOCOLATE_BUILD_DIR)
 
 # ==============================================================================
 # Shortcuts

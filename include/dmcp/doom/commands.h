@@ -112,6 +112,7 @@ typedef struct {
   dmcp_command_type_t command_type;
   bool                completed;
   bool                success;
+  int32_t             entity_id;
   char                message[128];
 } dmcp_command_result_t;
 

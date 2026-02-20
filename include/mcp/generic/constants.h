@@ -28,7 +28,7 @@ extern "C" {
  * Default size for buffers used in HTTP responses, JSON parsing,
  * and general I/O operations.
  */
-#define MCP_BUFFER_SIZE_DEFAULT 8192
+#define MCP_BUFFER_SIZE_DEFAULT 16384
 
 /**
  * @brief Maximum JSON payload size
