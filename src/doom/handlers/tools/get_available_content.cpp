@@ -1,5 +1,5 @@
 #include "tools.hpp"
-#include "dmcp/adapter/content.h"
+#include "dmcp/doom/content.h"
 
 #include <string>
 #include <vector>

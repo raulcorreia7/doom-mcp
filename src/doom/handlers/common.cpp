@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "dmcp/adapter/content.h"
+#include "dmcp/doom/content.h"
 #include "dmcp/doom/api.h"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"

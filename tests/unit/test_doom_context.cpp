@@ -3,7 +3,7 @@
 #include <thread>
 
 #include "dmcp/doom/api.h"
-#include "dmcp/adapter/content.h"
+#include "dmcp/doom/content.h"
 #include "dmcp/doom/commands.h"
 #include "dmcp/doom/constants.h"
 #include "dmcp/doom/types.h"
