@@ -43,7 +43,8 @@ cmake --build build-shared -j$(nproc)
 ```bash
 make help          # Show all targets
 make dmcp          # Build DMCP core (default)
-make all           # Build DMCP + Chocolate Doom
+make submodules    # Init/update Chocolate + Crispy submodules
+make all           # Build DMCP + Chocolate + Crispy
 make chocolate-doom # Build Chocolate Doom with DMCP
 make crispy-doom   # Build Crispy Doom with DMCP
 make debug         # Build with sanitizers
@@ -112,6 +113,11 @@ For vanilla-accurate Chocolate Doom. Includes headless testing support.
 ### Crispy Doom Support
 Crispy Doom can be built with the same DMCP adapter integration flow as Chocolate Doom.
 Use `make crispy-doom` and `DOOM_ENGINE=crispy tests/integration/run_headless.sh`.
+
+If this is a fresh clone, run `make submodules` first.
+
+`make crispy-doom` automatically applies the tracked DMCP patch from
+`adapters/crispy-doom/patches/dmcp_integration.patch` before configuring Crispy.
 
 ## API Endpoints
 

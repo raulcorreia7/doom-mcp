@@ -199,7 +199,7 @@ doom-mcp/
 │       ├── enemy_types.h       # Enemy lookup table
 │       ├── state_player.c      # Player state extraction
 │       ├── state_level.c       # Level/game state extraction
-│       ├── state_enemies.c     # Enemy enumeration
+│       ├── state_enemies.c     # Enemy + interactive entity enumeration
 │       └── commands.c          # Command execution
 │
 ├── examples/
@@ -213,6 +213,7 @@ doom-mcp/
 │   └── e2e/                    # E2E tests (pytest)
 │
 ├── chocolate-doom/             # Chocolate Doom submodule
+├── crispy-doom/                # Crispy Doom submodule
 ├── CMakeLists.txt
 ├── Makefile
 ├── AGENTS.md

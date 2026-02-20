@@ -35,7 +35,7 @@ help:
 	@echo "Build targets:"
 	@echo "  make              - Build DMCP (default)"
 	@echo "  make dmcp         - Build DMCP library + examples"
-	@echo "  make all          - Build DMCP + Chocolate Doom"
+	@echo "  make all          - Build DMCP + Chocolate + Crispy"
 	@echo "  make debug        - Build with sanitizers"
 	@echo "  make release      - Build optimized"
 	@echo "  make clean        - Remove build directory"
@@ -59,6 +59,7 @@ help:
 	@echo ""
 	@echo "Other:"
 	@echo "  make install      - Install to $(PREFIX)"
+	@echo "  make submodules   - Init/update git submodules"
 	@echo "  make chocolate-doom - Build Chocolate Doom with DMCP"
 	@echo "  make crispy-doom  - Build Crispy Doom with DMCP"
 	@echo "  make info         - Show configuration"
@@ -68,13 +69,16 @@ help:
 # Build
 # ==============================================================================
 
-.PHONY: all dmcp build configure
+.PHONY: all dmcp build configure submodules
 
 # Default target builds just DMCP (not chocolate-doom)
 default: dmcp
 
-# Build everything including Chocolate Doom
-all: dmcp chocolate-doom
+# Build everything including Chocolate and Crispy Doom
+all: dmcp chocolate-doom crispy-doom
+
+submodules:
+	@git submodule update --init --recursive
 
 # Build DMCP library and examples
 dmcp: configure
@@ -246,7 +250,7 @@ CHOCOLATE_BUILD_DIR ?= chocolate-doom/build
 CHOCOLATE_SOURCE_DIR ?= chocolate-doom
 
 .PHONY: chocolate-doom chocolate-doom-clean
-chocolate-doom: dmcp
+chocolate-doom: dmcp submodules
 	@if [ ! -d "$(CHOCOLATE_SOURCE_DIR)" ]; then \
 		echo "error: Chocolate Doom source dir not found: $(CHOCOLATE_SOURCE_DIR)"; \
 		exit 1; \
@@ -272,11 +276,12 @@ CRISPY_BUILD_DIR ?= crispy-doom/build
 CRISPY_SOURCE_DIR ?= crispy-doom
 
 .PHONY: crispy-doom crispy-doom-clean
-crispy-doom: dmcp
+crispy-doom: dmcp submodules
 	@if [ ! -d "$(CRISPY_SOURCE_DIR)" ]; then \
 		echo "error: Crispy Doom source dir not found: $(CRISPY_SOURCE_DIR)"; \
 		exit 1; \
 	fi
+	@./tests/integration/apply_crispy_dmcp_patch.sh
 	@echo "Building Crispy Doom with DMCP..."
 	@mkdir -p $(CRISPY_BUILD_DIR)
 	@cmake -S $(CRISPY_SOURCE_DIR) -B $(CRISPY_BUILD_DIR) \

@@ -38,12 +38,18 @@ Before connecting any MCP client, you need to run the Doom engine with DMCP enab
 ### Building with DMCP
 
 ```bash
+# Initialize submodules first
+git submodule update --init --recursive
+
 # From the DMCP repository root
 cmake -S chocolate-doom -B chocolate-doom/build \
   -DDMCP_ENABLE=ON \
   -DDMCP_INCLUDE_DIR="$PWD/include" \
   -DDMCP_LIB_DIR="$PWD/build"
 cmake --build chocolate-doom/build -j"$(nproc)"
+
+# Alternative: Crispy Doom with tracked DMCP patch
+./tests/integration/build_crispy_doom.sh
 ```
 
 ### Starting the Server

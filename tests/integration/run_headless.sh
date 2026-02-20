@@ -144,10 +144,13 @@ if [ ! -f "$DOOM_BIN" ]; then
 	warn "$ENGINE_NAME not built yet"
 	echo ""
 	echo "To build $ENGINE_NAME with DMCP:"
-	echo "  1. cd $DMCP_ROOT/$DOOM_ENGINE-doom"
-	echo "  2. Apply patches from adapters/chocolate-doom/README.md"
-	echo "  3. cmake -B build -DDMCP_INCLUDE_DIR=$DMCP_ROOT/include -DDMCP_LIB_DIR=$DMCP_ROOT/build"
-	echo "  4. cmake --build build"
+	if [ "$DOOM_ENGINE" = "crispy" ]; then
+		echo "  1. make submodules"
+		echo "  2. ./tests/integration/build_crispy_doom.sh"
+	else
+		echo "  1. make submodules"
+		echo "  2. make chocolate-doom"
+	fi
 	exit 1
 fi
 

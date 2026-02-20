@@ -12,7 +12,7 @@ A clean, modular SDK for integrating Doom-family engines with AI agents via the 
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                      ADAPTER INTERFACE LAYER (C API)                         │
-│                    adapters/zdoom/adapter.{h,cpp}                           │
+│                 adapters/chocolate-doom/, adapters/zdoom/                   │
 └─────────────────────────────────────────────────────────────────────────────────────┘
                                         │
                                         ▼
@@ -72,10 +72,13 @@ Examples:
 
 ```bash
 make help      # Show all targets
+make submodules # Init/update Chocolate + Crispy submodules
+make all       # Build DMCP + Chocolate + Crispy
 make check     # Build + test
 make run       # Run example server
 make debug     # Debug build with sanitizers
 make headless  # Run headless e2e tests
+make headless-crispy # Run headless e2e tests (Crispy)
 ```
 
 ### Using CMake Directly

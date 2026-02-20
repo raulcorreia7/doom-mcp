@@ -14,7 +14,7 @@ adapters/chocolate-doom/
 ├── enemy_types.h       # Enemy type lookup table
 ├── state_player.c      # Player state extraction
 ├── state_level.c       # Level/game state extraction
-├── state_enemies.c     # Enemy enumeration
+├── state_enemies.c     # Enemy + interactive entity enumeration
 ├── commands.c          # Command execution
 ├── CMakeLists.txt
 └── README.md
@@ -29,7 +29,7 @@ The adapter follows a modular structure with single-responsibility files:
 | `dmcp_adapter.c` | Lifecycle management (~120 lines) |
 | `state_player.c` | Extract player state from `player_t` |
 | `state_level.c` | Extract level/game state from globals |
-| `state_enemies.c` | Enumerate enemies from thinker list |
+| `state_enemies.c` | Enumerate enemies and interactive world entities |
 | `dmcp_ascii.c` | Capture framebuffer as ASCII art |
 | `dmcp_mappings.h` | `fixed_t`→float, enum→string conversions |
 | `enemy_types.h` | Data-driven enemy type lookup |

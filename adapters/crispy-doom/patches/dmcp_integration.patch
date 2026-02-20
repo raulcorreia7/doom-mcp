@@ -1,0 +1,213 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f2f41e0e..365184ab 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,15 @@ option(CMAKE_FIND_PACKAGE_PREFER_CONFIG
+ option(ENABLE_SDL2_NET "Enable SDL2_net" On)
+ option(ENABLE_SDL2_MIXER "Enable SDL2_mixer" On)
+ 
++# DMCP integration
++option(DMCP_ENABLE "Enable DMCP MCP server integration" Off)
++set(DMCP_INCLUDE_DIR "" CACHE PATH "Path to DMCP include directory")
++set(DMCP_LIB_DIR "" CACHE PATH "Path to DMCP library directory")
++
++if(DMCP_ENABLE)
++    add_compile_definitions(DMCP)
++endif()
++
+ if (NOT DEFINED EMSCRIPTEN)
+     find_package(SDL2 2.0.14)
+ endif()
+diff --git a/src/doom/CMakeLists.txt b/src/doom/CMakeLists.txt
+index 4545738a..41c45b04 100644
+--- a/src/doom/CMakeLists.txt
++++ b/src/doom/CMakeLists.txt
+@@ -83,6 +83,49 @@ add_library(doom STATIC
+ 
+ target_include_directories(doom PRIVATE "../" "${CMAKE_CURRENT_BINARY_DIR}/../../")
+ 
++if(DMCP_ENABLE)
++    set(DMCP_ADAPTER_DIR "${CMAKE_SOURCE_DIR}/../adapters/chocolate-doom")
++
++    target_sources(doom PRIVATE
++        "${DMCP_ADAPTER_DIR}/dmcp_adapter.c"
++        "${DMCP_ADAPTER_DIR}/dmcp_ascii.c"
++        "${DMCP_ADAPTER_DIR}/state_player.c"
++        "${DMCP_ADAPTER_DIR}/state_level.c"
++        "${DMCP_ADAPTER_DIR}/state_enemies.c"
++        "${DMCP_ADAPTER_DIR}/commands.c"
++    )
++
++    target_include_directories(doom PRIVATE
++        "${DMCP_INCLUDE_DIR}"
++        "${DMCP_ADAPTER_DIR}"
++        "${CMAKE_SOURCE_DIR}/src"
++        "${CMAKE_SOURCE_DIR}/src/doom"
++    )
++
++    target_compile_definitions(doom PRIVATE CHOCOLATE_DOOM_BUILD)
++
++    # Find DMCP library (dmcp_core links mcp_generic transitively)
++    find_library(DMCP_CORE_LIB dmcp_core PATHS "${DMCP_LIB_DIR}" REQUIRED)
++
++    target_link_libraries(doom ${DMCP_CORE_LIB})
++
++    # For static builds, link C++ stdlib and transitive dependencies
++    if(DMCP_CORE_LIB MATCHES "\\.a$")
++        find_library(MCP_GENERIC_LIB mcp_generic PATHS "${DMCP_LIB_DIR}" REQUIRED)
++        find_library(YYJSON_LIB yyjson PATHS "${DMCP_LIB_DIR}/_deps/yyjson-build" REQUIRED)
++        find_library(USOCKETS_LIB uSockets PATHS "${DMCP_LIB_DIR}" REQUIRED)
++        find_package(OpenSSL REQUIRED)
++        target_link_libraries(doom
++            ${MCP_GENERIC_LIB}
++            ${YYJSON_LIB}
++            ${USOCKETS_LIB}
++            OpenSSL::SSL
++            OpenSSL::Crypto
++            stdc++
++        )
++    endif()
++endif()
++
+ if (DEFINED EMSCRIPTEN)
+     set(SDL_FLAGS "-s USE_SDL=2")
+     if(ENABLE_SDL2_MIXER)
+diff --git a/src/doom/d_main.c b/src/doom/d_main.c
+index 2092987d..a8a35095 100644
+--- a/src/doom/d_main.c
++++ b/src/doom/d_main.c
+@@ -79,6 +79,63 @@
+ 
+ #include "d_main.h"
+ 
++#ifdef DMCP
++#include "dmcp_adapter.h"
++dmcp_chocolate_t *g_dmcp_ctx = NULL;
++
++static void DMCP_Shutdown(void)
++{
++    if (g_dmcp_ctx)
++    {
++        dmcp_chocolate_destroy(g_dmcp_ctx);
++        g_dmcp_ctx = NULL;
++    }
++}
++
++static int DMCP_PortOverride(void)
++{
++    int p;
++    char *end;
++    long port;
++
++    p = M_CheckParmWithArgs("-dmcp_port", 1);
++    if (!p)
++    {
++        p = M_CheckParmWithArgs("-dmcp-port", 1);
++    }
++
++    if (!p)
++    {
++        return 0;
++    }
++
++    end = NULL;
++    port = strtol(myargv[p + 1], &end, 10);
++    if (end == myargv[p + 1] || *end != '\0' || port < 1 || port > 65535)
++    {
++        I_Error("Invalid DMCP port '%s' (expected 1-65535)", myargv[p + 1]);
++    }
++
++    return (int) port;
++}
++
++static dmcp_chocolate_t *DMCP_CreateContext(void)
++{
++    dmcp_chocolate_config_t dmcp_cfg;
++    int dmcp_port;
++
++    dmcp_cfg = dmcp_chocolate_config_default();
++    dmcp_port = DMCP_PortOverride();
++
++    if (dmcp_port > 0)
++    {
++        dmcp_cfg.base.port = dmcp_port;
++    }
++
++    return dmcp_chocolate_create(&dmcp_cfg);
++}
++#endif
++
+ #include "doom_icon.c"
+ 
+ //
+@@ -2418,6 +2475,12 @@ void D_DoomMain (void)
+     {
+ 	singledemo = true;              // quit after one demo
+ 	G_DeferedPlayDemo (demolumpname);
++#ifdef DMCP
++        {
++            I_AtExit(DMCP_Shutdown, true);
++            g_dmcp_ctx = DMCP_CreateContext();
++        }
++#endif
+ 	D_DoomLoop ();  // never returns
+     }
+     crispy->demowarp = 0; // [crispy] we don't play a demo, so don't skip maps
+@@ -2427,6 +2490,12 @@ void D_DoomMain (void)
+     if (p)
+     {
+ 	G_TimeDemo (demolumpname);
++#ifdef DMCP
++        {
++            I_AtExit(DMCP_Shutdown, true);
++            g_dmcp_ctx = DMCP_CreateContext();
++        }
++#endif
+ 	D_DoomLoop ();  // never returns
+     }
+ 	
+@@ -2445,6 +2514,13 @@ void D_DoomMain (void)
+ 	    D_StartTitle ();                // start up intro loop
+     }
+ 
++#ifdef DMCP
++    {
++        I_AtExit(DMCP_Shutdown, true);
++        g_dmcp_ctx = DMCP_CreateContext();
++    }
++#endif
++
+     D_DoomLoop ();  // never returns
+ }
+ 
+diff --git a/src/doom/g_game.c b/src/doom/g_game.c
+index 4cc6c5ab..8829ad32 100644
+--- a/src/doom/g_game.c
++++ b/src/doom/g_game.c
+@@ -61,6 +61,11 @@
+ 
+ #include "w_wad.h"
+ 
++#ifdef DMCP
++#include "dmcp_adapter.h"
++extern dmcp_chocolate_t *g_dmcp_ctx;
++#endif
++
+ #include "p_local.h" 
+ 
+ #include "s_sound.h"
+@@ -1657,6 +1662,14 @@ void G_Ticker (void)
+ 	D_PageTicker (); 
+ 	break;
+     }        
++
++#ifdef DMCP
++    if (g_dmcp_ctx)
++    {
++        dmcp_chocolate_tick(g_dmcp_ctx);
++        dmcp_chocolate_commands_process(g_dmcp_ctx);
++    }
++#endif
+ } 
+  
+  

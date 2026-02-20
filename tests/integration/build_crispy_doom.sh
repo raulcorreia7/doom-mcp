@@ -61,6 +61,9 @@ if [[ ! -d "$DMCP_ROOT/crispy-doom" ]]; then
 	exit 1
 fi
 
+echo "==> Applying Crispy Doom DMCP patch"
+"$SCRIPT_DIR/apply_crispy_dmcp_patch.sh"
+
 echo "==> Configuring DMCP core build"
 cmake -B "$DMCP_BUILD_DIR" \
 	-DDMCP_BUILD_TESTS=ON \
