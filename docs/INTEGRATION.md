@@ -38,10 +38,11 @@ Before connecting any MCP client, you need to run the Doom engine with DMCP enab
 ### Building with DMCP
 
 ```bash
-# Initialize submodules first
-git submodule update --init --recursive
+# Build DMCP first (library used by adapters)
+cmake -B build -DDMCP_BUILD_TESTS=ON
+cmake --build build -j"$(nproc)"
 
-# From the DMCP repository root
+# Build Chocolate Doom with DMCP enabled
 cmake -S chocolate-doom -B chocolate-doom/build \
   -DDMCP_ENABLE=ON \
   -DDMCP_INCLUDE_DIR="$PWD/include" \
@@ -59,7 +60,7 @@ cmake --build chocolate-doom/build -j"$(nproc)"
 ./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp
 
 # Or specify a custom port
-./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp -dmcp-port 6061
+./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
 ```
 
 ### Verifying the Server
@@ -349,8 +350,9 @@ client.execute("spawn_entity", {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DMCP_PORT` | HTTP server port | 6060 |
-| `DMCP_TARGET_HZ` | Snapshot rate limit | 10 |
-| `DMCP_LOG_LEVEL` | Logging verbosity | info |
+
+`DMCP_TARGET_HZ` and `DMCP_LOG_LEVEL` are configured in code/config structs,
+not as runtime environment variables.
 
 ---
 
@@ -370,6 +372,7 @@ client.execute("spawn_entity", {
 | `execute_command` | Spawn entities, change levels, give items, etc. |
 | `get_command_result` | Poll async command completion by `sequence` |
 | `execute_batch` | Queue mutating commands in order (rejects `change_level`) |
+| `get_command_examples` | Fetch structured command payload examples |
 
 ### execute_command Types
 
@@ -400,6 +403,21 @@ Use level transitions as a separate step:
 2. Poll `get_command_result` until completion/success
 3. Send follow-up commands (single or batch)
 
+### Command Examples Tool
+
+Use `get_command_examples` to discover valid payload shapes and aliases:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 99,
+  "method": "tools/call",
+  "params": {
+    "name": "get_command_examples"
+  }
+}
+```
+
 ---
 
 ## Troubleshooting
@@ -415,7 +433,7 @@ curl http://localhost:6060/health
 
 Start the server on a different port:
 ```bash
-./chocolate-doom -iwad doom1.wad -dmcp -dmcp-port 6061
+./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
 ```
 
 Then update the URL in your MCP config:
