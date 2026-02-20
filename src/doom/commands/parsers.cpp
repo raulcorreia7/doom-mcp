@@ -1,5 +1,6 @@
 #include "doom/commands/parsers.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <cerrno>
 #include <cstdlib>
@@ -103,14 +104,24 @@ bool copy_checked_string(char* dst, size_t dst_size, std::string_view value) {
 }
 
 bool is_valid_map_name(std::string_view map_name) {
-  if (map_name.size() == 4 && map_name[0] == 'E' && map_name[2] == 'M' && map_name[1] >= '1' &&
-      map_name[1] <= '9' && map_name[3] >= '1' && map_name[3] <= '9') {
-    return true;
+  if (map_name.size() < 4 || map_name.size() > 5) {
+    return false;
   }
 
-  if (map_name.size() == 5 && map_name[0] == 'M' && map_name[1] == 'A' && map_name[2] == 'P' &&
-      map_name[3] >= '0' && map_name[3] <= '9' && map_name[4] >= '0' && map_name[4] <= '9') {
-    return true;
+  char c0 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[0])));
+  char c2 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[2])));
+
+  if (map_name.size() == 4 && c0 == 'E' && c2 == 'M') {
+    char c1 = map_name[1];
+    char c3 = map_name[3];
+    return c1 >= '1' && c1 <= '9' && c3 >= '1' && c3 <= '9';
+  }
+
+  if (map_name.size() == 5) {
+    char c1 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[1])));
+    char c3 = map_name[3];
+    char c4 = map_name[4];
+    return c0 == 'M' && c1 == 'A' && c2 == 'P' && c3 >= '0' && c3 <= '9' && c4 >= '0' && c4 <= '9';
   }
 
   return false;

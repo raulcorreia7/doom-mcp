@@ -46,4 +46,11 @@ bool read_required_bool(const json_value& obj, std::initializer_list<const char*
 bool read_optional_bool(const json_value& obj, std::initializer_list<const char*> keys,
                         bool default_value, bool* out);
 
+template <typename T>
+constexpr T clamp_value(T value, T min_val, T max_val) {
+  if (value < min_val) return min_val;
+  if (value > max_val) return max_val;
+  return value;
+}
+
 }  // namespace dmcp
