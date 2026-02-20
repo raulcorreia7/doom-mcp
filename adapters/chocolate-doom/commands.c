@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "dmcp/adapter/validation.h"
+#include "dmcp/adapter/utils.h"
+
 #include "d_player.h"
 #include "d_think.h"
 #include "doomdef.h"
@@ -24,7 +27,40 @@ static int dmcp_ascii_tolower(int c) {
   return c;
 }
 
-static bool dmcp_equals_ci(const char* a, const char* b) {
+static bool dmcp_str_equals_ci(const char* a, const char* b);
+
+static bool dmcp_weapon_available_in_mode(const char* item_class) {
+  if (gamemode == shareware) {
+    if (dmcp_str_equals_ci(item_class, "PlasmaRifle") ||
+        dmcp_str_equals_ci(item_class, "Plasma Rifle") ||
+        dmcp_str_equals_ci(item_class, "BFG9000") || dmcp_str_equals_ci(item_class, "BFG") ||
+        dmcp_str_equals_ci(item_class, "SuperShotgun") ||
+        dmcp_str_equals_ci(item_class, "Super Shotgun")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool dmcp_spawn_available_in_mode(const char* entity_class) {
+  if (gamemode == shareware) {
+    if (dmcp_str_equals_ci(entity_class, "Arachnotron") ||
+        dmcp_str_equals_ci(entity_class, "PainElemental") ||
+        dmcp_str_equals_ci(entity_class, "Pain Elemental") ||
+        dmcp_str_equals_ci(entity_class, "Revenant") ||
+        dmcp_str_equals_ci(entity_class, "Mancubus") ||
+        dmcp_str_equals_ci(entity_class, "Archvile") ||
+        dmcp_str_equals_ci(entity_class, "Arch-vile") ||
+        dmcp_str_equals_ci(entity_class, "SpiderMastermind") ||
+        dmcp_str_equals_ci(entity_class, "Spider Mastermind") ||
+        dmcp_str_equals_ci(entity_class, "Cyberdemon")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool dmcp_str_equals_ci(const char* a, const char* b) {
   if (!a || !b) {
     return false;
   }
@@ -114,70 +150,74 @@ static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_ty
     return false;
   }
 
-  if (dmcp_equals_ci(entity_class, "Imp") || dmcp_equals_ci(entity_class, "DoomImp")) {
+  if (dmcp_str_equals_ci(entity_class, "Imp") || dmcp_str_equals_ci(entity_class, "DoomImp")) {
     *out_type = MT_TROOP;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Zombieman") || dmcp_equals_ci(entity_class, "Zombie")) {
+  if (dmcp_str_equals_ci(entity_class, "Zombieman") || dmcp_str_equals_ci(entity_class, "Zombie")) {
     *out_type = MT_POSSESSED;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "ShotgunGuy") || dmcp_equals_ci(entity_class, "Shotgun Guy")) {
+  if (dmcp_str_equals_ci(entity_class, "ShotgunGuy") ||
+      dmcp_str_equals_ci(entity_class, "Shotgun Guy")) {
     *out_type = MT_SHOTGUY;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Demon") || dmcp_equals_ci(entity_class, "Pinky")) {
+  if (dmcp_str_equals_ci(entity_class, "Demon") || dmcp_str_equals_ci(entity_class, "Pinky")) {
     *out_type = MT_SERGEANT;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Spectre")) {
+  if (dmcp_str_equals_ci(entity_class, "Spectre")) {
     *out_type = MT_SHADOWS;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Cacodemon")) {
+  if (dmcp_str_equals_ci(entity_class, "Cacodemon")) {
     *out_type = MT_HEAD;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "BaronOfHell") ||
-      dmcp_equals_ci(entity_class, "Baron of Hell")) {
+  if (dmcp_str_equals_ci(entity_class, "BaronOfHell") ||
+      dmcp_str_equals_ci(entity_class, "Baron of Hell")) {
     *out_type = MT_BRUISER;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "HellKnight") || dmcp_equals_ci(entity_class, "Hell Knight")) {
+  if (dmcp_str_equals_ci(entity_class, "HellKnight") ||
+      dmcp_str_equals_ci(entity_class, "Hell Knight")) {
     *out_type = MT_KNIGHT;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "LostSoul") || dmcp_equals_ci(entity_class, "Lost Soul")) {
+  if (dmcp_str_equals_ci(entity_class, "LostSoul") ||
+      dmcp_str_equals_ci(entity_class, "Lost Soul")) {
     *out_type = MT_SKULL;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Arachnotron")) {
+  if (dmcp_str_equals_ci(entity_class, "Arachnotron")) {
     *out_type = MT_BABY;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "PainElemental") ||
-      dmcp_equals_ci(entity_class, "Pain Elemental")) {
+  if (dmcp_str_equals_ci(entity_class, "PainElemental") ||
+      dmcp_str_equals_ci(entity_class, "Pain Elemental")) {
     *out_type = MT_PAIN;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Revenant")) {
+  if (dmcp_str_equals_ci(entity_class, "Revenant")) {
     *out_type = MT_UNDEAD;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Mancubus")) {
+  if (dmcp_str_equals_ci(entity_class, "Mancubus")) {
     *out_type = MT_FATSO;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Archvile") || dmcp_equals_ci(entity_class, "Arch-vile")) {
+  if (dmcp_str_equals_ci(entity_class, "Archvile") ||
+      dmcp_str_equals_ci(entity_class, "Arch-vile")) {
     *out_type = MT_VILE;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "SpiderMastermind") ||
-      dmcp_equals_ci(entity_class, "Spider Mastermind")) {
+  if (dmcp_str_equals_ci(entity_class, "SpiderMastermind") ||
+      dmcp_str_equals_ci(entity_class, "Spider Mastermind")) {
     *out_type = MT_SPIDER;
     return true;
   }
-  if (dmcp_equals_ci(entity_class, "Cyberdemon")) {
+  if (dmcp_str_equals_ci(entity_class, "Cyberdemon")) {
     *out_type = MT_CYBORG;
     return true;
   }
@@ -192,97 +232,106 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
     return false;
   }
 
+  if (!dmcp_weapon_available_in_mode(give->item_class)) {
+    return false;
+  }
+
   amount = dmcp_clamp_int(give->amount, 1, 1000);
 
-  if (dmcp_equals_ci(give->item_class, "Pistol")) {
+  if (dmcp_str_equals_ci(give->item_class, "Pistol")) {
     player->weaponowned[wp_pistol] = 1;
     player->pendingweapon          = wp_pistol;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Shotgun")) {
+  if (dmcp_str_equals_ci(give->item_class, "Shotgun")) {
     player->weaponowned[wp_shotgun] = 1;
     player->pendingweapon           = wp_shotgun;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Chaingun")) {
+  if (dmcp_str_equals_ci(give->item_class, "Chaingun")) {
     player->weaponowned[wp_chaingun] = 1;
     player->pendingweapon            = wp_chaingun;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "RocketLauncher") ||
-      dmcp_equals_ci(give->item_class, "Rocket Launcher")) {
+  if (dmcp_str_equals_ci(give->item_class, "RocketLauncher") ||
+      dmcp_str_equals_ci(give->item_class, "Rocket Launcher")) {
     player->weaponowned[wp_missile] = 1;
     player->pendingweapon           = wp_missile;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "PlasmaRifle") ||
-      dmcp_equals_ci(give->item_class, "Plasma Rifle")) {
+  if (dmcp_str_equals_ci(give->item_class, "PlasmaRifle") ||
+      dmcp_str_equals_ci(give->item_class, "Plasma Rifle")) {
     player->weaponowned[wp_plasma] = 1;
     player->pendingweapon          = wp_plasma;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "BFG9000") || dmcp_equals_ci(give->item_class, "BFG")) {
+  if (dmcp_str_equals_ci(give->item_class, "BFG9000") ||
+      dmcp_str_equals_ci(give->item_class, "BFG")) {
     player->weaponowned[wp_bfg] = 1;
     player->pendingweapon       = wp_bfg;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Chainsaw")) {
+  if (dmcp_str_equals_ci(give->item_class, "Chainsaw")) {
     player->weaponowned[wp_chainsaw] = 1;
     player->pendingweapon            = wp_chainsaw;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "SuperShotgun") ||
-      dmcp_equals_ci(give->item_class, "Super Shotgun")) {
+  if (dmcp_str_equals_ci(give->item_class, "SuperShotgun") ||
+      dmcp_str_equals_ci(give->item_class, "Super Shotgun")) {
     player->weaponowned[wp_supershotgun] = 1;
     player->pendingweapon                = wp_supershotgun;
     return true;
   }
 
-  if (dmcp_equals_ci(give->item_class, "Clip") || dmcp_equals_ci(give->item_class, "Bullets")) {
+  if (dmcp_str_equals_ci(give->item_class, "Clip") ||
+      dmcp_str_equals_ci(give->item_class, "Bullets")) {
     player->ammo[am_clip] += 10 * amount;
     player->ammo[am_clip] = dmcp_clamp_int(player->ammo[am_clip], 0, player->maxammo[am_clip]);
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Shell") || dmcp_equals_ci(give->item_class, "Shells")) {
+  if (dmcp_str_equals_ci(give->item_class, "Shell") ||
+      dmcp_str_equals_ci(give->item_class, "Shells")) {
     player->ammo[am_shell] += 4 * amount;
     player->ammo[am_shell] = dmcp_clamp_int(player->ammo[am_shell], 0, player->maxammo[am_shell]);
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Rocket") || dmcp_equals_ci(give->item_class, "Rockets")) {
+  if (dmcp_str_equals_ci(give->item_class, "Rocket") ||
+      dmcp_str_equals_ci(give->item_class, "Rockets")) {
     player->ammo[am_misl] += amount;
     player->ammo[am_misl] = dmcp_clamp_int(player->ammo[am_misl], 0, player->maxammo[am_misl]);
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Cell") || dmcp_equals_ci(give->item_class, "Cells")) {
+  if (dmcp_str_equals_ci(give->item_class, "Cell") ||
+      dmcp_str_equals_ci(give->item_class, "Cells")) {
     player->ammo[am_cell] += 20 * amount;
     player->ammo[am_cell] = dmcp_clamp_int(player->ammo[am_cell], 0, player->maxammo[am_cell]);
     return true;
   }
 
-  if (dmcp_equals_ci(give->item_class, "Stimpack")) {
+  if (dmcp_str_equals_ci(give->item_class, "Stimpack")) {
     player->health     = dmcp_clamp_int(player->health + (10 * amount), 1, 200);
     player->mo->health = player->health;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "Medikit")) {
+  if (dmcp_str_equals_ci(give->item_class, "Medikit")) {
     player->health     = dmcp_clamp_int(player->health + (25 * amount), 1, 200);
     player->mo->health = player->health;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "GreenArmor") ||
-      dmcp_equals_ci(give->item_class, "Green Armor")) {
+  if (dmcp_str_equals_ci(give->item_class, "GreenArmor") ||
+      dmcp_str_equals_ci(give->item_class, "Green Armor")) {
     player->armorpoints = 100;
     player->armortype   = 1;
     return true;
   }
-  if (dmcp_equals_ci(give->item_class, "BlueArmor") ||
-      dmcp_equals_ci(give->item_class, "Blue Armor")) {
+  if (dmcp_str_equals_ci(give->item_class, "BlueArmor") ||
+      dmcp_str_equals_ci(give->item_class, "Blue Armor")) {
     player->armorpoints = 200;
     player->armortype   = 2;
     return true;
   }
 
-  if (dmcp_equals_ci(give->item_class, "Backpack")) {
+  if (dmcp_str_equals_ci(give->item_class, "Backpack")) {
     int i;
     if (!player->backpack) {
       for (i = 0; i < NUMAMMO; ++i) {
@@ -342,6 +391,9 @@ static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn) {
   if (!dmcp_resolve_spawn_type(spawn->entity_class, &type)) {
     return false;
   }
+  if (!dmcp_spawn_available_in_mode(spawn->entity_class)) {
+    return false;
+  }
 
   x = dmcp_float_to_fixed(spawn->position.x);
   y = dmcp_float_to_fixed(spawn->position.y);
@@ -389,12 +441,23 @@ static int dmcp_health_points_from_command(float requested_health) {
 
 static bool dmcp_execute_set_player_health(player_t*                    player,
                                            const dmcp_cmd_set_health_t* set_health) {
+  int health;
+
   if (!player || !player->mo || !set_health) {
+    dmcp_adapter_log(MCP_LOG_WARN, "set_player_health: invalid arguments");
     return false;
   }
 
-  player->health     = dmcp_health_points_from_command(set_health->health);
-  player->mo->health = player->health;
+  health = dmcp_health_points_from_command(set_health->health);
+
+  // Validate using adapter helper
+  if (!dmcp_validate_health(health)) {
+    dmcp_adapter_log(MCP_LOG_WARN, "set_player_health: health %d out of range (1-200)", health);
+    return false;
+  }
+
+  player->health     = health;
+  player->mo->health = health;
   return true;
 }
 
@@ -459,36 +522,36 @@ static bool dmcp_execute_console(player_t* player, const dmcp_cmd_console_t* con
     return false;
   }
 
-  if (dmcp_equals_ci(normalized, "god") || dmcp_equals_ci(normalized, "godmode") ||
-      dmcp_equals_ci(normalized, "iddqd") || dmcp_equals_ci(normalized, "god on") ||
-      dmcp_equals_ci(normalized, "godmode on")) {
+  if (dmcp_str_equals_ci(normalized, "god") || dmcp_str_equals_ci(normalized, "godmode") ||
+      dmcp_str_equals_ci(normalized, "iddqd") || dmcp_str_equals_ci(normalized, "god on") ||
+      dmcp_str_equals_ci(normalized, "godmode on")) {
     player->cheats |= CF_GODMODE;
     return true;
   }
 
-  if (dmcp_equals_ci(normalized, "ungod") || dmcp_equals_ci(normalized, "god off") ||
-      dmcp_equals_ci(normalized, "godmode off")) {
+  if (dmcp_str_equals_ci(normalized, "ungod") || dmcp_str_equals_ci(normalized, "god off") ||
+      dmcp_str_equals_ci(normalized, "godmode off")) {
     player->cheats &= ~CF_GODMODE;
     return true;
   }
 
-  if (dmcp_equals_ci(normalized, "noclip") || dmcp_equals_ci(normalized, "noclip on") ||
-      dmcp_equals_ci(normalized, "idspispopd")) {
+  if (dmcp_str_equals_ci(normalized, "noclip") || dmcp_str_equals_ci(normalized, "noclip on") ||
+      dmcp_str_equals_ci(normalized, "idspispopd")) {
     player->cheats |= CF_NOCLIP;
     return true;
   }
 
-  if (dmcp_equals_ci(normalized, "clip") || dmcp_equals_ci(normalized, "noclip off")) {
+  if (dmcp_str_equals_ci(normalized, "clip") || dmcp_str_equals_ci(normalized, "noclip off")) {
     player->cheats &= ~CF_NOCLIP;
     return true;
   }
 
-  if (dmcp_equals_ci(normalized, "pause")) {
+  if (dmcp_str_equals_ci(normalized, "pause")) {
     paused = true;
     return true;
   }
 
-  if (dmcp_equals_ci(normalized, "resume") || dmcp_equals_ci(normalized, "unpause")) {
+  if (dmcp_str_equals_ci(normalized, "resume") || dmcp_str_equals_ci(normalized, "unpause")) {
     paused = false;
     return true;
   }
@@ -510,16 +573,24 @@ static bool dmcp_execute_damage_entity(player_t* player, const dmcp_cmd_damage_t
   int     damage;
 
   if (!damage_cmd) {
+    dmcp_adapter_log(MCP_LOG_WARN, "damage_entity: null command");
+    return false;
+  }
+
+  // Validate damage amount using adapter helper
+  damage = (int)damage_cmd->damage;
+  if (!dmcp_validate_damage(damage)) {
+    dmcp_adapter_log(MCP_LOG_WARN, "damage_entity: damage %d out of range (1-10000)", damage);
     return false;
   }
 
   target = dmcp_find_enemy_by_id(damage_cmd->target_tid);
   if (!target) {
+    dmcp_adapter_log(MCP_LOG_WARN, "damage_entity: target %d not found", damage_cmd->target_tid);
     return false;
   }
 
   source = (player && player->mo) ? player->mo : NULL;
-  damage = dmcp_clamp_int((int)damage_cmd->damage, 1, 10000);
   P_DamageMobj(target, NULL, source, damage);
   return true;
 }
