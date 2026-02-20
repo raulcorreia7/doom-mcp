@@ -870,6 +870,16 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
     REQUIRE(cmd.data.change_level.reset_inventory == true);
   }
 
+  SECTION("Parse change_level with lowercase map name normalizes to uppercase") {
+    dmcp_command_t cmd = {};
+    parse_ok(R"({"type":"change_level","params":{"map_name":"e1m4"}})", &cmd);
+    REQUIRE(cmd.type == DMCP_CMD_CHANGE_LEVEL);
+    REQUIRE(std::strcmp(cmd.data.change_level.map_name, "E1M4") == 0);
+
+    parse_ok(R"({"type":"change_level","params":{"map_name":"map01"}})", &cmd);
+    REQUIRE(std::strcmp(cmd.data.change_level.map_name, "MAP01") == 0);
+  }
+
   SECTION("Reject invalid change_level payload") {
     parse_invalid(R"({"type":"change_level","params":{"map_name":"BAD"}})");
     parse_invalid(R"({"type":"change_level","params":{"map_name":"E1M1","skill_level":7}})");
