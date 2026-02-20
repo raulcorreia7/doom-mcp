@@ -8,7 +8,7 @@
 #include "doom/internal/context.hpp"
 #include "doom/internal/serialization.hpp"
 #include "mcp/generic/constants.h"
-#include "mcp/json/json.hpp"
+#include "doom/internal/json_types.hpp"
 
 namespace dmcp {
 
