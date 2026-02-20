@@ -21,7 +21,7 @@ struct dmcp_chocolate_s {
   bool                    last_paused;
 };
 
-static void dmcp_adapter_log(int level, const char* fmt, ...) {
+void dmcp_adapter_log(int level, const char* fmt, ...) {
   va_list     args;
   time_t      now;
   struct tm   tm_info;

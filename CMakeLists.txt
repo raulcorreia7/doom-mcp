@@ -54,7 +54,6 @@ set(DMCP_CORE_SOURCES
   src/doom/commands.cpp
   src/doom/commands/parsers.cpp
   src/doom/context.cpp
-  src/doom/mcp_handlers.cpp
   src/doom/pool.cpp
   src/doom/screenshot.cpp
   src/doom/serialization.cpp
@@ -68,6 +67,14 @@ set(DMCP_CORE_SOURCES
   src/doom/commands/types/damage.cpp
   src/doom/commands/types/kill.cpp
   src/doom/commands/types/console.cpp
+  src/doom/handlers/common.cpp
+  src/doom/handlers/routes.cpp
+  src/doom/handlers/methods.cpp
+  src/doom/handlers/tools/get_game_state.cpp
+  src/doom/handlers/tools/get_screenshot.cpp
+  src/doom/handlers/tools/execute_command.cpp
+  src/doom/handlers/tools/get_command_result.cpp
+  src/doom/handlers/tools/tools_list.cpp
 )
 
 add_library(mcp_generic ${DMCP_LIBRARY_TYPE}

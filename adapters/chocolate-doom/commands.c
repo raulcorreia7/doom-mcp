@@ -86,29 +86,6 @@ static int dmcp_clamp_int(int value, int min_value, int max_value) {
   return value;
 }
 
-static fixed_t dmcp_float_to_fixed(float value) {
-  const double scaled = (double)value * (double)FRACUNIT;
-  if (scaled > (double)INT_MAX) {
-    return INT_MAX;
-  }
-  if (scaled < (double)INT_MIN) {
-    return INT_MIN;
-  }
-  return (fixed_t)scaled;
-}
-
-static angle_t dmcp_degrees_to_angle(float degrees) {
-  const double full_turn  = 4294967296.0;
-  double       normalized = (double)degrees;
-  while (normalized < 0.0) {
-    normalized += 360.0;
-  }
-  while (normalized >= 360.0) {
-    normalized -= 360.0;
-  }
-  return (angle_t)(normalized * (full_turn / 360.0));
-}
-
 static player_t* dmcp_get_player(void) {
   if (!playeringame[consoleplayer]) {
     return NULL;

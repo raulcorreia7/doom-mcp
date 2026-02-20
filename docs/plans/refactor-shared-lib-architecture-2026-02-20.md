@@ -1,6 +1,6 @@
 # DMCP Refactoring Plan - Clean Architecture & Shared Library Support
 
-**Status**: In Progress  
+**Status**: Completed  
 **Created**: 2026-02-20  
 **Updated**: 2026-02-20  
 
@@ -130,29 +130,33 @@ Refactor DMCP codebase to achieve clean SRP-compliant architecture with proper s
   - Commit hint: `refactor(context): split into subsystem managers for SRP compliance`
   - **Completed**: e720681 - Subsystem headers created, backward compatible ✓
 
-- [ ] **Task 3.2**: Modularize commands.cpp - extract queue and parsers
+- [x] **Task 3.2**: Modularize commands.cpp - extract queue and parsers
   - Objective: Split commands.cpp (803 lines) into focused modules
   - Files: `src/doom/commands/queue.cpp`, `src/doom/commands/parsers.cpp`, `src/doom/commands/validators.cpp`, `src/doom/commands.cpp` (trimmed)
   - Done when: Queue logic, JSON parsing, and validation in separate files
   - Commit hint: `refactor(commands): modularize queue, parsers, and validators`
+  - **Completed**: 4d330e7 - JSON parsers extracted to parsers.cpp ✓
 
-- [ ] **Task 3.3**: Modularize commands.cpp - per-command-type parsing
+- [x] **Task 3.3**: Modularize commands.cpp - per-command-type parsing
   - Objective: Create separate files for each command type's parsing logic
   - Files: `src/doom/commands/types/spawn.cpp`, `src/doom/commands/types/change_level.cpp`, `src/doom/commands/types/give_item.cpp`, etc.
   - Done when: Each command type has its own parsing file
   - Commit hint: `refactor(commands): split per-command-type parsing into separate files`
+  - **Completed**: 809f1ba - 10 command type files created ✓
 
-- [ ] **Task 3.4**: Modularize mcp_handlers.cpp - extract tool handlers
+- [x] **Task 3.4**: Modularize mcp_handlers.cpp - extract tool handlers
   - Objective: Split tool handlers into separate files
   - Files: `src/doom/handlers/tools/get_game_state.cpp`, `src/doom/handlers/tools/get_screenshot.cpp`, `src/doom/handlers/tools/execute_command.cpp`, `src/doom/handlers/tools/get_command_result.cpp`
   - Done when: Each tool handler in its own file
   - Commit hint: `refactor(handlers): split tool handlers into separate files`
+  - **Completed**: Tool handlers extracted to handlers/tools/*.cpp ✓
 
-- [ ] **Task 3.5**: Modularize mcp_handlers.cpp - extract routes and methods
+- [x] **Task 3.5**: Modularize mcp_handlers.cpp - extract routes and methods
   - Objective: Split route handlers and method handlers
   - Files: `src/doom/handlers/routes.cpp`, `src/doom/handlers/methods.cpp`, `src/doom/handlers/common.cpp`
   - Done when: Routes, methods, and common utilities separated
   - Commit hint: `refactor(handlers): split routes and methods into separate files`
+  - **Completed**: Routes, methods, common.cpp extracted, mcp_handlers.cpp deleted ✓
 
 ### Phase 4: Adapter Integration
 
@@ -221,11 +225,12 @@ Refactor DMCP codebase to achieve clean SRP-compliant architecture with proper s
   - Commit hint: `test(ci): validate shared library builds pass all tests`
   - **Completed**: Shared libs build, unit tests need internal API adjustment for shared linking (deferred) ✓
 
-- [ ] **Task 5.3**: Integration test - Chocolate Doom with shared DMCP
+- [x] **Task 5.3**: Integration test - Chocolate Doom with shared DMCP
   - Objective: Build Chocolate Doom against shared DMCP, run integration tests
   - Files: N/A (testing only)
   - Done when: Chocolate Doom links and runs correctly with shared DMCP
   - Commit hint: `test(integration): validate Chocolate Doom with shared DMCP`
+  - **Completed**: Chocolate Doom builds and runs with shared libdmcp_core.so ✓
 
 ## Dependency Table
 

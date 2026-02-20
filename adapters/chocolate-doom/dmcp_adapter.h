@@ -75,6 +75,13 @@ void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats);
 bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* cmd);
 
 // ============================================================================
+// Logging
+// ============================================================================
+
+// Log a message (uses DMCP logging if available, otherwise printf)
+void dmcp_adapter_log(int level, const char* fmt, ...);
+
+// ============================================================================
 // Snapshot Population (called by adapter during tick)
 // ============================================================================
 
