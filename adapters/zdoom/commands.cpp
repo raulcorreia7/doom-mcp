@@ -6,6 +6,7 @@
 #include "adapter.h"
 
 #include "dmcp/adapter/validation.h"
+#include "dmcp/doom/constants.h"
 
 // ZDoom headers
 #include "common/console/c_console.h"
@@ -94,7 +95,8 @@ static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
   // Validate health value using adapter helper
   int health_value = static_cast<int>(health->health);
   if (!dmcp_validate_health(health_value)) {
-    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-200)", health_value);
+    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-%d)", health_value,
+        DMCP_PLAYER_MAX_HEALTH);
     return false;
   }
 
@@ -155,7 +157,8 @@ static bool DamageEntity(const dmcp_cmd_damage_t* damage) {
   // Validate damage amount using adapter helper
   int damage_value = static_cast<int>(damage->damage);
   if (!dmcp_validate_damage(damage_value)) {
-    Log(nullptr, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-10000)", damage_value);
+    Log(nullptr, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-%d)", damage_value,
+        DMCP_DAMAGE_MAX);
     return false;
   }
 

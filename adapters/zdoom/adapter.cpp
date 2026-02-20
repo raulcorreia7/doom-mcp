@@ -98,25 +98,25 @@ static bool ShouldFilterInventoryItem(AActor* item) {
 
 static void BindDefaults(dmcp_snapshot_t* snapshot) {
   snapshot->level.tic         = 0;
-  snapshot->player.hp         = 100.f;
-  snapshot->player.armor      = 0.f;
+  snapshot->player.hp         = DMCP_PLAYER_INITIAL_HEALTH;
+  snapshot->player.armor      = 0;
   snapshot->player.ammo       = 0;
   snapshot->player.position.x = 0.f;
   snapshot->player.position.y = 0.f;
 }
 
 static void BindPlayerHealth(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  snapshot->player.hp = view.HasPawn() ? static_cast<float>(view.pawn->health) : 0.f;
+  snapshot->player.hp = view.HasPawn() ? view.pawn->health : 0;
 }
 
 static void BindPlayerArmor(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   if (!view.HasPawn()) {
-    snapshot->player.armor = 0.f;
+    snapshot->player.armor = 0;
     return;
   }
 
   AActor* armor          = view.pawn->FindInventory(NAME_BasicArmor, true);
-  snapshot->player.armor = armor ? static_cast<float>(armor->IntVar(NAME_Amount)) : 0.f;
+  snapshot->player.armor = armor ? armor->IntVar(NAME_Amount) : 0;
 }
 
 static void BindPlayerPosition(dmcp_snapshot_t* snapshot, const PlayerView& view) {
@@ -173,16 +173,16 @@ static void BindEnemies(dmcp_snapshot_t* snapshot, const PlayerView& view) {
 
     dmcp_enemy_t enemy = {};
     enemy.id           = static_cast<int32_t>(actor->tid);
-    enemy.hp           = static_cast<float>(actor->health);
+    enemy.hp           = actor->health;
 
     int maxHealth = actor->SpawnHealth();
     if (maxHealth <= 0) {
       maxHealth = actor->GetMaxHealth();
     }
     if (maxHealth <= 0) {
-      maxHealth = 100;
+      maxHealth = DMCP_PLAYER_INITIAL_HEALTH;
     }
-    enemy.max_hp = static_cast<float>(maxHealth);
+    enemy.max_hp = maxHealth;
 
     enemy.position.x = static_cast<float>(actor->Pos().X);
     enemy.position.y = static_cast<float>(actor->Pos().Y);
