@@ -321,46 +321,38 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
 
   if (dmcp_str_equals_ci(give->item_class, "Pistol")) {
     player->weaponowned[wp_pistol] = 1;
-    player->pendingweapon          = wp_pistol;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "Shotgun")) {
     player->weaponowned[wp_shotgun] = 1;
-    player->pendingweapon           = wp_shotgun;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "Chaingun")) {
     player->weaponowned[wp_chaingun] = 1;
-    player->pendingweapon            = wp_chaingun;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "RocketLauncher") ||
       dmcp_str_equals_ci(give->item_class, "Rocket Launcher")) {
     player->weaponowned[wp_missile] = 1;
-    player->pendingweapon           = wp_missile;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "PlasmaRifle") ||
       dmcp_str_equals_ci(give->item_class, "Plasma Rifle")) {
     player->weaponowned[wp_plasma] = 1;
-    player->pendingweapon          = wp_plasma;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "BFG9000") ||
       dmcp_str_equals_ci(give->item_class, "BFG")) {
     player->weaponowned[wp_bfg] = 1;
-    player->pendingweapon       = wp_bfg;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "Chainsaw")) {
     player->weaponowned[wp_chainsaw] = 1;
-    player->pendingweapon            = wp_chainsaw;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "SuperShotgun") ||
       dmcp_str_equals_ci(give->item_class, "Super Shotgun")) {
     player->weaponowned[wp_supershotgun] = 1;
-    player->pendingweapon                = wp_supershotgun;
     return true;
   }
 
