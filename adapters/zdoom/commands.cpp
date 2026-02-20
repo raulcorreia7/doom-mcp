@@ -4,6 +4,7 @@
 #include <string>
 
 #include "adapter.h"
+#include "internal.h"
 
 #include "dmcp/adapter/validation.h"
 #include "dmcp/doom/constants.h"
@@ -19,6 +20,8 @@
 #include "playsim/d_player.h"
 #include "playsim/dthinker.h"
 #include "playsim/p_local.h"
+
+using namespace dmcp::zdoom;
 
 namespace {
 
