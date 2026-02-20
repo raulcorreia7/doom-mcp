@@ -11,21 +11,10 @@
 #include "internal/serialization.hpp"
 #include "mcp/generic/server.h"
 
+// Bring dmcp_log into scope for use inside extern "C" block
+using dmcp::dmcp_log;
+
 extern "C" {
-
-static void dmcp_log(const dmcp::context* ctx, int level, const char* fmt, ...) {
-  if (!ctx || !ctx->config.on_log || !fmt) {
-    return;
-  }
-
-  char    buffer[512];
-  va_list args;
-  va_start(args, fmt);
-  std::vsnprintf(buffer, sizeof(buffer), fmt, args);
-  va_end(args);
-
-  ctx->config.on_log(ctx->config.user_data, level, buffer);
-}
 
 dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   auto ctx = std::make_unique<dmcp::context>();

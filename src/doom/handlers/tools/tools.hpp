@@ -4,13 +4,9 @@
 #include <string_view>
 #include "dmcp/doom/api.h"
 #include "doom/internal/context.hpp"
-#include "mcp/json/json.hpp"
+#include "doom/internal/json_types.hpp"
 
 namespace dmcp {
-
-// JSON type aliases
-using json_builder = ::mcp::json::Builder;
-using json_value   = ::mcp::json::Value;
 
 // ============================================================================
 // Command tool definitions
@@ -31,7 +27,7 @@ size_t                         get_command_tools_count();
 // ============================================================================
 
 // Logging
-void dmcp_log(context* ctx, int level, const char* fmt, ...);
+void dmcp_log(const context* ctx, int level, const char* fmt, ...);
 
 // Response building
 std::string build_content_response(std::string_view text, bool is_error = false);
@@ -43,7 +39,8 @@ std::string build_route_error(std::string_view code, std::string_view message);
 // Game state
 std::string get_game_state_json(context* ctx);
 
-// Command handling
+// Argument extraction
+json_value  extract_tool_arguments(const json_value& params);
 std::string extract_command_json(const json_value& params);
 bool        queue_command_and_respond(context* ctx, std::string_view command_json,
                                       std::string_view command_name, char* response_buffer,

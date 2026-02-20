@@ -9,15 +9,11 @@
 #include "dmcp/doom/api.h"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
+#include "doom/internal/json_types.hpp"
 #include "doom/internal/serialization.hpp"
 #include "mcp/generic/constants.h"
-#include "mcp/json/json.hpp"
 
 namespace dmcp {
-
-using json_builder  = ::mcp::json::Builder;
-using json_document = ::mcp::json::Document;
-using json_value    = ::mcp::json::Value;
 
 static const command_tool_definition k_command_tools[] = {
     {"spawn_entity", "spawn_entity", "Spawn an entity in the current level"},
@@ -51,7 +47,7 @@ const char* resolve_command_type_for_method(std::string_view method_name) {
   return tool ? tool->command_type : nullptr;
 }
 
-void dmcp_log(context* ctx, int level, const char* fmt, ...) {
+void dmcp_log(const context* ctx, int level, const char* fmt, ...) {
   if (!ctx || !ctx->config.on_log || !fmt) {
     return;
   }
@@ -227,11 +223,19 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
   return true;
 }
 
-std::string extract_command_json(const json_value& params) {
-  json_value command_args = params["arguments"];
-  if (!command_args.is_object()) {
-    command_args = params["params"];
+json_value extract_tool_arguments(const json_value& params) {
+  json_value args = params["arguments"];
+  if (!args.is_object()) {
+    args = params["params"];
   }
+  if (!args.is_object()) {
+    args = params;
+  }
+  return args;
+}
+
+std::string extract_command_json(const json_value& params) {
+  json_value command_args = extract_tool_arguments(params);
   if (!command_args.is_object() && params["type"].is_string()) {
     command_args = params;
   }
@@ -423,14 +427,7 @@ bool handle_tool_command_alias(context* ctx, const command_tool_definition* comm
 
   dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call %s", command_tool->tool_name);
 
-  json_value command_args = params["arguments"];
-  if (!command_args.is_object()) {
-    command_args = params["params"];
-  }
-  if (!command_args.is_object()) {
-    command_args = params;
-  }
-
+  json_value        command_args = extract_tool_arguments(params);
   const std::string params_json  = command_args.is_object() ? command_args.dump() : "{}";
   const std::string command_json = std::string("{\"type\":\"") + command_tool->command_type +
                                    "\",\"params\":" + params_json + "}";
