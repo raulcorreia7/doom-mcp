@@ -58,7 +58,15 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   // Agent compatibility aliases: allow direct JSON-RPC method calls without
   // requiring tools/call wrappers.
-  register_method("get_game_state", dmcp::handle_method_get_game_state);
+  register_method("get_player", dmcp::handle_method_get_state_section);
+  register_method("get_enemies", dmcp::handle_method_get_state_section);
+  register_method("get_entities", dmcp::handle_method_get_state_section);
+  register_method("get_map", dmcp::handle_method_get_state_section);
+  register_method("get_level", dmcp::handle_method_get_state_section);
+  register_method("get_inventory", dmcp::handle_method_get_state_section);
+  register_method("get_game_info", dmcp::handle_method_get_state_section);
+  register_method("get_game", dmcp::handle_method_get_state_section);
+  register_method("get_state", dmcp::handle_method_get_state_section);
   register_method("get_screenshot", dmcp::handle_method_get_screenshot);
   register_method("execute_command", dmcp::handle_method_execute_command);
   register_method("get_command_result", dmcp::handle_method_get_command_result);
@@ -66,7 +74,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   const char* command_method_aliases[] = {
       "spawn_entity",    "change_level",        "give_item",       "set_player_health",
       "teleport_player", "set_player_position", "execute_console", "pause_game",
-      "set_timescale",   "damage_entity",       "kill_entity",
+      "damage_entity",   "kill_entity",
   };
   for (const char* method_name : command_method_aliases) {
     register_method(method_name, dmcp::handle_method_execute_command);

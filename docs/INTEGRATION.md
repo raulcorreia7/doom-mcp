@@ -164,7 +164,7 @@ Cline is a VS Code extension that provides autonomous coding capabilities.
     "doom": {
       "url": "http://localhost:6060/mcp",
       "disabled": false,
-      "autoApprove": ["get_game_state", "get_screenshot"]
+      "autoApprove": ["get_player", "get_map", "get_screenshot"]
     }
   }
 }
@@ -265,7 +265,7 @@ Configure in `.opencode/config.json`:
 
 ```json
 {
-  "autoApproveTools": ["get_game_state", "get_screenshot"]
+  "autoApproveTools": ["get_player", "get_map", "get_screenshot"]
 }
 ```
 
@@ -298,7 +298,7 @@ class DMCPSimpleClient:
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
-            "params": {"name": "get_game_state"}
+            "params": {"name": "get_state", "arguments": {"section": "player"}}
         })
         result = response.json()
         if "result" in result and "content" in result["result"]:
@@ -352,7 +352,13 @@ client.execute("spawn_entity", {
 
 | Tool | Description |
 |------|-------------|
-| `get_game_state` | Get player health, position, enemies, level info |
+| `get_player` | Get player-only state |
+| `get_enemies` | Get enemy list (paginated) |
+| `get_entities` | Get pickups/barrels only (paginated, excludes projectiles/decor) |
+| `get_map`/`get_level` | Get current map/level state |
+| `get_inventory` | Get inventory list (paginated) |
+| `get_game_info`/`get_game` | Get game mode/version metadata |
+| `get_state` | Unified section query (`player`, `enemies`, `entities`, `map`, `inventory`, `game`) |
 | `get_screenshot` | Capture ASCII screenshot of current view |
 | `execute_command` | Spawn entities, change levels, give items, etc. |
 
@@ -367,7 +373,6 @@ client.execute("spawn_entity", {
 | `set_player_position` | `x`, `y`, `angle` |
 | `execute_console` | `command` |
 | `pause_game` | `paused` |
-| `set_timescale` | `scale` |
 | `damage_entity` | `target_tid`, `damage` |
 | `kill_entity` | `target_tid` |
 

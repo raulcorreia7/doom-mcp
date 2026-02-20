@@ -27,17 +27,38 @@ mcp_result_generic_t invalid_command(const char* message) {
   return MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, message);
 }
 
+bool is_coalescible_command(dmcp_command_type_t type) {
+  switch (type) {
+    case DMCP_CMD_CHANGE_LEVEL:
+    case DMCP_CMD_SET_PLAYER_HEALTH:
+    case DMCP_CMD_SET_PLAYER_POSITION:
+    case DMCP_CMD_PAUSE_GAME:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 // ============================================================================
 // CommandQueue Implementation
 // ============================================================================
 
-bool command_queue::push(const dmcp_command_t& cmd, uint64_t* assigned_sequence) {
+bool command_queue::push(const dmcp_command_t& cmd, uint64_t* assigned_sequence,
+                         dmcp_command_t* evicted_cmd) {
   std::lock_guard<std::mutex> lock{mutex_};
 
-  if (count_.load() >= max_size) {
+  if (max_size == 0) {
     return false;
+  }
+
+  if (count_.load() >= max_size && !queue_.empty()) {
+    if (evicted_cmd) {
+      *evicted_cmd = queue_.front();
+    }
+    queue_.pop_front();
+    count_.fetch_sub(1, std::memory_order_release);
   }
 
   auto mutable_cmd     = cmd;
@@ -45,10 +66,27 @@ bool command_queue::push(const dmcp_command_t& cmd, uint64_t* assigned_sequence)
   if (assigned_sequence) {
     *assigned_sequence = mutable_cmd.sequence;
   }
-  queue_.push(mutable_cmd);
+  queue_.push_back(mutable_cmd);
   count_.fetch_add(1, std::memory_order_release);
 
   return true;
+}
+
+std::vector<dmcp_command_t> command_queue::remove_by_type(dmcp_command_type_t type) {
+  std::lock_guard<std::mutex> lock{mutex_};
+
+  std::vector<dmcp_command_t> removed;
+  for (auto it = queue_.begin(); it != queue_.end();) {
+    if (it->type == type) {
+      removed.push_back(*it);
+      it = queue_.erase(it);
+      count_.fetch_sub(1, std::memory_order_release);
+      continue;
+    }
+    ++it;
+  }
+
+  return removed;
 }
 
 std::optional<dmcp_command_t> command_queue::pop() {
@@ -59,7 +97,7 @@ std::optional<dmcp_command_t> command_queue::pop() {
   }
 
   auto cmd = queue_.front();
-  queue_.pop();
+  queue_.pop_front();
   count_.fetch_sub(1, std::memory_order_release);
 
   return cmd;
@@ -69,7 +107,7 @@ void command_queue::clear() {
   std::lock_guard<std::mutex> lock{mutex_};
 
   while (!queue_.empty()) {
-    queue_.pop();
+    queue_.pop_front();
   }
   count_.store(0, std::memory_order_release);
 }
@@ -98,10 +136,34 @@ mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_
     return MCP_ERROR_DISABLED;
   }
 
-  uint64_t sequence = 0;
-  if (!ctx->cmd_queue->push(*cmd, &sequence)) {
-    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Command queue is full");
+  if (dmcp::is_coalescible_command(cmd->type)) {
+    std::vector<dmcp_command_t> superseded = ctx->cmd_queue->remove_by_type(cmd->type);
+    for (const dmcp_command_t& dropped : superseded) {
+      if (dropped.sequence != 0) {
+        dmcp_command_result_complete(ctx_handle, &dropped, false,
+                                     "Superseded by newer command in queue");
+      }
+    }
+
+    if (!superseded.empty()) {
+      dmcp::dmcp_log(ctx, MCP_LOG_DEBUG, "Coalesced %zu pending command(s) of type=%d",
+                     superseded.size(), static_cast<int>(cmd->type));
+    }
   }
+
+  uint64_t       sequence = 0;
+  dmcp_command_t evicted  = {};
+  if (!ctx->cmd_queue->push(*cmd, &sequence, &evicted)) {
+    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Command queue unavailable");
+  }
+
+  if (evicted.sequence != 0) {
+    dmcp_command_result_complete(ctx_handle, &evicted, false,
+                                 "Dropped due to command queue overflow");
+    dmcp::dmcp_log(ctx, MCP_LOG_WARN, "Dropped queued command sequence=%llu due to overflow",
+                   static_cast<unsigned long long>(evicted.sequence));
+  }
+
   cmd->sequence = sequence;
   return MCP_OK;
 }
@@ -324,9 +386,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
       return dmcp::invalid_command("pause_game requires boolean paused");
     }
   } else if (type_str == "set_timescale") {
-    if (!dmcp::parse_timescale_command(params, out_cmd)) {
-      return dmcp::invalid_command("set_timescale scale must be numeric in (0, 10]");
-    }
+    return dmcp::invalid_command("set_timescale is disabled");
   } else if (type_str == "damage_entity") {
     if (!dmcp::parse_damage_command(params, out_cmd)) {
       return dmcp::invalid_command("damage_entity target_tid must be an integer >= 0");

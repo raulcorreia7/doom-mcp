@@ -10,8 +10,8 @@ bool handle_tools_list(void* user_data, const char* method, const char* request_
 bool handle_tools_call(void* user_data, const char* method, const char* request_json,
                        char* response_buffer, size_t response_size);
 
-bool handle_method_get_game_state(void* user_data, const char* method, const char* request_json,
-                                  char* response_buffer, size_t response_size);
+bool handle_method_get_state_section(void* user_data, const char* method, const char* request_json,
+                                     char* response_buffer, size_t response_size);
 
 bool handle_method_get_screenshot(void* user_data, const char* method, const char* request_json,
                                   char* response_buffer, size_t response_size);

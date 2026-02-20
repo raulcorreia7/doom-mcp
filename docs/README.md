@@ -383,7 +383,13 @@ bool dmcp_validate_timescale(float timescale);
 
 Direct JSON-RPC method aliases are also available for agent compatibility:
 
-- `get_game_state`
+- `get_player`
+- `get_enemies`
+- `get_entities`
+- `get_map` / `get_level`
+- `get_inventory`
+- `get_game_info` / `get_game`
+- `get_state`
 - `get_screenshot`
 - `execute_command`
 
@@ -425,6 +431,9 @@ typedef struct {
 
   dmcp_enemy_t enemies[DMCP_MAX_ENEMIES];
   uint32_t     enemy_count;
+
+  dmcp_entity_t entities[DMCP_MAX_ENTITIES];
+  uint32_t      entity_count;
 
   dmcp_item_t inventory[DMCP_MAX_INVENTORY];
   uint32_t    inventory_count;

@@ -277,59 +277,84 @@ class DoomInstance:
         )
 
     def _get_state_raw(self) -> dict[str, Any]:
-        """Get raw game state with retry on transient errors."""
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": "get_game_state"},
-        }
+        """Get composed game state from granular MCP calls with retries."""
+
+        def _extract_json_result(data: dict[str, Any]) -> dict[str, Any]:
+            if "error" in data:
+                raise RuntimeError(f"MCP error: {data['error']}")
+
+            result = data.get("result", {})
+            content = data.get("content")
+            if not isinstance(content, list) and isinstance(result, dict):
+                content = result.get("content")
+
+            if isinstance(content, list):
+                for item in content:
+                    if item.get("type") != "text":
+                        continue
+
+                    text = item.get("text", "")
+                    if text.startswith("Use SSE"):
+                        return {}
+
+                    try:
+                        parsed = json.loads(text)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except ValueError:
+                        continue
+
+            if isinstance(result, dict):
+                return result
+
+            return {}
+
+        def _call_tool(name: str, request_id: int) -> dict[str, Any]:
+            payload = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/call",
+                "params": {"name": name},
+            }
+
+            resp = requests.post(
+                self._mcp_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            resp.raise_for_status()
+            return _extract_json_result(resp.json())
 
         for attempt in range(3):
             try:
-                resp = requests.post(
-                    self._mcp_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=REQUEST_TIMEOUT,
-                )
-                resp.raise_for_status()
-                data = resp.json()
+                player_payload = _call_tool("get_player", request_id=1)
+                map_payload = _call_tool("get_map", request_id=2)
+                game_payload = _call_tool("get_game_info", request_id=3)
+                enemies_payload = _call_tool("get_enemies", request_id=4)
+                entities_payload = _call_tool("get_entities", request_id=5)
+                inventory_payload = _call_tool("get_inventory", request_id=6)
 
-                if "error" in data:
-                    error = data["error"]
-                    if error.get("code") == -32601 and attempt < 2:
-                        time.sleep(0.4)
-                        continue
-                    raise RuntimeError(f"MCP error: {error}")
+                state: dict[str, Any] = {}
+                if isinstance(player_payload, dict) and "player" in player_payload:
+                    state["player"] = player_payload["player"]
+                if isinstance(map_payload, dict) and "map" in map_payload:
+                    state["level"] = map_payload["map"]
+                if isinstance(game_payload, dict) and "game" in game_payload:
+                    state["game"] = game_payload["game"]
+                if isinstance(enemies_payload, dict):
+                    state["enemies"] = enemies_payload.get("enemies", [])
+                    state["enemy_count"] = enemies_payload.get("enemy_count", 0)
+                if isinstance(entities_payload, dict):
+                    state["entities"] = entities_payload.get("entities", [])
+                    state["entity_count"] = entities_payload.get("entity_count", 0)
+                if isinstance(inventory_payload, dict):
+                    state["inventory"] = inventory_payload.get("inventory", [])
+                    state["inventory_count"] = inventory_payload.get(
+                        "inventory_count", 0
+                    )
 
-                result = data.get("result", {})
-                content = data.get("content")
-                if not isinstance(content, list) and isinstance(result, dict):
-                    content = result.get("content")
-
-                if isinstance(content, list):
-                    for item in content:
-                        if item.get("type") != "text":
-                            continue
-
-                        text = item.get("text", "")
-                        if text.startswith("Use SSE"):
-                            return {}
-
-                        try:
-                            return json.loads(text)
-                        except ValueError:
-                            continue
-
-                if (
-                    isinstance(result, dict)
-                    and "player" in result
-                    and "level" in result
-                ):
-                    return result
-
-                return {}
+                return state
             except (requests.RequestException, ValueError):
                 if attempt < 2:
                     time.sleep(0.4)

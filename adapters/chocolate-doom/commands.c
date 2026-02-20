@@ -4,6 +4,7 @@
 #include "dmcp_mappings.h"
 
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -19,7 +20,11 @@
 #include "m_fixed.h"
 #include "p_local.h"
 #include "p_mobj.h"
+#include "p_inter.h"
 #include "tables.h"
+#include "r_state.h"
+#include "sounds.h"
+#include "w_wad.h"
 
 static int dmcp_ascii_tolower(int c) {
   if (c >= 'A' && c <= 'Z') {
@@ -54,6 +59,22 @@ static int dmcp_clamp_int(int value, int min_value, int max_value) {
     return max_value;
   }
   return value;
+}
+
+static bool dmcp_float_to_fixed_checked(float value, fixed_t* out) {
+  double scaled;
+
+  if (!out || !isfinite(value)) {
+    return false;
+  }
+
+  scaled = (double)value * (double)FRACUNIT;
+  if (scaled < (double)INT_MIN || scaled > (double)INT_MAX) {
+    return false;
+  }
+
+  *out = (fixed_t)scaled;
+  return true;
 }
 
 static player_t* dmcp_get_player(void) {
@@ -92,84 +113,231 @@ static bool dmcp_parse_map_name(const char* map_name, int* out_episode, int* out
   return false;
 }
 
-static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_type) {
-  if (!entity_class || !entity_class[0] || !out_type) {
+typedef enum {
+  DMCP_SPAWN_KIND_ENEMY = 0,
+  DMCP_SPAWN_KIND_ITEM  = 1,
+} dmcp_spawn_kind_t;
+
+typedef struct {
+  const char*       name;
+  mobjtype_t        type;
+  dmcp_spawn_kind_t kind;
+} dmcp_spawn_mapping_t;
+
+static const dmcp_spawn_mapping_t k_spawn_mappings[] = {
+    // Enemies
+    {"DoomImp", MT_TROOP, DMCP_SPAWN_KIND_ENEMY},
+    {"Imp", MT_TROOP, DMCP_SPAWN_KIND_ENEMY},
+    {"Zombieman", MT_POSSESSED, DMCP_SPAWN_KIND_ENEMY},
+    {"Zombie", MT_POSSESSED, DMCP_SPAWN_KIND_ENEMY},
+    {"ShotgunGuy", MT_SHOTGUY, DMCP_SPAWN_KIND_ENEMY},
+    {"Shotgun Guy", MT_SHOTGUY, DMCP_SPAWN_KIND_ENEMY},
+    {"ChaingunGuy", MT_CHAINGUY, DMCP_SPAWN_KIND_ENEMY},
+    {"Chaingun Guy", MT_CHAINGUY, DMCP_SPAWN_KIND_ENEMY},
+    {"Demon", MT_SERGEANT, DMCP_SPAWN_KIND_ENEMY},
+    {"Pinky", MT_SERGEANT, DMCP_SPAWN_KIND_ENEMY},
+    {"Spectre", MT_SHADOWS, DMCP_SPAWN_KIND_ENEMY},
+    {"Cacodemon", MT_HEAD, DMCP_SPAWN_KIND_ENEMY},
+    {"BaronOfHell", MT_BRUISER, DMCP_SPAWN_KIND_ENEMY},
+    {"Baron of Hell", MT_BRUISER, DMCP_SPAWN_KIND_ENEMY},
+    {"HellKnight", MT_KNIGHT, DMCP_SPAWN_KIND_ENEMY},
+    {"Hell Knight", MT_KNIGHT, DMCP_SPAWN_KIND_ENEMY},
+    {"LostSoul", MT_SKULL, DMCP_SPAWN_KIND_ENEMY},
+    {"Lost Soul", MT_SKULL, DMCP_SPAWN_KIND_ENEMY},
+    {"Arachnotron", MT_BABY, DMCP_SPAWN_KIND_ENEMY},
+    {"PainElemental", MT_PAIN, DMCP_SPAWN_KIND_ENEMY},
+    {"Pain Elemental", MT_PAIN, DMCP_SPAWN_KIND_ENEMY},
+    {"Revenant", MT_UNDEAD, DMCP_SPAWN_KIND_ENEMY},
+    {"Mancubus", MT_FATSO, DMCP_SPAWN_KIND_ENEMY},
+    {"Archvile", MT_VILE, DMCP_SPAWN_KIND_ENEMY},
+    {"Arch-vile", MT_VILE, DMCP_SPAWN_KIND_ENEMY},
+    {"SpiderMastermind", MT_SPIDER, DMCP_SPAWN_KIND_ENEMY},
+    {"Spider Mastermind", MT_SPIDER, DMCP_SPAWN_KIND_ENEMY},
+    {"Cyberdemon", MT_CYBORG, DMCP_SPAWN_KIND_ENEMY},
+    {"BossBrain", MT_BOSSBRAIN, DMCP_SPAWN_KIND_ENEMY},
+    {"Icon Of Sin", MT_BOSSBRAIN, DMCP_SPAWN_KIND_ENEMY},
+
+    // Weapon pickups
+    {"Shotgun", MT_SHOTGUN, DMCP_SPAWN_KIND_ITEM},
+    {"SuperShotgun", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
+    {"Super Shotgun", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
+    {"SSG", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
+    {"Chaingun", MT_CHAINGUN, DMCP_SPAWN_KIND_ITEM},
+    {"RocketLauncher", MT_MISC27, DMCP_SPAWN_KIND_ITEM},
+    {"Rocket Launcher", MT_MISC27, DMCP_SPAWN_KIND_ITEM},
+    {"PlasmaRifle", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
+    {"Plasma Rifle", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
+    {"Plasma", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
+    {"BFG9000", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
+    {"BFG", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
+    {"BFG 9000", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
+    {"Chainsaw", MT_MISC26, DMCP_SPAWN_KIND_ITEM},
+
+    // Ammo and pickups
+    {"Clip", MT_CLIP, DMCP_SPAWN_KIND_ITEM},
+    {"Bullets", MT_CLIP, DMCP_SPAWN_KIND_ITEM},
+    {"BoxOfBullets", MT_MISC17, DMCP_SPAWN_KIND_ITEM},
+    {"Box of Bullets", MT_MISC17, DMCP_SPAWN_KIND_ITEM},
+    {"Shells", MT_MISC22, DMCP_SPAWN_KIND_ITEM},
+    {"Shell", MT_MISC22, DMCP_SPAWN_KIND_ITEM},
+    {"BoxOfShells", MT_MISC23, DMCP_SPAWN_KIND_ITEM},
+    {"Box of Shells", MT_MISC23, DMCP_SPAWN_KIND_ITEM},
+    {"RocketAmmo", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
+    {"Rocket", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
+    {"Rockets", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
+    {"Rocket Ammo", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
+    {"BoxOfRockets", MT_MISC19, DMCP_SPAWN_KIND_ITEM},
+    {"Box of Rockets", MT_MISC19, DMCP_SPAWN_KIND_ITEM},
+    {"Cell", MT_MISC20, DMCP_SPAWN_KIND_ITEM},
+    {"Cells", MT_MISC20, DMCP_SPAWN_KIND_ITEM},
+    {"CellPack", MT_MISC21, DMCP_SPAWN_KIND_ITEM},
+    {"Cell Pack", MT_MISC21, DMCP_SPAWN_KIND_ITEM},
+
+    // Health / armor / powerups
+    {"Stimpack", MT_MISC10, DMCP_SPAWN_KIND_ITEM},
+    {"Medikit", MT_MISC11, DMCP_SPAWN_KIND_ITEM},
+    {"SoulSphere", MT_MISC12, DMCP_SPAWN_KIND_ITEM},
+    {"Soul Sphere", MT_MISC12, DMCP_SPAWN_KIND_ITEM},
+    {"MegaSphere", MT_MEGA, DMCP_SPAWN_KIND_ITEM},
+    {"Mega Sphere", MT_MEGA, DMCP_SPAWN_KIND_ITEM},
+    {"GreenArmor", MT_MISC0, DMCP_SPAWN_KIND_ITEM},
+    {"Green Armor", MT_MISC0, DMCP_SPAWN_KIND_ITEM},
+    {"BlueArmor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
+    {"Blue Armor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
+    {"MegaArmor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
+    {"Backpack", MT_MISC24, DMCP_SPAWN_KIND_ITEM},
+    {"Invulnerability", MT_INV, DMCP_SPAWN_KIND_ITEM},
+    {"Berserk", MT_MISC13, DMCP_SPAWN_KIND_ITEM},
+    {"Invisibility", MT_INS, DMCP_SPAWN_KIND_ITEM},
+    {"RadiationSuit", MT_MISC14, DMCP_SPAWN_KIND_ITEM},
+    {"Radiation Suit", MT_MISC14, DMCP_SPAWN_KIND_ITEM},
+    {"ComputerMap", MT_MISC15, DMCP_SPAWN_KIND_ITEM},
+    {"Computer Map", MT_MISC15, DMCP_SPAWN_KIND_ITEM},
+    {"LightAmp", MT_MISC16, DMCP_SPAWN_KIND_ITEM},
+    {"Light Amp", MT_MISC16, DMCP_SPAWN_KIND_ITEM},
+};
+
+static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_type,
+                                    dmcp_spawn_kind_t* out_kind) {
+  size_t i;
+
+  if (!entity_class || !entity_class[0] || !out_type || !out_kind) {
     return false;
   }
 
-  if (dmcp_str_equals_ci(entity_class, "Imp") || dmcp_str_equals_ci(entity_class, "DoomImp")) {
-    *out_type = MT_TROOP;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Zombieman") || dmcp_str_equals_ci(entity_class, "Zombie")) {
-    *out_type = MT_POSSESSED;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "ShotgunGuy") ||
-      dmcp_str_equals_ci(entity_class, "Shotgun Guy")) {
-    *out_type = MT_SHOTGUY;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Demon") || dmcp_str_equals_ci(entity_class, "Pinky")) {
-    *out_type = MT_SERGEANT;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Spectre")) {
-    *out_type = MT_SHADOWS;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Cacodemon")) {
-    *out_type = MT_HEAD;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "BaronOfHell") ||
-      dmcp_str_equals_ci(entity_class, "Baron of Hell")) {
-    *out_type = MT_BRUISER;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "HellKnight") ||
-      dmcp_str_equals_ci(entity_class, "Hell Knight")) {
-    *out_type = MT_KNIGHT;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "LostSoul") ||
-      dmcp_str_equals_ci(entity_class, "Lost Soul")) {
-    *out_type = MT_SKULL;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Arachnotron")) {
-    *out_type = MT_BABY;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "PainElemental") ||
-      dmcp_str_equals_ci(entity_class, "Pain Elemental")) {
-    *out_type = MT_PAIN;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Revenant")) {
-    *out_type = MT_UNDEAD;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Mancubus")) {
-    *out_type = MT_FATSO;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Archvile") ||
-      dmcp_str_equals_ci(entity_class, "Arch-vile")) {
-    *out_type = MT_VILE;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "SpiderMastermind") ||
-      dmcp_str_equals_ci(entity_class, "Spider Mastermind")) {
-    *out_type = MT_SPIDER;
-    return true;
-  }
-  if (dmcp_str_equals_ci(entity_class, "Cyberdemon")) {
-    *out_type = MT_CYBORG;
-    return true;
+  for (i = 0; i < sizeof(k_spawn_mappings) / sizeof(k_spawn_mappings[0]); ++i) {
+    if (dmcp_str_equals_ci(entity_class, k_spawn_mappings[i].name)) {
+      *out_type = k_spawn_mappings[i].type;
+      *out_kind = k_spawn_mappings[i].kind;
+      return true;
+    }
   }
 
   return false;
+}
+
+static bool dmcp_has_required_sound_lump(int sound_id) {
+  char lump_name[11];
+
+  if (sound_id <= 0 || sound_id >= NUMSFX) {
+    return true;
+  }
+
+  if (!S_sfx[sound_id].name[0]) {
+    return true;
+  }
+
+  snprintf(lump_name, sizeof(lump_name), "DS%.8s", S_sfx[sound_id].name);
+  return W_CheckNumForName(lump_name) >= 0;
+}
+
+static bool dmcp_spawn_assets_available(mobjtype_t type) {
+  const mobjinfo_t*  info;
+  const state_t*     spawn_state;
+  const spritedef_t* sprite;
+  int                frame_index;
+  int                rot;
+
+  if (type < 0 || type >= NUMMOBJTYPES) {
+    return false;
+  }
+
+  info = &mobjinfo[type];
+  if (info->spawnstate < 0 || info->spawnstate >= NUMSTATES) {
+    return false;
+  }
+
+  spawn_state = &states[info->spawnstate];
+  if (spawn_state->sprite < 0 || spawn_state->sprite >= numsprites || !sprites) {
+    return false;
+  }
+
+  sprite = &sprites[spawn_state->sprite];
+  if (!sprite->spriteframes || sprite->numframes <= 0) {
+    return false;
+  }
+
+  frame_index = spawn_state->frame & 0x7fff;
+  if (frame_index < 0 || frame_index >= sprite->numframes) {
+    return false;
+  }
+
+  for (rot = 0; rot < 8; ++rot) {
+    if (sprite->spriteframes[frame_index].lump[rot] >= 0) {
+      break;
+    }
+  }
+
+  if (rot == 8) {
+    return false;
+  }
+
+  if (!dmcp_has_required_sound_lump(info->seesound) ||
+      !dmcp_has_required_sound_lump(info->activesound) ||
+      !dmcp_has_required_sound_lump(info->painsound) ||
+      !dmcp_has_required_sound_lump(info->deathsound)) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool dmcp_spawn_position_in_bounds(mobjtype_t type, fixed_t x, fixed_t y) {
+  int     radius;
+  int64_t min_x;
+  int64_t min_y;
+  int64_t max_x;
+  int64_t max_y;
+  int64_t left;
+  int64_t right;
+  int64_t bottom;
+  int64_t top;
+
+  if (type < 0 || type >= NUMMOBJTYPES) {
+    return false;
+  }
+
+  // Blockmap bounds are authoritative map-space limits for collision queries.
+  if (bmapwidth <= 0 || bmapheight <= 0) {
+    return true;
+  }
+
+  radius = mobjinfo[type].radius;
+  min_x  = (int64_t)bmaporgx;
+  min_y  = (int64_t)bmaporgy;
+  max_x  = min_x + (int64_t)bmapwidth * (int64_t)MAPBLOCKSIZE;
+  max_y  = min_y + (int64_t)bmapheight * (int64_t)MAPBLOCKSIZE;
+
+  left   = (int64_t)x - (int64_t)radius;
+  right  = (int64_t)x + (int64_t)radius;
+  bottom = (int64_t)y - (int64_t)radius;
+  top    = (int64_t)y + (int64_t)radius;
+
+  if (left < min_x || right >= max_x || bottom < min_y || top >= max_y) {
+    return false;
+  }
+
+  return true;
 }
 
 static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
@@ -236,21 +404,47 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
     player->ammo[am_clip] = dmcp_clamp_int(player->ammo[am_clip], 0, player->maxammo[am_clip]);
     return true;
   }
+  if (dmcp_str_equals_ci(give->item_class, "BoxOfBullets") ||
+      dmcp_str_equals_ci(give->item_class, "Box of Bullets")) {
+    player->ammo[am_clip] += 50 * amount;
+    player->ammo[am_clip] = dmcp_clamp_int(player->ammo[am_clip], 0, player->maxammo[am_clip]);
+    return true;
+  }
   if (dmcp_str_equals_ci(give->item_class, "Shell") ||
       dmcp_str_equals_ci(give->item_class, "Shells")) {
     player->ammo[am_shell] += 4 * amount;
     player->ammo[am_shell] = dmcp_clamp_int(player->ammo[am_shell], 0, player->maxammo[am_shell]);
     return true;
   }
+  if (dmcp_str_equals_ci(give->item_class, "BoxOfShells") ||
+      dmcp_str_equals_ci(give->item_class, "Box of Shells")) {
+    player->ammo[am_shell] += 20 * amount;
+    player->ammo[am_shell] = dmcp_clamp_int(player->ammo[am_shell], 0, player->maxammo[am_shell]);
+    return true;
+  }
   if (dmcp_str_equals_ci(give->item_class, "Rocket") ||
-      dmcp_str_equals_ci(give->item_class, "Rockets")) {
+      dmcp_str_equals_ci(give->item_class, "Rockets") ||
+      dmcp_str_equals_ci(give->item_class, "RocketAmmo") ||
+      dmcp_str_equals_ci(give->item_class, "Rocket Ammo")) {
     player->ammo[am_misl] += amount;
+    player->ammo[am_misl] = dmcp_clamp_int(player->ammo[am_misl], 0, player->maxammo[am_misl]);
+    return true;
+  }
+  if (dmcp_str_equals_ci(give->item_class, "BoxOfRockets") ||
+      dmcp_str_equals_ci(give->item_class, "Box of Rockets")) {
+    player->ammo[am_misl] += 5 * amount;
     player->ammo[am_misl] = dmcp_clamp_int(player->ammo[am_misl], 0, player->maxammo[am_misl]);
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "Cell") ||
       dmcp_str_equals_ci(give->item_class, "Cells")) {
     player->ammo[am_cell] += 20 * amount;
+    player->ammo[am_cell] = dmcp_clamp_int(player->ammo[am_cell], 0, player->maxammo[am_cell]);
+    return true;
+  }
+  if (dmcp_str_equals_ci(give->item_class, "CellPack") ||
+      dmcp_str_equals_ci(give->item_class, "Cell Pack")) {
+    player->ammo[am_cell] += 100 * amount;
     player->ammo[am_cell] = dmcp_clamp_int(player->ammo[am_cell], 0, player->maxammo[am_cell]);
     return true;
   }
@@ -329,23 +523,41 @@ static mobj_t* dmcp_find_enemy_by_id(int enemy_id) {
 }
 
 static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn) {
-  mobjtype_t type;
-  mobj_t*    spawned;
-  fixed_t    x;
-  fixed_t    y;
+  mobjtype_t        type;
+  dmcp_spawn_kind_t kind;
+  mobj_t*           spawned;
+  fixed_t           x;
+  fixed_t           y;
 
   if (!spawn || gamestate != GS_LEVEL) {
     return false;
   }
-  if (!dmcp_resolve_spawn_type(spawn->entity_class, &type)) {
-    return false;
-  }
-  if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
+  if (!dmcp_resolve_spawn_type(spawn->entity_class, &type, &kind)) {
     return false;
   }
 
-  x = dmcp_float_to_fixed(spawn->position.x);
-  y = dmcp_float_to_fixed(spawn->position.y);
+  if (kind == DMCP_SPAWN_KIND_ENEMY) {
+    if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
+      return false;
+    }
+  } else {
+    if (!dmcp_is_item_available(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
+      return false;
+    }
+  }
+
+  if (!dmcp_spawn_assets_available(type)) {
+    return false;
+  }
+
+  if (!dmcp_float_to_fixed_checked(spawn->position.x, &x) ||
+      !dmcp_float_to_fixed_checked(spawn->position.y, &y)) {
+    return false;
+  }
+
+  if (!dmcp_spawn_position_in_bounds(type, x, y)) {
+    return false;
+  }
 
   spawned = P_SpawnMobj(x, y, ONFLOORZ, type);
   if (!spawned) {

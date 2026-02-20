@@ -91,6 +91,17 @@ static yyjson_mut_val* item_to_json(yyjson_mut_doc* doc, const dmcp_item_t& i) {
   return obj;
 }
 
+static yyjson_mut_val* entity_to_json(yyjson_mut_doc* doc, const dmcp_entity_t& e) {
+  yyjson_mut_val* obj = yyjson_mut_obj(doc);
+  yyjson_mut_obj_add_sint(doc, obj, "id", e.id);
+  yyjson_mut_obj_add_sint(doc, obj, "hp", e.hp);
+  yyjson_mut_obj_add_sint(doc, obj, "max_hp", e.max_hp);
+  yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, e.position));
+  yyjson_mut_obj_add_real(doc, obj, "angle", e.angle);
+  yyjson_mut_obj_add_str(doc, obj, "type", e.type);
+  return obj;
+}
+
 std::string snapshot_to_json(const dmcp_snapshot_t& snapshot) {
   yyjson_mut_doc* doc  = yyjson_mut_doc_new(nullptr);
   yyjson_mut_val* root = yyjson_mut_obj(doc);
@@ -106,6 +117,13 @@ std::string snapshot_to_json(const dmcp_snapshot_t& snapshot) {
   }
   yyjson_mut_obj_add_val(doc, root, "enemies", enemies);
   yyjson_mut_obj_add_uint(doc, root, "enemy_count", snapshot.enemy_count);
+
+  yyjson_mut_val* entities = yyjson_mut_arr(doc);
+  for (std::uint32_t i = 0; i < snapshot.entity_count; i++) {
+    yyjson_mut_arr_append(entities, entity_to_json(doc, snapshot.entities[i]));
+  }
+  yyjson_mut_obj_add_val(doc, root, "entities", entities);
+  yyjson_mut_obj_add_uint(doc, root, "entity_count", snapshot.entity_count);
 
   yyjson_mut_val* inventory = yyjson_mut_arr(doc);
   for (std::uint32_t i = 0; i < snapshot.inventory_count; i++) {

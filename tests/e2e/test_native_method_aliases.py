@@ -16,10 +16,16 @@ def call_rpc(port: int, method: str, params: dict, request_id: int = 1) -> dict:
     return response.json()
 
 
-def get_state(port: int, request_id: int = 1) -> dict:
-    data = call_rpc(port, "get_game_state", {}, request_id=request_id)
+def get_player_state(port: int, request_id: int = 1) -> dict:
+    data = call_rpc(port, "get_player", {}, request_id=request_id)
     assert "error" not in data
-    return data.get("result", {})
+    return data.get("result", {}).get("player", {})
+
+
+def get_map_state(port: int, request_id: int = 1) -> dict:
+    data = call_rpc(port, "get_map", {}, request_id=request_id)
+    assert "error" not in data
+    return data.get("result", {}).get("map", {})
 
 
 def get_command_result(port: int, sequence: int, request_id: int = 1) -> dict:
@@ -42,14 +48,12 @@ def wait_for(predicate, timeout: float = 2.0, interval: float = 0.05) -> bool:
     return False
 
 
-def test_direct_get_game_state_method(fresh_game):
-    data = call_rpc(fresh_game.config.port, "get_game_state", {}, request_id=101)
+def test_direct_get_player_method(fresh_game):
+    data = call_rpc(fresh_game.config.port, "get_player", {}, request_id=101)
 
     assert "error" not in data
     result = data.get("result", {})
     assert "player" in result
-    assert "level" in result
-    assert "game" in result
     assert isinstance(result.get("player", {}).get("hp"), int)
 
 
@@ -60,7 +64,9 @@ def test_tools_list_exposes_command_tools(fresh_game):
     tools = data.get("result", {}).get("tools", [])
     names = {tool.get("name") for tool in tools}
 
-    assert "get_game_state" in names
+    assert "get_player" in names
+    assert "get_map" in names
+    assert "get_entities" in names
     assert "execute_command" in names
     assert "get_command_result" in names
     assert "spawn_entity" in names
@@ -100,9 +106,7 @@ def test_set_player_health_applies_points_value(doom_instance):
         )
         assert "error" not in pause_data
         assert wait_for(
-            lambda: bool(
-                get_state(port, request_id=3000).get("level", {}).get("paused")
-            )
+            lambda: bool(get_map_state(port, request_id=3000).get("paused"))
         )
 
         data = call_rpc(
@@ -115,9 +119,7 @@ def test_set_player_health_applies_points_value(doom_instance):
 
         assert wait_for(
             lambda: (
-                40
-                <= int(get_state(port, request_id=302).get("player", {}).get("hp", -1))
-                <= 60
+                40 <= int(get_player_state(port, request_id=302).get("hp", -1)) <= 60
             )
         )
 
@@ -142,9 +144,7 @@ def test_set_player_health_accepts_fractional_percentage(doom_instance):
         )
         assert "error" not in pause_data
         assert wait_for(
-            lambda: bool(
-                get_state(port, request_id=3021).get("level", {}).get("paused")
-            )
+            lambda: bool(get_map_state(port, request_id=3021).get("paused"))
         )
 
         data = call_rpc(
@@ -157,9 +157,7 @@ def test_set_player_health_accepts_fractional_percentage(doom_instance):
 
         assert wait_for(
             lambda: (
-                40
-                <= int(get_state(port, request_id=304).get("player", {}).get("hp", -1))
-                <= 60
+                40 <= int(get_player_state(port, request_id=304).get("hp", -1)) <= 60
             )
         )
 
@@ -184,10 +182,7 @@ def test_pause_game_alias_controls_pause_state(doom_instance):
         )
         assert "error" not in pause_data
         assert wait_for(
-            lambda: (
-                bool(get_state(port, request_id=306).get("level", {}).get("paused"))
-                is True
-            )
+            lambda: bool(get_map_state(port, request_id=306).get("paused")) is True
         )
 
         unpause_data = call_rpc(
@@ -198,10 +193,7 @@ def test_pause_game_alias_controls_pause_state(doom_instance):
         )
         assert "error" not in unpause_data
         assert wait_for(
-            lambda: (
-                bool(get_state(port, request_id=308).get("level", {}).get("paused"))
-                is False
-            )
+            lambda: bool(get_map_state(port, request_id=308).get("paused")) is False
         )
 
 
@@ -240,7 +232,7 @@ def test_get_command_result_reports_failure(doom_instance):
         queued = call_rpc(
             port,
             "execute_command",
-            {"type": "set_timescale", "scale": 1.5},
+            {"type": "kill_entity", "target_tid": 99999},
             request_id=410,
         )
         assert "error" not in queued

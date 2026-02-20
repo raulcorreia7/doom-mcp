@@ -1,6 +1,6 @@
 #!/bin/bash
-# Run headless Chocolate Doom with DMCP for e2e testing
-# Requires: chocolate-doom built with DMCP adapter
+# Run headless Doom engine with DMCP for e2e testing
+# Supports: chocolate-doom, crispy-doom
 
 set -e
 
@@ -8,11 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DMCP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WAD_DIR="$DMCP_ROOT/assets/wads"
 WAD_FILE="$WAD_DIR/doom1.wad"
-BUILD_DIR="$DMCP_ROOT/chocolate-doom/build"
-DOOM_BIN="$BUILD_DIR/src/chocolate-doom"
+BUILD_DIR=""
+DOOM_BIN=""
 LOG_FILE="$SCRIPT_DIR/headless.log"
 DMCP_PORT="${DMCP_PORT:-6060}"
 MAX_START_ATTEMPTS="${DMCP_START_ATTEMPTS:-5}"
+DOOM_ENGINE="${DOOM_ENGINE:-chocolate}"
+ENGINE_NAME=""
 DOOM_PID=""
 
 # Colors
@@ -36,6 +38,22 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+case "$DOOM_ENGINE" in
+chocolate)
+	ENGINE_NAME="Chocolate Doom"
+	BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/chocolate-doom/build}"
+	DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/chocolate-doom}"
+	;;
+crispy)
+	ENGINE_NAME="Crispy Doom"
+	BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
+	DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/crispy-doom}"
+	;;
+*)
+	fail "Unsupported DOOM_ENGINE '$DOOM_ENGINE' (use 'chocolate' or 'crispy')"
+	;;
+esac
 
 pretty_json() {
 	if command -v python3 >/dev/null 2>&1; then
@@ -121,12 +139,12 @@ if [ ! -f "$WAD_FILE" ]; then
 	"$SCRIPT_DIR/download_wad.sh"
 fi
 
-# Step 2: Check Chocolate Doom binary
+# Step 2: Check engine binary
 if [ ! -f "$DOOM_BIN" ]; then
-	warn "Chocolate Doom not built yet"
+	warn "$ENGINE_NAME not built yet"
 	echo ""
-	echo "To build Chocolate Doom with DMCP:"
-	echo "  1. cd $DMCP_ROOT/chocolate-doom"
+	echo "To build $ENGINE_NAME with DMCP:"
+	echo "  1. cd $DMCP_ROOT/$DOOM_ENGINE-doom"
 	echo "  2. Apply patches from adapters/chocolate-doom/README.md"
 	echo "  3. cmake -B build -DDMCP_INCLUDE_DIR=$DMCP_ROOT/include -DDMCP_LIB_DIR=$DMCP_ROOT/build"
 	echo "  4. cmake --build build"
@@ -134,7 +152,7 @@ if [ ! -f "$DOOM_BIN" ]; then
 fi
 
 # Step 3: Run headless
-echo "Starting Chocolate Doom (headless)..."
+echo "Starting $ENGINE_NAME (headless)..."
 echo "  WAD: $WAD_FILE"
 echo "  DMCP Port: $DMCP_PORT"
 echo "  Log: output not redirected (stability)"
@@ -228,8 +246,8 @@ echo "Test 3: Tools list"
 TOOLS=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
 	-d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
-if echo "$TOOLS" | grep -q 'get_game_state'; then
-	pass "Tools list contains get_game_state"
+if echo "$TOOLS" | grep -q 'get_player'; then
+	pass "Tools list contains get_player"
 	printf '%s\n' "$TOOLS" | pretty_json
 else
 	echo "Tools list response:"
@@ -245,33 +263,33 @@ else
 	fail "Tools list missing spawn_entity"
 fi
 
-# Test 4: Get game state
+# Test 4: Get player state
 echo ""
-echo "Test 4: Get game state"
+echo "Test 4: Get player state"
 STATE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_game_state"}}')
+	-d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_player"}}')
 if printf '%s\n' "$STATE" | game_state_has_player; then
-	pass "Game state contains player data"
+	pass "Player state contains player data"
 	printf '%s\n' "$STATE" | print_game_state_pretty
 else
-	echo "Game state response:"
+	echo "Player state response:"
 	printf '%s\n' "$STATE" | print_game_state_pretty
-	warn "Game state may be empty (game not started)"
+	warn "Player state may be empty (game not started)"
 fi
 
-# Test 5: Direct method alias (get_game_state)
+# Test 5: Direct method alias (get_player)
 echo ""
-echo "Test 5: Direct JSON-RPC get_game_state"
+echo "Test 5: Direct JSON-RPC get_player"
 STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":4,"method":"get_game_state","params":{}}')
+	-d '{"jsonrpc":"2.0","id":4,"method":"get_player","params":{}}')
 if echo "$STATE_NATIVE" | grep -q '"result"'; then
-	pass "Direct method get_game_state is available"
+	pass "Direct method get_player is available"
 else
-	echo "Direct get_game_state response:"
+	echo "Direct get_player response:"
 	printf '%s\n' "$STATE_NATIVE" | pretty_json
-	fail "Direct get_game_state method failed"
+	fail "Direct get_player method failed"
 fi
 
 # Test 6: Direct method alias (execute_command)
@@ -342,7 +360,7 @@ pass "5 concurrent requests completed"
 
 # Cleanup
 echo ""
-echo "Stopping Chocolate Doom..."
+echo "Stopping $ENGINE_NAME..."
 cleanup
 DOOM_PID=""
 

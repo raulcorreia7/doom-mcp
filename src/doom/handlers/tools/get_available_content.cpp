@@ -1,6 +1,9 @@
 #include "tools.hpp"
 #include "dmcp/adapter/content.h"
 
+#include <string>
+#include <vector>
+
 namespace dmcp {
 
 static json_builder build_content_array(const char* const* items, size_t count,
@@ -20,17 +23,52 @@ static json_builder build_content_array(const char* const* items, size_t count,
 
 namespace {
 
+struct game_mode_resolution {
+  dmcp_gamemode_t mode;
+  const char*     source;
+};
+
+const char* game_mode_to_string(dmcp_gamemode_t mode) {
+  switch (mode) {
+    case DMCP_GAMEMODE_SHAREWARE:
+      return "shareware";
+    case DMCP_GAMEMODE_REGISTERED:
+      return "registered";
+    case DMCP_GAMEMODE_COMMERCIAL:
+      return "commercial";
+    case DMCP_GAMEMODE_RETAIL:
+      return "retail";
+    default:
+      return "unknown";
+  }
+}
+
+void push_unique_string(json_builder* arr, std::vector<std::string>* seen, const char* value) {
+  if (!arr || !seen || !value || value[0] == '\0') {
+    return;
+  }
+
+  for (const std::string& existing : *seen) {
+    if (existing == value) {
+      return;
+    }
+  }
+
+  seen->emplace_back(value);
+  arr->push(value);
+}
+
 // Parse game mode from string
 static dmcp_gamemode_t parse_game_mode(std::string_view mode_str) {
   if (mode_str == "shareware") return DMCP_GAMEMODE_SHAREWARE;
   if (mode_str == "registered") return DMCP_GAMEMODE_REGISTERED;
   if (mode_str == "commercial" || mode_str == "doom2") return DMCP_GAMEMODE_COMMERCIAL;
   if (mode_str == "retail" || mode_str == "ultimate") return DMCP_GAMEMODE_RETAIL;
-  return DMCP_GAMEMODE_RETAIL;
+  return DMCP_GAMEMODE_UNKNOWN;
 }
 
 // Get game mode from snapshot, fallback to parameter, then retail
-static dmcp_gamemode_t determine_game_mode(context* ctx, const json_value& params) {
+static game_mode_resolution determine_game_mode(context* ctx, const json_value& params) {
   // First priority: use actual game mode from snapshot
   dmcp_gamemode_t snapshot_mode = DMCP_GAMEMODE_UNKNOWN;
   {
@@ -39,7 +77,7 @@ static dmcp_gamemode_t determine_game_mode(context* ctx, const json_value& param
     if (game.version[0] != '\0') {
       snapshot_mode = parse_game_mode(game.version);
       if (snapshot_mode != DMCP_GAMEMODE_UNKNOWN) {
-        return snapshot_mode;
+        return {snapshot_mode, "snapshot"};
       }
     }
   }
@@ -51,13 +89,13 @@ static dmcp_gamemode_t determine_game_mode(context* ctx, const json_value& param
     if (mode_val.is_string()) {
       dmcp_gamemode_t param_mode = parse_game_mode(mode_val.get_string());
       if (param_mode != DMCP_GAMEMODE_UNKNOWN) {
-        return param_mode;
+        return {param_mode, "parameter"};
       }
     }
   }
 
   // Final fallback: retail mode
-  return DMCP_GAMEMODE_RETAIL;
+  return {DMCP_GAMEMODE_RETAIL, "fallback"};
 }
 
 }  // namespace
@@ -66,7 +104,14 @@ bool handle_tool_get_available_content(context* ctx, const json_value& params,
                                        char* response_buffer, size_t response_size) {
   dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_available_content");
 
-  dmcp_gamemode_t mode = determine_game_mode(ctx, params);
+  const game_mode_resolution mode_info = determine_game_mode(ctx, params);
+  const dmcp_gamemode_t      mode      = mode_info.mode;
+
+  dmcp_snapshot_t snapshot{};
+  {
+    std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
+    snapshot = ctx->last_snapshot;
+  }
 
   json_builder result;
   result.start_object();
@@ -96,24 +141,31 @@ bool handle_tool_get_available_content(context* ctx, const json_value& params,
     result.add("maps", std::move(maps));
   }
 
-  const char* mode_str = "retail";
-  switch (mode) {
-    case DMCP_GAMEMODE_SHAREWARE:
-      mode_str = "shareware";
-      break;
-    case DMCP_GAMEMODE_REGISTERED:
-      mode_str = "registered";
-      break;
-    case DMCP_GAMEMODE_COMMERCIAL:
-      mode_str = "commercial";
-      break;
-    case DMCP_GAMEMODE_RETAIL:
-      mode_str = "retail";
-      break;
-    default:
-      break;
+  result.add("game_mode", game_mode_to_string(mode));
+  result.add("game_mode_source", mode_info.source);
+
+  if (snapshot.level.level_id[0] != '\0') {
+    result.add("current_level", snapshot.level.level_id);
   }
-  result.add("game_mode", mode_str);
+
+  json_builder observed_enemies;
+  observed_enemies.start_array();
+  std::vector<std::string> seen_enemies;
+  for (uint32_t i = 0; i < snapshot.enemy_count; ++i) {
+    push_unique_string(&observed_enemies, &seen_enemies, snapshot.enemies[i].type);
+  }
+  result.add("observed_enemies", std::move(observed_enemies));
+
+  json_builder observed_items;
+  observed_items.start_array();
+  std::vector<std::string> seen_items;
+  for (uint32_t i = 0; i < snapshot.inventory_count; ++i) {
+    push_unique_string(&observed_items, &seen_items, snapshot.inventory[i].name);
+  }
+  result.add("observed_items", std::move(observed_items));
+  result.add("catalog_scope", "base-content-catalog");
+  result.add("custom_content_policy",
+             "Unknown custom content may still be executable; validate via command results");
 
   const std::string payload = result.finish();
   const std::string resp    = build_content_response(payload, false);

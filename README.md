@@ -42,7 +42,10 @@ cmake --build build-shared -j$(nproc)
 
 ```bash
 make help          # Show all targets
-make build         # Build (release)
+make dmcp          # Build DMCP core (default)
+make all           # Build DMCP + Chocolate Doom
+make chocolate-doom # Build Chocolate Doom with DMCP
+make crispy-doom   # Build Crispy Doom with DMCP
 make debug         # Build with sanitizers
 make test          # Run unit tests
 make check         # Build + test (full verification)
@@ -105,6 +108,10 @@ For GZDoom/ZDoom-based source ports.
 
 ### Chocolate Doom Adapter (`adapters/chocolate-doom/`)
 For vanilla-accurate Chocolate Doom. Includes headless testing support.
+
+### Crispy Doom Support
+Crispy Doom can be built with the same DMCP adapter integration flow as Chocolate Doom.
+Use `make crispy-doom` and `DOOM_ENGINE=crispy tests/integration/run_headless.sh`.
 
 ## API Endpoints
 
@@ -197,8 +204,8 @@ Response:
   "result": {
     "tools": [
       {
-        "name": "get_game_state",
-        "description": "Get current game state including player position, health, enemies",
+        "name": "get_player",
+        "description": "Get current player state only",
         "inputSchema": {"type": "object", "properties": {}}
       },
       {
@@ -223,7 +230,7 @@ Response:
 }
 ```
 
-#### 4. Get Game State
+#### 4. Get Player State
 
 ```bash
 curl -X POST http://localhost:6060/mcp \
@@ -232,7 +239,7 @@ curl -X POST http://localhost:6060/mcp \
     "jsonrpc": "2.0",
     "id": 3,
     "method": "tools/call",
-    "params": {"name": "get_game_state"}
+    "params": {"name": "get_player"}
   }'
 ```
 
@@ -244,7 +251,7 @@ Response (truncated):
   "result": {
     "content": [{
       "type": "text",
-      "text": "{\"player\":{\"hp\":100,...}, \"level\":{...}, \"enemies\":[...]}"
+      "text": "{\"player\":{\"hp\":100,...}}"
     }]
   }
 }
@@ -278,13 +285,17 @@ curl -X POST http://localhost:6060/mcp \
 The server also accepts direct method calls for agentic clients that do not use
 `tools/call` wrappers.
 
+Additional direct state methods are also available:
+`get_player`, `get_enemies`, `get_entities`, `get_map`, `get_level`, `get_inventory`,
+`get_game_info`, `get_game`, and `get_state`.
+
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": 41,
-    "method": "get_game_state",
+    "method": "get_player",
     "params": {}
   }'
 ```
@@ -351,13 +362,13 @@ class DMCPClient:
         resp = requests.post(self.mcp_url, json=payload)
         return resp.json()
     
-    def get_game_state(self):
-        """Get current game state"""
+    def get_player(self):
+        """Get current player state"""
         payload = {
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
-            "params": {"name": "get_game_state"}
+            "params": {"name": "get_player"}
         }
         resp = requests.post(self.mcp_url, json=payload)
         result = resp.json()
@@ -377,7 +388,7 @@ class DMCPClient:
 # Usage
 client = DMCPClient()
 print(client.health_check())  # {'status': 'ok', 'clients': 0}
-print(client.get_game_state())  # Full game state
+print(client.get_player())  # Player state
 ```
 
 ### MCP Client Configuration
@@ -398,13 +409,17 @@ First start the Doom engine with DMCP enabled (see [docs/INTEGRATION.md](docs/IN
 
 ## Available Tools
 
-### `get_game_state`
+### Granular State Tools
 
-Returns the complete game state including:
-- **Player**: Health, armor, position, weapons, ammo, powerups, keys
-- **Level**: Current map, time, skill, kill/item/secret counts
-- **Game**: Mode (single_player/cooperative/deathmatch), respawn settings
-- **Enemies**: Array of visible enemies with position, health, type
+For agent loops that need focused, low-overhead reads:
+
+- `get_player` - Player-only state
+- `get_enemies` - Enemy list with pagination (`offset`, `limit`)
+- `get_entities` - Interactive world entities (pickups/barrels, no projectiles/decor) (`offset`, `limit`)
+- `get_map` / `get_level` - Current map/level details
+- `get_inventory` - Inventory list with pagination (`offset`, `limit`)
+- `get_game_info` / `get_game` - Runtime mode/version metadata
+- `get_state` - Unified section query (`section: player|enemies|entities|map|inventory|game`)
 
 ### `get_screenshot`
 
@@ -423,7 +438,6 @@ Queue a command to be executed by the game:
 | `set_player_position` | Move player | `x`, `y`, `angle` |
 | `execute_console` | Run engine console command | `command` |
 | `pause_game` | Pause/unpause game | `paused` |
-| `set_timescale` | Adjust simulation speed | `scale` |
 | `damage_entity` | Damage specific target | `target_tid`, `damage`, `damage_type` |
 | `kill_entity` | Kill specific target | `target_tid` |
 

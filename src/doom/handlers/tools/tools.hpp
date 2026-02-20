@@ -37,7 +37,19 @@ bool write_route_response(std::string_view json, int status, char* response_buff
 std::string build_route_error(std::string_view code, std::string_view message);
 
 // Game state
-std::string get_game_state_json(context* ctx);
+dmcp_snapshot_t copy_latest_snapshot(context* ctx);
+std::string     build_player_state_json(const dmcp_snapshot_t& snapshot);
+std::string     build_map_state_json(const dmcp_snapshot_t& snapshot);
+std::string     build_game_info_json(const dmcp_snapshot_t& snapshot);
+std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit);
+std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit);
+std::string build_inventory_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
+                                       size_t limit);
+bool        build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_view section,
+                                        const json_value& args, std::string* out_payload,
+                                        std::string* out_error);
+bool parse_offset_limit_from_json(const json_value& args, size_t total_count, size_t default_limit,
+                                  size_t* out_offset, size_t* out_limit, std::string* out_error);
 
 // Argument extraction
 json_value  extract_tool_arguments(const json_value& params);
@@ -68,7 +80,17 @@ void add_command_tool(json_builder* tools, const char* name, const char* descrip
 // Tool Handlers
 // ============================================================================
 
-bool handle_tool_get_game_state(context* ctx, char* response_buffer, size_t response_size);
+bool handle_tool_get_player(context* ctx, char* response_buffer, size_t response_size);
+bool handle_tool_get_map(context* ctx, char* response_buffer, size_t response_size);
+bool handle_tool_get_game_info(context* ctx, char* response_buffer, size_t response_size);
+bool handle_tool_get_enemies(context* ctx, const json_value& params, char* response_buffer,
+                             size_t response_size);
+bool handle_tool_get_entities(context* ctx, const json_value& params, char* response_buffer,
+                              size_t response_size);
+bool handle_tool_get_inventory(context* ctx, const json_value& params, char* response_buffer,
+                               size_t response_size);
+bool handle_tool_get_state(context* ctx, const json_value& params, char* response_buffer,
+                           size_t response_size);
 bool handle_tool_get_screenshot(context* ctx, char* response_buffer, size_t response_size);
 bool handle_tool_execute_command(context* ctx, const json_value& params, char* response_buffer,
                                  size_t response_size);
@@ -87,7 +109,13 @@ bool handle_tool_command_alias(context* ctx, const command_tool_definition* comm
 // Schema Builders
 // ============================================================================
 
-json_builder build_get_game_state_schema();
+json_builder build_get_player_schema();
+json_builder build_get_map_schema();
+json_builder build_get_game_info_schema();
+json_builder build_get_enemies_schema();
+json_builder build_get_entities_schema();
+json_builder build_get_inventory_schema();
+json_builder build_get_state_schema();
 json_builder build_get_screenshot_schema();
 json_builder build_execute_command_schema();
 json_builder build_get_command_result_schema();

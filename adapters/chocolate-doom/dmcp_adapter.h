@@ -96,6 +96,10 @@ void dmcp_chocolate_populate_level(dmcp_snapshot_t* snap);
 // Returns number of enemies added
 int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap);
 
+// Populate non-enemy interactive world entities (pickups, barrels)
+// Returns number of entities added
+int dmcp_chocolate_populate_entities(dmcp_snapshot_t* snap);
+
 #ifdef __cplusplus
 }
 #endif

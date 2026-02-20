@@ -94,6 +94,15 @@ typedef struct {
   int32_t amount;
 } dmcp_item_t;
 
+typedef struct {
+  int32_t     id;
+  int32_t     hp;
+  int32_t     max_hp;
+  dmcp_vec3_t position;
+  float       angle;
+  char        type[DMCP_MAX_ENTITY_TYPE];
+} dmcp_entity_t;
+
 typedef struct dmcp_snapshot_t {
   dmcp_player_t player;
   dmcp_level_t  level;
@@ -101,6 +110,9 @@ typedef struct dmcp_snapshot_t {
 
   dmcp_enemy_t enemies[DMCP_MAX_ENEMIES];
   uint32_t     enemy_count;
+
+  dmcp_entity_t entities[DMCP_MAX_ENTITIES];
+  uint32_t      entity_count;
 
   dmcp_item_t inventory[DMCP_MAX_INVENTORY];
   uint32_t    inventory_count;

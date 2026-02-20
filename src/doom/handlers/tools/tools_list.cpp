@@ -11,11 +11,30 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
   json_builder tools;
   tools.start_array();
 
-  json_builder get_game_state_schema;
-  add_empty_object_schema(&get_game_state_schema);
-  add_command_tool(&tools, "get_game_state",
-                   "Get current game state including player position, health, enemies",
-                   std::move(get_game_state_schema));
+  add_command_tool(&tools, "get_player", "Get current player state only",
+                   build_get_player_schema());
+
+  add_command_tool(&tools, "get_enemies", "Get enemy list with pagination",
+                   build_get_enemies_schema());
+
+  add_command_tool(&tools, "get_entities",
+                   "Get interactive world entities (pickups/barrels), paginated",
+                   build_get_entities_schema());
+
+  add_command_tool(&tools, "get_map", "Get current map/level state only", build_get_map_schema());
+
+  add_command_tool(&tools, "get_level", "Alias for get_map", build_get_map_schema());
+
+  add_command_tool(&tools, "get_inventory", "Get inventory list with pagination",
+                   build_get_inventory_schema());
+
+  add_command_tool(&tools, "get_game_info", "Get game mode/version metadata",
+                   build_get_game_info_schema());
+
+  add_command_tool(&tools, "get_game", "Alias for get_game_info", build_get_game_info_schema());
+
+  add_command_tool(&tools, "get_state", "Get selected game state section for agents",
+                   build_get_state_schema());
 
   if (ctx->screenshot.enabled.load()) {
     json_builder screenshot_schema;
@@ -79,12 +98,44 @@ bool handle_tools_call(void* user_data, const char* /*method*/, const char* requ
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  if (tool_name == "get_game_state") {
-    return handle_tool_get_game_state(ctx, response_buffer, response_size);
-  }
-
   if (tool_name == "get_screenshot") {
     return handle_tool_get_screenshot(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_player") {
+    return handle_tool_get_player(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_enemies") {
+    return handle_tool_get_enemies(ctx, params, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_entities") {
+    return handle_tool_get_entities(ctx, params, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_map") {
+    return handle_tool_get_map(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_level") {
+    return handle_tool_get_map(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_inventory") {
+    return handle_tool_get_inventory(ctx, params, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_game_info") {
+    return handle_tool_get_game_info(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_game") {
+    return handle_tool_get_game_info(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_state") {
+    return handle_tool_get_state(ctx, params, response_buffer, response_size);
   }
 
   if (tool_name == "execute_command") {

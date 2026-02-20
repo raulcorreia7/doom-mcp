@@ -46,6 +46,7 @@ help:
 	@echo "  make test-verbose - Run tests with details"
 	@echo "  make download-wad - Download DOOM shareware"
 	@echo "  make headless     - Run e2e headless tests"
+	@echo "  make headless-crispy - Run e2e headless tests on Crispy"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make run          - Run dummy server"
@@ -59,6 +60,7 @@ help:
 	@echo "Other:"
 	@echo "  make install      - Install to $(PREFIX)"
 	@echo "  make chocolate-doom - Build Chocolate Doom with DMCP"
+	@echo "  make crispy-doom  - Build Crispy Doom with DMCP"
 	@echo "  make info         - Show configuration"
 	@echo "  make compdb       - Generate compile_commands.json"
 
@@ -132,7 +134,7 @@ test-valgrind: configure-tests
 # Integration Tests
 # ==============================================================================
 
-.PHONY: configure-integration download-wad headless
+.PHONY: configure-integration download-wad headless headless-crispy
 configure-integration:
 	cmake -B $(BUILD_DIR) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
@@ -146,6 +148,10 @@ download-wad:
 headless: configure-integration download-wad
 	cmake --build $(BUILD_DIR) -j$(JOBS)
 	@./tests/integration/run_headless.sh
+
+headless-crispy: configure-integration download-wad
+	cmake --build $(BUILD_DIR) -j$(JOBS)
+	@DOOM_ENGINE=crispy ./tests/integration/run_headless.sh
 
 # ==============================================================================
 # Run Server
@@ -241,6 +247,10 @@ CHOCOLATE_SOURCE_DIR ?= chocolate-doom
 
 .PHONY: chocolate-doom chocolate-doom-clean
 chocolate-doom: dmcp
+	@if [ ! -d "$(CHOCOLATE_SOURCE_DIR)" ]; then \
+		echo "error: Chocolate Doom source dir not found: $(CHOCOLATE_SOURCE_DIR)"; \
+		exit 1; \
+	fi
 	@echo "Building Chocolate Doom with DMCP..."
 	@mkdir -p $(CHOCOLATE_BUILD_DIR)
 	@cmake -S $(CHOCOLATE_SOURCE_DIR) -B $(CHOCOLATE_BUILD_DIR) \
@@ -253,6 +263,32 @@ chocolate-doom: dmcp
 
 chocolate-doom-clean:
 	rm -rf $(CHOCOLATE_BUILD_DIR)
+
+# ==============================================================================
+# Crispy Doom
+# ==============================================================================
+
+CRISPY_BUILD_DIR ?= crispy-doom/build
+CRISPY_SOURCE_DIR ?= crispy-doom
+
+.PHONY: crispy-doom crispy-doom-clean
+crispy-doom: dmcp
+	@if [ ! -d "$(CRISPY_SOURCE_DIR)" ]; then \
+		echo "error: Crispy Doom source dir not found: $(CRISPY_SOURCE_DIR)"; \
+		exit 1; \
+	fi
+	@echo "Building Crispy Doom with DMCP..."
+	@mkdir -p $(CRISPY_BUILD_DIR)
+	@cmake -S $(CRISPY_SOURCE_DIR) -B $(CRISPY_BUILD_DIR) \
+		-DDMCP_ENABLE=ON \
+		-DDMCP_INCLUDE_DIR=$$(pwd)/include \
+		-DDMCP_LIB_DIR=$$(pwd)/$(BUILD_DIR)
+	@cmake --build $(CRISPY_BUILD_DIR) -j$(JOBS)
+	@echo ""
+	@echo "Crispy Doom built: $(CRISPY_BUILD_DIR)/src/crispy-doom"
+
+crispy-doom-clean:
+	rm -rf $(CRISPY_BUILD_DIR)
 
 # ==============================================================================
 # Shortcuts

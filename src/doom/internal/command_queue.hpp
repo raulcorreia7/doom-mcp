@@ -1,9 +1,10 @@
 #pragma once
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <mutex>
 #include <optional>
-#include <queue>
+#include <vector>
 
 #include "dmcp/doom/commands.h"
 
@@ -16,7 +17,9 @@ constexpr float    DEFAULT_TIMESCALE      = 1.0f;
 
 class command_queue {
  public:
-  bool push(const dmcp_command_t& cmd, uint64_t* assigned_sequence = nullptr);
+  bool                        push(const dmcp_command_t& cmd, uint64_t* assigned_sequence = nullptr,
+                                   dmcp_command_t* evicted_cmd = nullptr);
+  std::vector<dmcp_command_t> remove_by_type(dmcp_command_type_t type);
   std::optional<dmcp_command_t> pop();
   bool                          empty() const;
   uint32_t                      size() const;
@@ -26,7 +29,7 @@ class command_queue {
   uint32_t max_size = COMMAND_QUEUE_MAX_SIZE;
 
  private:
-  std::queue<dmcp_command_t> queue_;
+  std::deque<dmcp_command_t> queue_;
   mutable std::mutex         mutex_;
   std::atomic<uint64_t>      next_sequence_{1};
   std::atomic<uint32_t>      count_{0};

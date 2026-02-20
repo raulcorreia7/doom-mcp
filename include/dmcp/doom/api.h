@@ -447,6 +447,26 @@ static inline bool dmcp_snapshot_add_enemy(dmcp_snapshot_t* snapshot, const dmcp
 }
 
 /**
+ * @brief Add world entity to snapshot
+ *
+ * Adds a non-enemy world entity (for example pickups or barrels)
+ * to the snapshot entity array.
+ *
+ * @param snapshot Snapshot to add entity to
+ * @param entity Entity data to add
+ * @return true if added successfully, false if full or NULL inputs
+ *
+ * @note Fails silently if snapshot->entity_count >= DMCP_MAX_ENTITIES
+ */
+static inline bool dmcp_snapshot_add_entity(dmcp_snapshot_t*     snapshot,
+                                            const dmcp_entity_t* entity) {
+  if (!snapshot || !entity) return false;
+  if (snapshot->entity_count >= DMCP_MAX_ENTITIES) return false;
+  snapshot->entities[snapshot->entity_count++] = *entity;
+  return true;
+}
+
+/**
  * @brief Add item to inventory
  *
  * Adds an item to the snapshot's inventory array. Checks array bounds

@@ -86,6 +86,7 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
   dmcp_chocolate_populate_player(snap);
   dmcp_chocolate_populate_level(snap);
   dmcp_chocolate_populate_enemies(snap);
+  dmcp_chocolate_populate_entities(snap);
 
   current_gamestate = gamestate;
   if (current_gamestate != ctx->last_gamestate) {

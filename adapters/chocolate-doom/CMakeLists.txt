@@ -4,6 +4,7 @@ set(DMCP_CHOCOLATE_SOURCES
     state_player.c
     state_level.c
     state_enemies.c
+    state_entities.c
     commands.c
 )
 

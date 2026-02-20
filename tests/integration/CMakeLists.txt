@@ -32,3 +32,19 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/chocolate-doom/build/src/chocolate-doom")
         LABELS "integration;e2e;headless"
     )
 endif()
+
+# Add Crispy Doom headless integration test when binary exists
+if(EXISTS "${CMAKE_SOURCE_DIR}/crispy-doom/build/src/crispy-doom")
+    add_test(
+        NAME "Integration: Headless Crispy"
+        COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_headless.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    set_tests_properties("Integration: Headless Crispy" PROPERTIES
+        TIMEOUT 120
+        ENVIRONMENT "DMCP_PORT=7061;DOOM_ENGINE=crispy"
+        RUN_SERIAL TRUE
+        LABELS "integration;e2e;headless;crispy"
+    )
+endif()

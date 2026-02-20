@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "dmcp/doom/api.h"
+#include "dmcp/adapter/content.h"
 #include "dmcp/doom/commands.h"
 #include "dmcp/doom/constants.h"
 #include "dmcp/doom/types.h"
@@ -573,6 +574,74 @@ TEST_CASE("Doom MCP: Constants", "[doom][constants]") {
   SECTION("Max level name length") { REQUIRE(DMCP_MAX_LEVEL_NAME == 96); }
 }
 
+TEST_CASE("Doom MCP: Content availability by mode", "[doom][content]") {
+  SECTION("Shareware blocks entities not present in episode 1") {
+    REQUIRE(dmcp_is_enemy_spawnable("DoomImp", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE(dmcp_is_enemy_spawnable("BaronOfHell", DMCP_GAMEMODE_SHAREWARE));
+
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("Cacodemon", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("LostSoul", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("HellKnight", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("ChaingunGuy", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("BossBrain", DMCP_GAMEMODE_SHAREWARE));
+  }
+
+  SECTION("Registered and retail block Doom 2-only enemies") {
+    REQUIRE(dmcp_is_enemy_spawnable("Cacodemon", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE(dmcp_is_enemy_spawnable("LostSoul", DMCP_GAMEMODE_RETAIL));
+
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("HellKnight", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("Arachnotron", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("Archvile", DMCP_GAMEMODE_RETAIL));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("BossBrain", DMCP_GAMEMODE_RETAIL));
+  }
+
+  SECTION("Commercial mode allows Doom 2-only enemies") {
+    REQUIRE(dmcp_is_enemy_spawnable("HellKnight", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_enemy_spawnable("Arachnotron", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_enemy_spawnable("Archvile", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_enemy_spawnable("BossBrain", DMCP_GAMEMODE_COMMERCIAL));
+  }
+
+  SECTION("Shareware blocks restricted items and maps") {
+    REQUIRE(dmcp_is_item_available("Shells", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_item_available("Cell", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_item_available("CellPack", DMCP_GAMEMODE_SHAREWARE));
+
+    REQUIRE(dmcp_is_map_available("E1M8", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_map_available("E2M1", DMCP_GAMEMODE_SHAREWARE));
+  }
+
+  SECTION("Doom 1 modes block Doom 2-only content") {
+    REQUIRE_FALSE(dmcp_is_weapon_available("SuperShotgun", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_item_available("SuperShotgun", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_map_available("MAP01", DMCP_GAMEMODE_RETAIL));
+
+    REQUIRE(dmcp_is_weapon_available("Shotgun", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE(dmcp_is_item_available("Shells", DMCP_GAMEMODE_RETAIL));
+    REQUIRE(dmcp_is_map_available("E1M1", DMCP_GAMEMODE_REGISTERED));
+  }
+
+  SECTION("Unknown custom content is not blocked preemptively") {
+    REQUIRE(dmcp_is_weapon_available("CustomLaser", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_enemy_spawnable("CustomBoss", DMCP_GAMEMODE_RETAIL));
+    REQUIRE(dmcp_is_item_available("ModOnlyArtifact", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE(dmcp_is_map_available("MAP99", DMCP_GAMEMODE_COMMERCIAL));
+  }
+
+  SECTION("Alias inputs normalize to canonical behavior") {
+    REQUIRE(dmcp_is_enemy_spawnable("Imp", DMCP_GAMEMODE_SHAREWARE) ==
+            dmcp_is_enemy_spawnable("DoomImp", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE(dmcp_is_enemy_spawnable("Hell Knight", DMCP_GAMEMODE_REGISTERED) ==
+            dmcp_is_enemy_spawnable("HellKnight", DMCP_GAMEMODE_REGISTERED));
+
+    REQUIRE(dmcp_is_weapon_available("BFG", DMCP_GAMEMODE_SHAREWARE) ==
+            dmcp_is_weapon_available("BFG9000", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE(dmcp_is_item_available("Cell Pack", DMCP_GAMEMODE_SHAREWARE) ==
+            dmcp_is_item_available("CellPack", DMCP_GAMEMODE_SHAREWARE));
+  }
+}
+
 TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   SECTION("Convert valid snapshot to JSON") {
     dmcp_snapshot_t snapshot = {};
@@ -747,6 +816,7 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
   }
 
   SECTION("Clear commands removes all") {
+    cmd.type = DMCP_CMD_GIVE_ITEM;
     for (int i = 0; i < 5; i++) {
       cmd.sequence = i;
       dmcp_push_command(ctx, &cmd);
@@ -766,7 +836,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
   REQUIRE(ctx != nullptr);
 
   dmcp_command_t cmd = {};
-  cmd.type           = DMCP_CMD_PAUSE_GAME;
+  cmd.type           = DMCP_CMD_GIVE_ITEM;
 
   SECTION("Queue respects max size") {
     int pushed = 0;
@@ -779,8 +849,25 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
         break;
       }
     }
-    REQUIRE(pushed <= 64);
-    REQUIRE(dmcp_command_count(ctx) <= 64);
+    REQUIRE(pushed == 100);
+    REQUIRE(dmcp_command_count(ctx) == 64);
+  }
+
+  SECTION("Overflow drops oldest queued command") {
+    dmcp_command_result_t result = {};
+    for (int i = 0; i < 70; i++) {
+      cmd.sequence = i;
+      REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_RESULT_CODE_OK);
+    }
+
+    REQUIRE(dmcp_command_result_get(ctx, 1, &result).code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.completed == true);
+    REQUIRE(result.success == false);
+    REQUIRE(std::strcmp(result.message, "Dropped due to command queue overflow") == 0);
+
+    dmcp_command_t popped = {};
+    REQUIRE(dmcp_pop_command(ctx, &popped) == true);
+    REQUIRE(popped.sequence == 7);
   }
 
   dmcp_context_destroy(ctx);
@@ -967,14 +1054,8 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
     parse_invalid(R"({"type":"pause_game","params":{"paused":2}})");
   }
 
-  SECTION("Parse set_timescale") {
-    dmcp_command_t cmd = {};
-    parse_ok(R"({"type":"set_timescale","params":{"scale":1.5}})", &cmd);
-    REQUIRE(cmd.type == DMCP_CMD_SET_TIMESCALE);
-    REQUIRE(cmd.data.timescale.scale == 1.5f);
-  }
-
-  SECTION("Reject set_timescale invalid payload") {
+  SECTION("Reject set_timescale because command is disabled") {
+    parse_invalid(R"({"type":"set_timescale","params":{"scale":1.5}})");
     parse_invalid(R"({"type":"set_timescale","params":{"scale":0}})");
     parse_invalid(R"({"type":"set_timescale","params":{"scale":"fast"}})");
   }

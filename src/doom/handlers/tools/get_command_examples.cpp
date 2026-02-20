@@ -11,8 +11,6 @@ void add_param(json_builder* params, const char* key, const char* value) {
 
 void add_param(json_builder* params, const char* key, int64_t value) { params->add(key, value); }
 
-void add_param(json_builder* params, const char* key, double value) { params->add(key, value); }
-
 void add_param(json_builder* params, const char* key, bool value) { params->add(key, value); }
 
 // Build a command example entry with description
@@ -73,18 +71,6 @@ void add_bool_command(json_builder* result, const char* key, const char* type,
   result->add(key, entry);
 }
 
-// Command with single double param
-void add_double_command(json_builder* result, const char* key, const char* type,
-                        const char* description, const char* param_key, double param_value) {
-  json_builder entry   = build_entry(description);
-  json_builder example = build_example(type);
-  json_builder params;
-  params.start_object();
-  add_param(&params, param_key, param_value);
-  add_example_to_entry(&entry, &example, &params);
-  result->add(key, entry);
-}
-
 // give_item with item_class and amount
 void add_give_item_example(json_builder* result, const char* key, const char* item_class,
                            int64_t amount, const char* description) {
@@ -110,6 +96,19 @@ void add_spawn_entity(json_builder* result) {
   add_param(&params, "angle", static_cast<int64_t>(90));
   add_example_to_entry(&entry, &example, &params);
   result->add("spawn_entity", entry);
+}
+
+void add_spawn_item(json_builder* result) {
+  json_builder entry   = build_entry("Spawn a pickup item at specific coordinates");
+  json_builder example = build_example("spawn_entity");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "entity_class", "Medikit");
+  add_param(&params, "x", static_cast<int64_t>(1000));
+  add_param(&params, "y", static_cast<int64_t>(-500));
+  add_param(&params, "angle", static_cast<int64_t>(0));
+  add_example_to_entry(&entry, &example, &params);
+  result->add("spawn_item", entry);
 }
 
 // change_level specific helper
@@ -194,6 +193,7 @@ void add_batch_execution(json_builder* result) {
   json_builder example = build_example("execute_batch");
   json_builder params;
   params.start_object();
+  params.add("ordering", "change_level_first");
   params.add("commands", commands);
   add_example_to_entry(&entry, &example, &params);
   result->add("execute_batch", entry);
@@ -208,6 +208,7 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
 
   // Entity commands
   add_spawn_entity(&result);
+  add_spawn_item(&result);
   add_damage_entity(&result);
   add_kill_entity(&result);
 
@@ -239,8 +240,6 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
                      "Execute raw console command (engine-specific)", "command", "god");
   add_bool_command(&result, "pause_game", "pause_game", "Pause or unpause game simulation",
                    "paused", true);
-  add_double_command(&result, "set_timescale", "set_timescale", "Adjust game simulation speed",
-                     "scale", 0.5);
 
   // Batch execution
   add_batch_execution(&result);

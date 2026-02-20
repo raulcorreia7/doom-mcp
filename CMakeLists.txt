@@ -71,7 +71,7 @@ set(DMCP_CORE_SOURCES
   src/doom/handlers/common.cpp
   src/doom/handlers/routes.cpp
   src/doom/handlers/methods.cpp
-  src/doom/handlers/tools/get_game_state.cpp
+  src/doom/handlers/tools/get_state_sections.cpp
   src/doom/handlers/tools/get_screenshot.cpp
   src/doom/handlers/tools/execute_command.cpp
   src/doom/handlers/tools/get_command_result.cpp
