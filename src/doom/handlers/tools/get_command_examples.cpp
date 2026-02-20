@@ -189,14 +189,39 @@ void add_batch_execution(json_builder* result) {
   commands.push(c2);
 
   // Build the example
-  json_builder entry   = build_entry("Execute multiple commands in one request");
+  json_builder entry = build_entry(
+      "Execute multiple mutating commands in one request (do not mix with read batches)");
   json_builder example = build_example("execute_batch");
   json_builder params;
   params.start_object();
-  params.add("ordering", "change_level_first");
   params.add("commands", commands);
   add_example_to_entry(&entry, &example, &params);
   result->add("execute_batch", entry);
+}
+
+void add_get_state_batch(json_builder* result) {
+  json_builder r1;
+  r1.start_object();
+  r1.add("section", "player");
+
+  json_builder r2;
+  r2.start_object();
+  r2.add("section", "enemies");
+  r2.add("status", "alive");
+  r2.add("limit", static_cast<int64_t>(8));
+
+  json_builder requests;
+  requests.start_array();
+  requests.push(r1);
+  requests.push(r2);
+
+  json_builder entry   = build_entry("Read multiple state sections in one read-only batch");
+  json_builder example = build_example("get_state_batch");
+  json_builder params;
+  params.start_object();
+  params.add("requests", requests);
+  add_example_to_entry(&entry, &example, &params);
+  result->add("get_state_batch", entry);
 }
 
 }  // namespace
@@ -243,6 +268,7 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
 
   // Batch execution
   add_batch_execution(&result);
+  add_get_state_batch(&result);
 
   const std::string payload = result.finish();
   const std::string resp    = build_content_response(payload, false);

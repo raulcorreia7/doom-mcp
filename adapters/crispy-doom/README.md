@@ -20,6 +20,11 @@ make crispy-doom
 `make crispy-doom` automatically runs
 `tests/integration/apply_crispy_dmcp_patch.sh` before configuring/building.
 
+By default the build workflow reverts the patch after a successful build so the
+submodule stays clean.
+
+Use `CRISPY_KEEP_PATCH=1` to keep patch changes applied locally.
+
 ## Reapply Patch Manually
 
 ```bash

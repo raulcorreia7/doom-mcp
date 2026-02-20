@@ -41,7 +41,8 @@ dmcp_snapshot_t copy_latest_snapshot(context* ctx);
 std::string     build_player_state_json(const dmcp_snapshot_t& snapshot);
 std::string     build_map_state_json(const dmcp_snapshot_t& snapshot);
 std::string     build_game_info_json(const dmcp_snapshot_t& snapshot);
-std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit);
+std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                     std::string_view status_filter);
 std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit);
 std::string build_inventory_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
                                        size_t limit);
@@ -91,6 +92,8 @@ bool handle_tool_get_inventory(context* ctx, const json_value& params, char* res
                                size_t response_size);
 bool handle_tool_get_state(context* ctx, const json_value& params, char* response_buffer,
                            size_t response_size);
+bool handle_tool_get_state_batch(context* ctx, const json_value& params, char* response_buffer,
+                                 size_t response_size);
 bool handle_tool_get_screenshot(context* ctx, char* response_buffer, size_t response_size);
 bool handle_tool_execute_command(context* ctx, const json_value& params, char* response_buffer,
                                  size_t response_size);
@@ -116,6 +119,7 @@ json_builder build_get_enemies_schema();
 json_builder build_get_entities_schema();
 json_builder build_get_inventory_schema();
 json_builder build_get_state_schema();
+json_builder build_get_state_batch_schema();
 json_builder build_get_screenshot_schema();
 json_builder build_execute_command_schema();
 json_builder build_get_command_result_schema();

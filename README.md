@@ -118,6 +118,13 @@ If this is a fresh clone, run `make submodules` first.
 
 `make crispy-doom` automatically applies the tracked DMCP patch from
 `adapters/crispy-doom/patches/dmcp_integration.patch` before configuring Crispy.
+By default it restores the submodule back to a clean source tree after build.
+
+To keep the patch applied for local debugging:
+
+```bash
+make crispy-doom CRISPY_KEEP_PATCH=1
+```
 
 ## API Endpoints
 
@@ -420,12 +427,14 @@ First start the Doom engine with DMCP enabled (see [docs/INTEGRATION.md](docs/IN
 For agent loops that need focused, low-overhead reads:
 
 - `get_player` - Player-only state
-- `get_enemies` - Enemy list with pagination (`offset`, `limit`)
+- `get_enemies` - Enemy list with pagination and status filter (`offset`, `limit`, `status=alive|dead|all`)
 - `get_entities` - Interactive world entities (pickups/barrels, no projectiles/decor) (`offset`, `limit`)
 - `get_map` / `get_level` - Current map/level details
 - `get_inventory` - Inventory list with pagination (`offset`, `limit`)
 - `get_game_info` / `get_game` - Runtime mode/version metadata
-- `get_state` - Unified section query (`section: player|enemies|entities|map|inventory|game`)
+- `get_state` - Unified section query (`section: player|enemies|entities|map|inventory|game`, optional `status` for `enemies`)
+- `get_state_batch` - Read-only batch query for multiple state sections (`requests: [{section,...}]`)
+- `get_command_result` - Poll queued command status by `sequence`
 
 ### `get_screenshot`
 
@@ -446,6 +455,23 @@ Queue a command to be executed by the game:
 | `pause_game` | Pause/unpause game | `paused` |
 | `damage_entity` | Damage specific target | `target_tid`, `damage`, `damage_type` |
 | `kill_entity` | Kill specific target | `target_tid` |
+
+### `execute_batch`
+
+Queue multiple commands in one `tools/call` request using `commands: []`.
+Commands run in the order provided.
+
+`change_level` is intentionally rejected in batch mode to avoid running follow-up
+commands during a map transition.
+
+Use `execute_batch` only for mutating commands.
+Use `get_state_batch` for read-only grouped state fetches.
+
+For level transitions, use this pattern:
+
+1. Queue `change_level` via `execute_command`
+2. Wait until `get_command_result` reports `completed=true` and `status=success`
+3. Send the next commands (single or `execute_batch`)
 
 Agent-friendly aliases accepted by parser:
 - `teleport_player` -> `set_player_position`

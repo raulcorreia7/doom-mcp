@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "dmcp/adapter/content.h"
 #include "dmcp/doom/api.h"
@@ -30,6 +31,71 @@ static const command_tool_definition k_command_tools[] = {
 };
 
 namespace {
+
+enum class enemy_status_filter {
+  alive,
+  dead,
+  all,
+};
+
+bool parse_enemy_status_filter(const json_value& args, enemy_status_filter* out_filter,
+                               std::string* out_error) {
+  if (!out_filter || !out_error) {
+    return false;
+  }
+
+  *out_filter = enemy_status_filter::alive;
+
+  if (!args.is_object()) {
+    return true;
+  }
+
+  json_value status_val = args["status"];
+  if (!status_val) {
+    return true;
+  }
+
+  if (!status_val.is_string()) {
+    *out_error = "status must be one of: alive, dead, all";
+    return false;
+  }
+
+  const std::string_view status(status_val.get_string());
+  if (status == "alive") {
+    *out_filter = enemy_status_filter::alive;
+    return true;
+  }
+
+  if (status == "dead") {
+    *out_filter = enemy_status_filter::dead;
+    return true;
+  }
+
+  if (status == "all") {
+    *out_filter = enemy_status_filter::all;
+    return true;
+  }
+
+  *out_error = "status must be one of: alive, dead, all";
+  return false;
+}
+
+bool enemy_matches_filter(const dmcp_enemy_t& enemy, enemy_status_filter filter) {
+  const bool is_alive = enemy.hp > 0;
+
+  switch (filter) {
+    case enemy_status_filter::alive:
+      return is_alive;
+    case enemy_status_filter::dead:
+      return !is_alive;
+    case enemy_status_filter::all:
+      return true;
+  }
+
+  return false;
+}
+
+const char* enemy_state_name(const dmcp_enemy_t& enemy) { return enemy.hp > 0 ? "alive" : "dead"; }
 
 dmcp_gamemode_t parse_game_mode_name(std::string_view mode_name) {
   if (mode_name == "shareware") return DMCP_GAMEMODE_SHAREWARE;
@@ -267,6 +333,7 @@ json_builder build_enemy_json(const dmcp_enemy_t& enemy) {
   obj.add("id", static_cast<int64_t>(enemy.id));
   obj.add("hp", static_cast<int64_t>(enemy.hp));
   obj.add("max_hp", static_cast<int64_t>(enemy.max_hp));
+  obj.add("state", enemy_state_name(enemy));
   obj.add("position", build_vec3_json(enemy.position));
   obj.add("angle", static_cast<double>(enemy.angle));
   obj.add("target_id", static_cast<int64_t>(enemy.target_id));
@@ -338,13 +405,30 @@ std::string build_game_info_json(const dmcp_snapshot_t& snapshot) {
   return payload.finish();
 }
 
-std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit) {
-  const size_t total = snapshot.enemy_count;
+std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                     std::string_view status_filter) {
+  enemy_status_filter filter = enemy_status_filter::alive;
+  if (status_filter == "dead") {
+    filter = enemy_status_filter::dead;
+  } else if (status_filter == "all") {
+    filter = enemy_status_filter::all;
+  }
+
+  std::vector<size_t> matched_indexes;
+  matched_indexes.reserve(snapshot.enemy_count);
+  for (size_t i = 0; i < snapshot.enemy_count; ++i) {
+    if (enemy_matches_filter(snapshot.enemies[i], filter)) {
+      matched_indexes.push_back(i);
+    }
+  }
+
+  const size_t total = matched_indexes.size();
   const size_t start = std::min(offset, total);
   const size_t end   = std::min(start + limit, total);
 
   json_builder payload;
   payload.start_object();
+  payload.add("status", std::string(status_filter));
   payload.add("enemy_count", static_cast<int64_t>(total));
   payload.add("offset", static_cast<int64_t>(start));
   payload.add("limit", static_cast<int64_t>(limit));
@@ -353,7 +437,7 @@ std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t off
   json_builder enemies;
   enemies.start_array();
   for (size_t i = start; i < end; ++i) {
-    enemies.push(build_enemy_json(snapshot.enemies[i]));
+    enemies.push(build_enemy_json(snapshot.enemies[matched_indexes[i]]));
   }
   payload.add("enemies", std::move(enemies));
   return payload.finish();
@@ -478,6 +562,11 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
   }
 
   if (section == "enemies") {
+    enemy_status_filter filter = enemy_status_filter::alive;
+    if (!parse_enemy_status_filter(args, &filter, out_error)) {
+      return false;
+    }
+
     size_t offset = 0;
     size_t limit  = k_default_limit;
     if (!parse_offset_limit_from_json(args, snapshot.enemy_count, k_default_limit, &offset, &limit,
@@ -485,7 +574,14 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
       return false;
     }
 
-    *out_payload = build_enemies_state_json(snapshot, offset, limit);
+    std::string_view status_filter = "alive";
+    if (filter == enemy_status_filter::dead) {
+      status_filter = "dead";
+    } else if (filter == enemy_status_filter::all) {
+      status_filter = "all";
+    }
+
+    *out_payload = build_enemies_state_json(snapshot, offset, limit, status_filter);
     return true;
   }
 

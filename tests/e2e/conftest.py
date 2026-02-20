@@ -1,7 +1,7 @@
 """E2E test fixtures for DOOM MCP.
 
 Requires:
-- chocolate-doom built with DMCP adapter
+- chocolate-doom or crispy-doom built with DMCP adapter
 - doom1.wad in assets/wads/
 - pytest, requests packages
 """
@@ -22,7 +22,12 @@ import requests
 # Constants
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WAD_FILE = PROJECT_ROOT / "assets/wads/doom1.wad"
-DOOM_BIN = PROJECT_ROOT / "chocolate-doom/build/src/chocolate-doom"
+DOOM_ENGINE = os.environ.get("DOOM_ENGINE", "chocolate").strip().lower()
+DEFAULT_DOOM_BIN = {
+    "chocolate": PROJECT_ROOT / "chocolate-doom/build/src/chocolate-doom",
+    "crispy": PROJECT_ROOT / "crispy-doom/build/src/crispy-doom",
+}.get(DOOM_ENGINE, PROJECT_ROOT / "chocolate-doom/build/src/chocolate-doom")
+DOOM_BIN = Path(os.environ.get("DOOM_BIN", str(DEFAULT_DOOM_BIN)))
 
 # Timeouts (configurable via env vars)
 STARTUP_TIMEOUT = float(os.environ.get("DMCP_STARTUP_TIMEOUT", "30"))
@@ -484,7 +489,9 @@ def fresh_game_skill_1(doom_instance):
         with instance as game:
             yield game
     except (RuntimeError, TimeoutError) as exc:
-        pytest.skip(f"Skill 1 startup is unstable in headless Chocolate Doom: {exc}")
+        pytest.skip(
+            f"Skill 1 startup is unstable in headless {DOOM_ENGINE} Doom: {exc}"
+        )
 
 
 @pytest.fixture(scope="function")
@@ -496,7 +503,7 @@ def fresh_game_skill_5(doom_instance):
         with instance as game:
             yield game
     except (RuntimeError, TimeoutError) as exc:
-        pytest.skip(f"Nightmare mode is unstable in headless Chocolate Doom: {exc}")
+        pytest.skip(f"Nightmare mode is unstable in headless {DOOM_ENGINE} Doom: {exc}")
 
 
 @pytest.fixture(scope="function")

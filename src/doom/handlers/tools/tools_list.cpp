@@ -36,6 +36,10 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
   add_command_tool(&tools, "get_state", "Get selected game state section for agents",
                    build_get_state_schema());
 
+  add_command_tool(&tools, "get_state_batch",
+                   "Get multiple state sections in one read-only batch request",
+                   build_get_state_batch_schema());
+
   if (ctx->screenshot.enabled.load()) {
     json_builder screenshot_schema;
     add_empty_object_schema(&screenshot_schema);
@@ -55,7 +59,8 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
                    "Get available weapons, items, enemies, and maps for the game mode",
                    build_get_available_content_schema());
 
-  add_command_tool(&tools, "execute_batch", "Execute multiple commands in a single request",
+  add_command_tool(&tools, "execute_batch",
+                   "Execute multiple mutating commands in a single request",
                    build_execute_batch_schema());
 
   add_command_tool(&tools, "get_command_examples",
@@ -136,6 +141,10 @@ bool handle_tools_call(void* user_data, const char* /*method*/, const char* requ
 
   if (tool_name == "get_state") {
     return handle_tool_get_state(ctx, params, response_buffer, response_size);
+  }
+
+  if (tool_name == "get_state_batch") {
+    return handle_tool_get_state_batch(ctx, params, response_buffer, response_size);
   }
 
   if (tool_name == "execute_command") {

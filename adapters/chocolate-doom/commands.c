@@ -509,7 +509,7 @@ static mobj_t* dmcp_find_enemy_by_id(int enemy_id) {
       continue;
     }
 
-    if (!(mobj->flags & MF_COUNTKILL) || (mobj->flags & MF_CORPSE) || mobj->health <= 0) {
+    if ((mobj->flags & MF_COUNTKILL) == 0) {
       continue;
     }
 

@@ -398,6 +398,16 @@ Direct JSON-RPC method aliases are also available for agent compatibility:
 
 These aliases map to the same underlying handlers used by `tools/call`.
 
+Additional tool-only operations (via `tools/call`) include:
+
+- `get_command_result` for async command completion polling
+- `get_state_batch` for read-only grouped state queries
+- `execute_batch` for queuing mutating commands in-order
+
+`execute_batch` rejects `change_level`; queue map changes separately with
+`execute_command`, wait for `get_command_result` success, then send follow-up
+commands.
+
 ## Data Types
 
 ```c

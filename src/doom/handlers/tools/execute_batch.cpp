@@ -1,7 +1,6 @@
 #include "tools.hpp"
 #include "dmcp/doom/commands.h"
 
-#include <algorithm>
 #include <string_view>
 #include <vector>
 
@@ -9,46 +8,13 @@ namespace dmcp {
 
 namespace {
 
-enum class batch_ordering {
-  as_provided,
-  change_level_first,
-};
-
-batch_ordering parse_batch_ordering(const json_value& args) {
-  json_value ordering_val = args["ordering"];
-  if (!ordering_val.is_string()) {
-    return batch_ordering::change_level_first;
-  }
-
-  const std::string_view ordering(ordering_val.get_string());
-  if (ordering == "change_level_first") {
-    return batch_ordering::change_level_first;
-  }
-
-  return batch_ordering::as_provided;
-}
-
-const char* batch_ordering_to_string(batch_ordering ordering) {
-  switch (ordering) {
-    case batch_ordering::change_level_first:
-      return "change_level_first";
-    case batch_ordering::as_provided:
-    default:
-      return "as_provided";
-  }
-}
-
-int command_execution_phase(const json_value& cmd_obj, batch_ordering ordering) {
-  if (ordering != batch_ordering::change_level_first || !cmd_obj.is_object()) {
-    return 1;
+bool is_change_level_command(const json_value& cmd_obj) {
+  if (!cmd_obj.is_object()) {
+    return false;
   }
 
   json_value type_val = cmd_obj["type"];
-  if (type_val.is_string() && std::string_view(type_val.get_string()) == "change_level") {
-    return 0;
-  }
-
-  return 1;
+  return type_val.is_string() && std::string_view(type_val.get_string()) == "change_level";
 }
 
 }  // namespace
@@ -65,20 +31,6 @@ bool handle_tool_execute_batch(context* ctx, const json_value& params, char* res
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  const batch_ordering ordering = parse_batch_ordering(args);
-
-  std::vector<size_t> command_indices(commands_arr.size());
-  for (size_t i = 0; i < command_indices.size(); ++i) {
-    command_indices[i] = i;
-  }
-
-  if (ordering == batch_ordering::change_level_first) {
-    std::stable_sort(command_indices.begin(), command_indices.end(), [&](size_t a, size_t b) {
-      return command_execution_phase(commands_arr[a], ordering) <
-             command_execution_phase(commands_arr[b], ordering);
-    });
-  }
-
   std::vector<uint64_t> sequences;
 
   json_builder accepted;
@@ -87,9 +39,9 @@ bool handle_tool_execute_batch(context* ctx, const json_value& params, char* res
   json_builder rejected;
   rejected.start_array();
 
-  for (size_t exec_idx = 0; exec_idx < command_indices.size(); ++exec_idx) {
-    const size_t original_idx = command_indices[exec_idx];
-    json_value   cmd_obj      = commands_arr[original_idx];
+  for (size_t original_idx = 0; original_idx < commands_arr.size(); ++original_idx) {
+    const size_t exec_idx = original_idx;
+    json_value   cmd_obj  = commands_arr[original_idx];
 
     if (!cmd_obj.is_object()) {
       json_builder item;
@@ -97,6 +49,18 @@ bool handle_tool_execute_batch(context* ctx, const json_value& params, char* res
       item.add("index", static_cast<int64_t>(original_idx));
       item.add("execution_index", static_cast<int64_t>(exec_idx));
       item.add("error", "Command entry must be an object");
+      rejected.push(std::move(item));
+      continue;
+    }
+
+    if (is_change_level_command(cmd_obj)) {
+      json_builder item;
+      item.start_object();
+      item.add("index", static_cast<int64_t>(original_idx));
+      item.add("execution_index", static_cast<int64_t>(exec_idx));
+      item.add("error",
+               "change_level is not supported in execute_batch; run it separately and wait for "
+               "get_command_result before sending follow-up commands");
       rejected.push(std::move(item));
       continue;
     }
@@ -138,11 +102,11 @@ bool handle_tool_execute_batch(context* ctx, const json_value& params, char* res
   result.add("requested", static_cast<int64_t>(commands_arr.size()));
   result.add("queued", static_cast<int64_t>(sequences.size()));
   result.add("rejected", static_cast<int64_t>(commands_arr.size() - sequences.size()));
-  result.add("ordering", batch_ordering_to_string(ordering));
+  result.add("ordering", "as_provided");
 
   json_builder execution_order;
   execution_order.start_array();
-  for (size_t idx : command_indices) {
+  for (size_t idx = 0; idx < commands_arr.size(); ++idx) {
     execution_order.push(static_cast<int64_t>(idx));
   }
   result.add("execution_order", std::move(execution_order));
@@ -181,7 +145,8 @@ json_builder build_execute_batch_schema() {
   json_builder commands_prop;
   commands_prop.start_object();
   commands_prop.add("type", "array");
-  commands_prop.add("description", "Array of commands to execute");
+  commands_prop.add("description",
+                    "Array of commands to execute (change_level is not allowed in batch)");
 
   json_builder items_schema;
   items_schema.start_object();
@@ -192,7 +157,7 @@ json_builder build_execute_batch_schema() {
   json_builder type_prop;
   type_prop.start_object();
   type_prop.add("type", "string");
-  type_prop.add("description", "Command type: spawn_entity, give_item, etc.");
+  type_prop.add("description", "Command type: spawn_entity, give_item, etc. (not change_level)");
   item_props.add("type", std::move(type_prop));
 
   json_builder params_prop;
@@ -205,17 +170,6 @@ json_builder build_execute_batch_schema() {
   commands_prop.add("items", std::move(items_schema));
 
   props.add("commands", std::move(commands_prop));
-
-  json_builder ordering_prop;
-  ordering_prop.start_object();
-  ordering_prop.add("type", "string");
-  ordering_prop.add("description", "Execution ordering strategy (default: change_level_first)");
-  json_builder ordering_enum;
-  ordering_enum.start_array();
-  ordering_enum.push("as_provided");
-  ordering_enum.push("change_level_first");
-  ordering_prop.add("enum", std::move(ordering_enum));
-  props.add("ordering", std::move(ordering_prop));
 
   schema.add("properties", std::move(props));
 

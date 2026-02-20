@@ -359,14 +359,17 @@ client.execute("spawn_entity", {
 | Tool | Description |
 |------|-------------|
 | `get_player` | Get player-only state |
-| `get_enemies` | Get enemy list (paginated) |
+| `get_enemies` | Get enemy list (paginated, `status=alive|dead|all`) |
 | `get_entities` | Get pickups/barrels only (paginated, excludes projectiles/decor) |
 | `get_map`/`get_level` | Get current map/level state |
 | `get_inventory` | Get inventory list (paginated) |
 | `get_game_info`/`get_game` | Get game mode/version metadata |
-| `get_state` | Unified section query (`player`, `enemies`, `entities`, `map`, `inventory`, `game`) |
+| `get_state` | Unified section query (`player`, `enemies`, `entities`, `map`, `inventory`, `game`; optional `status` for enemies) |
+| `get_state_batch` | Read-only batch query for multiple state sections |
 | `get_screenshot` | Capture ASCII screenshot of current view |
 | `execute_command` | Spawn entities, change levels, give items, etc. |
+| `get_command_result` | Poll async command completion by `sequence` |
+| `execute_batch` | Queue mutating commands in order (rejects `change_level`) |
 
 ### execute_command Types
 
@@ -381,6 +384,21 @@ client.execute("spawn_entity", {
 | `pause_game` | `paused` |
 | `damage_entity` | `target_tid`, `damage` |
 | `kill_entity` | `target_tid` |
+
+### Batching and Level Changes
+
+Use separate batch types:
+
+- `get_state_batch` for grouped reads
+- `execute_batch` for grouped mutating commands
+
+`execute_batch` runs commands in-order but rejects `change_level` entries.
+
+Use level transitions as a separate step:
+
+1. Send `change_level` with `execute_command`
+2. Poll `get_command_result` until completion/success
+3. Send follow-up commands (single or batch)
 
 ---
 

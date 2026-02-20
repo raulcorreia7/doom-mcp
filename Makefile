@@ -62,6 +62,7 @@ help:
 	@echo "  make submodules   - Init/update git submodules"
 	@echo "  make chocolate-doom - Build Chocolate Doom with DMCP"
 	@echo "  make crispy-doom  - Build Crispy Doom with DMCP"
+	@echo "  (set CRISPY_KEEP_PATCH=1 to keep Crispy patch applied)"
 	@echo "  make info         - Show configuration"
 	@echo "  make compdb       - Generate compile_commands.json"
 
@@ -274,6 +275,7 @@ chocolate-doom-clean:
 
 CRISPY_BUILD_DIR ?= crispy-doom/build
 CRISPY_SOURCE_DIR ?= crispy-doom
+CRISPY_KEEP_PATCH ?= 0
 
 .PHONY: crispy-doom crispy-doom-clean
 crispy-doom: dmcp submodules
@@ -281,16 +283,8 @@ crispy-doom: dmcp submodules
 		echo "error: Crispy Doom source dir not found: $(CRISPY_SOURCE_DIR)"; \
 		exit 1; \
 	fi
-	@./tests/integration/apply_crispy_dmcp_patch.sh
-	@echo "Building Crispy Doom with DMCP..."
-	@mkdir -p $(CRISPY_BUILD_DIR)
-	@cmake -S $(CRISPY_SOURCE_DIR) -B $(CRISPY_BUILD_DIR) \
-		-DDMCP_ENABLE=ON \
-		-DDMCP_INCLUDE_DIR=$$(pwd)/include \
-		-DDMCP_LIB_DIR=$$(pwd)/$(BUILD_DIR)
-	@cmake --build $(CRISPY_BUILD_DIR) -j$(JOBS)
-	@echo ""
-	@echo "Crispy Doom built: $(CRISPY_BUILD_DIR)/src/crispy-doom"
+	@JOBS=$(JOBS) DMCP_BUILD_DIR=$$(pwd)/$(BUILD_DIR) CRISPY_BUILD_DIR=$$(pwd)/$(CRISPY_BUILD_DIR) \
+		DMCP_KEEP_CRISPY_PATCH=$(CRISPY_KEEP_PATCH) ./tests/integration/build_crispy_doom.sh
 
 crispy-doom-clean:
 	rm -rf $(CRISPY_BUILD_DIR)

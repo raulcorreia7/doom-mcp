@@ -12,6 +12,7 @@
 #   DMCP_ROOT                Repo root (default: auto-detected)
 #   DMCP_BUILD_DIR           DMCP CMake build dir (default: <root>/build)
 #   CRISPY_BUILD_DIR         Crispy Doom build dir (default: <root>/crispy-doom/build)
+#   DMCP_KEEP_CRISPY_PATCH   Keep patch applied after build: 1 keep, 0 auto-revert (default)
 
 set -euo pipefail
 
@@ -19,7 +20,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DMCP_ROOT="${DMCP_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 DMCP_BUILD_DIR="${DMCP_BUILD_DIR:-$DMCP_ROOT/build}"
 CRISPY_BUILD_DIR="${CRISPY_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
+PATCH_FILE="$DMCP_ROOT/adapters/crispy-doom/patches/dmcp_integration.patch"
+KEEP_PATCH="${DMCP_KEEP_CRISPY_PATCH:-0}"
 JOBS="${JOBS:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+PATCH_APPLIED_NOW=0
+
+cleanup() {
+	if [[ "$KEEP_PATCH" != "1" && "$PATCH_APPLIED_NOW" == "1" ]]; then
+		git -C "$DMCP_ROOT/crispy-doom" apply --reverse "$PATCH_FILE" >/dev/null 2>&1 || true
+		echo "==> Restored Crispy source tree to clean state"
+	fi
+}
+
+trap cleanup EXIT
 
 usage() {
 	cat <<EOF
@@ -59,6 +72,15 @@ done
 if [[ ! -d "$DMCP_ROOT/crispy-doom" ]]; then
 	echo "error: crispy-doom directory not found at $DMCP_ROOT/crispy-doom" >&2
 	exit 1
+fi
+
+if [[ ! -f "$PATCH_FILE" ]]; then
+	echo "error: patch file not found at $PATCH_FILE" >&2
+	exit 1
+fi
+
+if git -C "$DMCP_ROOT/crispy-doom" apply --check "$PATCH_FILE" >/dev/null 2>&1; then
+	PATCH_APPLIED_NOW=1
 fi
 
 echo "==> Applying Crispy Doom DMCP patch"

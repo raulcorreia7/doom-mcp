@@ -143,12 +143,12 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
       continue;
     }
 
-    // Check if this is a valid enemy (countkill, not corpse, has health)
-    if ((mo->flags & MF_COUNTKILL) && !(mo->flags & MF_CORPSE) && mo->health > 0) {
+    // Include both alive and dead enemies so query filters can select by status
+    if ((mo->flags & MF_COUNTKILL) != 0) {
       memset(&enemy, 0, sizeof(enemy));
 
       enemy.id     = count;
-      enemy.hp     = mo->health;
+      enemy.hp     = mo->health > 0 ? mo->health : 0;
       enemy.max_hp = mo->info->spawnhealth;
 
       // Get current position and angle

@@ -1,8 +1,42 @@
 """E2E tests for enemy state validation."""
 
 import pytest
+import requests
 
-ENEMY_REQUIRED_FIELDS = ["id", "hp", "max_hp", "position", "angle", "target_id", "type"]
+ENEMY_REQUIRED_FIELDS = [
+    "id",
+    "hp",
+    "max_hp",
+    "state",
+    "position",
+    "angle",
+    "target_id",
+    "type",
+]
+
+
+def _call_rpc(port: int, method: str, params: dict, request_id: int) -> dict:
+    response = requests.post(
+        f"http://localhost:{port}/mcp",
+        json={"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _get_enemy_section(port: int, status: str, request_id: int) -> dict:
+    data = _call_rpc(
+        port,
+        "get_state",
+        {"section": "enemies", "status": status, "offset": 0, "limit": 4096},
+        request_id=request_id,
+    )
+    assert "error" not in data
+    result = data.get("result", {})
+    assert isinstance(result, dict)
+    return result
 
 
 class TestEnemyState:
@@ -45,6 +79,27 @@ class TestEnemyState:
         enemies = fresh_game.get_state()["enemies"]
         ids = [enemy["id"] for enemy in enemies]
         assert len(ids) == len(set(ids)), "Enemy IDs should be unique"
+
+    def test_enemy_status_filter_alive_dead_all(self, fresh_game):
+        port = fresh_game.config.port
+
+        alive = _get_enemy_section(port, "alive", request_id=801)
+        dead = _get_enemy_section(port, "dead", request_id=802)
+        all_enemies = _get_enemy_section(port, "all", request_id=803)
+
+        alive_count = int(alive.get("enemy_count", 0))
+        dead_count = int(dead.get("enemy_count", 0))
+        all_count = int(all_enemies.get("enemy_count", 0))
+
+        assert all_count == alive_count + dead_count
+
+        for enemy in alive.get("enemies", []):
+            assert enemy.get("state") == "alive"
+            assert enemy.get("hp", 0) > 0
+
+        for enemy in dead.get("enemies", []):
+            assert enemy.get("state") == "dead"
+            assert enemy.get("hp", 0) <= 0
 
 
 class TestEnemyTypes:
