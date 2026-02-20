@@ -36,12 +36,15 @@
 │  include/dmcp/doom/types.h     - Data structures (Snapshot, Player, etc.)   │
 │  include/dmcp/doom/config.h    - Configuration types                         │
 │  include/dmcp/doom/api.h       - C API for game data                         │
+│  include/dmcp/doom/content.h   - Content availability and restrictions       │
 │  src/doom/context.cpp          - C API implementation                        │
-│  src/doom/mcp_handlers.cpp     - MCP tools + HTTP route handlers             │
+│  src/doom/handlers/            - MCP tools + HTTP route handlers             │
 │  src/doom/pool.cpp             - Snapshot pooling                            │
 │  src/doom/serialization.cpp    - JSON serialization                          │
+│  src/doom/internal/json_types.hpp - Stable JSON boundary wrapper            │
 │  - Knows about Doom game state                                              │
 │  - No networking/transport logic                                             │
+│  - Content APIs owned by Doom core, not adapters                            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -156,6 +159,9 @@ doom-mcp/
 │       │   ├── config.h        # Configuration types
 │       │   ├── types.h         # Data structures
 │       │   ├── commands.h      # Command system
+│       │   ├── content.h       # Content availability APIs
+│       │   ├── constants.h     # Buffer sizes, limits
+│       │   ├── export.h        # Export macros
 │       │   └── dmcp.h          # Convenience header
 │       │
 │       └── adapter/            # Shared adapter utilities
@@ -173,20 +179,52 @@ doom-mcp/
 │   │
 │   └── doom/
 │       ├── context.cpp         # C API implementation
-│       ├── mcp_handlers.cpp    # MCP tools + routes
+│       ├── content.cpp         # Content availability checks
 │       ├── pool.cpp            # Pool management
 │       ├── serialization.cpp   # JSON serialization
 │       ├── screenshot.cpp      # ASCII conversion
-│       ├── commands.cpp        # Command processing
-│       └── internal/
-│           ├── pool.hpp        # Pool internals
-│           ├── command_queue.hpp # Queue internals
-│           ├── screenshot.hpp  # Screenshot state
-│           └── context.hpp     # Context internals
+│       ├── commands.cpp        # Command dispatch
+│       ├── internal.hpp        # Internal context header
+│       ├── internal/
+│       │   ├── pool.hpp        # Pool internals
+│       │   ├── context.hpp     # Context internals
+│       │   ├── json_types.hpp  # Stable JSON boundary
+│       │   ├── screenshot.hpp  # Screenshot state
+│       │   └── serialization.hpp
+│       ├── handlers/
+│       │   ├── common.cpp      # Shared handler utilities
+│       │   ├── state_json.cpp  # State JSON builders
+│       │   ├── schema_builders.cpp # Tool schema definitions
+│       │   ├── routes.cpp      # HTTP route registration
+│       │   ├── methods.cpp     # JSON-RPC method dispatch
+│       │   └── tools/          # Tool implementations
+│       │       ├── execute_command.cpp
+│       │       ├── execute_batch.cpp
+│       │       ├── get_command_result.cpp
+│       │       ├── get_command_examples.cpp
+│       │       ├── get_screenshot.cpp
+│       │       ├── get_state_sections.cpp
+│       │       ├── tools_list.cpp
+│       │       └── get_available_content.cpp
+│       └── commands/
+│           ├── parsers.cpp     # Command parsing
+│           ├── json_parsers.hpp
+│           └── types/          # Per-command implementations
+│               ├── spawn.cpp
+│               ├── set_health.cpp
+│               ├── set_position.cpp
+│               ├── change_level.cpp
+│               ├── give_item.cpp
+│               ├── damage.cpp
+│               ├── kill.cpp
+│               ├── pause.cpp
+│               ├── timescale.cpp
+│               └── console.cpp
 │
 ├── adapters/
 │   ├── zdoom/
 │   │   ├── adapter.h           # Public adapter header
+│   │   ├── internal.h          # Shared internal utilities
 │   │   ├── adapter.cpp         # ZDoom integration
 │   │   └── commands.cpp        # ZDoom command handlers
 │   │
@@ -209,6 +247,11 @@ doom-mcp/
 ├── tests/
 │   ├── test_utils.hpp          # Shared fixtures/factories
 │   ├── unit/                   # Unit tests (Catch2)
+│   │   ├── test_layer_boundaries.cpp  # Include direction verification
+│   │   ├── test_doom_context.cpp
+│   │   ├── test_mcp_server.cpp
+│   │   ├── test_screenshot.cpp
+│   │   └── test_zdoom_adapter.cpp
 │   ├── integration/            # Integration tests
 │   └── e2e/                    # E2E tests (pytest)
 │
@@ -259,17 +302,25 @@ target_link_libraries(myengine PRIVATE dmcp::core)
 7. **Unified Error Types**: All DMCP functions use `mcp_result_generic_t` from MCP layer
 8. **Shared Adapter Utilities**: Common conversions and validations live in `include/dmcp/adapter/`
 9. **Library Flexibility**: Support both static and shared library builds
+10. **Stable JSON Boundary**: Doom core uses `internal/json_types.hpp` wrapper, never imports generic JSON internals directly
+11. **Content API Ownership**: Content availability APIs (`include/dmcp/doom/content.h`) owned by Doom core, not adapters
 
 ## Source Code Organization
 
 The Doom MCP source is organized by concern:
 
-| File | Lines | Responsibility |
-|------|-------|----------------|
-| `context.cpp` | 178 | C API implementation |
-| `mcp_handlers.cpp` | ~320 | MCP tool and route handlers |
-| `pool.cpp` | 30 | Snapshot pool management |
-| `serialization.cpp` | 125 | JSON serialization of snapshots |
-| `commands.cpp` | ~300 | Command queue and parsing |
+| File/Directory | Responsibility |
+|----------------|----------------|
+| `context.cpp` | C API implementation |
+| `content.cpp` | Content availability and restrictions |
+| `handlers/` | MCP tool and HTTP route handlers (modular) |
+| `commands/` | Command parsing and per-type implementations |
+| `pool.cpp` | Snapshot pool management |
+| `serialization.cpp` | JSON serialization of snapshots |
+| `internal/json_types.hpp` | Stable JSON boundary wrapper |
 
-This separation makes each file focused and maintainable.
+The handlers are split into focused modules:
+- `common.cpp` - Shared utilities
+- `state_json.cpp` - State JSON builders  
+- `schema_builders.cpp` - Tool schema definitions
+- `tools/` - Individual tool implementations

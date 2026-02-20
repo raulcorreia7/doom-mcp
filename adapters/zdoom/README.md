@@ -7,6 +7,7 @@ This adapter integrates ZDoom/GZDoom-based source ports with the DMCP SDK, enabl
 ```
 adapters/zdoom/
 ├── adapter.h         # Public API
+├── internal.h        # Shared internal utilities (AdapterContext, logging)
 ├── adapter.cpp       # Lifecycle + state extraction
 ├── commands.cpp      # Command execution
 ├── CMakeLists.txt
@@ -19,6 +20,7 @@ The ZDoom adapter uses a streamlined C++ implementation:
 
 | File | Purpose |
 |------|---------|
+| `internal.h` | Shared utilities (AdapterContext, logging helpers) |
 | `adapter.cpp` | Lifecycle + state extraction (~300 lines) |
 | `commands.cpp` | Command execution (~200 lines) |
 

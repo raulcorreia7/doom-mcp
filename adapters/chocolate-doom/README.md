@@ -34,6 +34,9 @@ The adapter follows a modular structure with single-responsibility files:
 | `dmcp_mappings.h` | `fixed_t`→float, enum→string conversions |
 | `enemy_types.h` | Data-driven enemy type lookup |
 
+Shared adapter utilities are available from `dmcp/adapter/utils.h` for common
+coordinate/angle conversions and validation.
+
 ## Requirements
 
 - Chocolate Doom source (submodule at `../../chocolate-doom/`)

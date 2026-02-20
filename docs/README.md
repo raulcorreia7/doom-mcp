@@ -2,6 +2,13 @@
 
 A clean, modular SDK for integrating Doom-family engines with AI agents via the Model Context Protocol (MCP).
 
+## Documentation Map
+
+- [../README.md](../README.md) - Project entry point and quick start
+- [INTEGRATION.md](INTEGRATION.md) - MCP client setup and troubleshooting
+- [RUNBOOK.md](RUNBOOK.md) - Documentation maintenance cadence
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture and design details
+
 ## Architecture
 
 ```
@@ -165,6 +172,7 @@ mcp_server_destroy(server);
 // #include "dmcp/doom/api.h"
 // #include "dmcp/doom/config.h"
 // #include "dmcp/doom/types.h"
+// #include "dmcp/doom/content.h"  // Content availability APIs
 
 // Fill snapshot in your game loop
 void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
@@ -325,7 +333,7 @@ mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t* ctx,
 
 // Utilities
 void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
-mcp_result_generic_t dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
+int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer,
                            size_t buffer_size);
 void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot);
 bool dmcp_snapshot_add_enemy(dmcp_snapshot_t* snapshot, const dmcp_enemy_t* enemy);
@@ -403,6 +411,7 @@ Additional tool-only operations (via `tools/call`) include:
 - `get_command_result` for async command completion polling
 - `get_state_batch` for read-only grouped state queries
 - `execute_batch` for queuing mutating commands in-order
+- `get_command_examples` for structured command/example discovery
 
 `execute_batch` rejects `change_level`; queue map changes separately with
 `execute_command`, wait for `get_command_result` success, then send follow-up

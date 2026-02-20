@@ -19,6 +19,7 @@ A clean, modular C/C++ SDK for integrating Doom-family engines with AI agents vi
 - **[docs/INTEGRATION.md](docs/INTEGRATION.md)** - Connect to Claude, Cline, Continue, and other MCP tools
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview
 - **[docs/CHANGELOG.md](docs/CHANGELOG.md)** - Version history
+- **[docs/RUNBOOK.md](docs/RUNBOOK.md)** - Documentation maintenance workflow
 
 ## Quick Start
 
@@ -77,7 +78,7 @@ Notes:
 ## Basic Usage
 
 ```c
-#include "dmcp/doom/dmcp.h"
+#include "dmcp/doom/dmcp.h"  // Includes api.h, config.h, types.h, content.h, commands.h
 
 void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
     snapshot->player.hp = player->health;
@@ -435,6 +436,7 @@ For agent loops that need focused, low-overhead reads:
 - `get_state` - Unified section query (`section: player|enemies|entities|map|inventory|game`, optional `status` for `enemies`)
 - `get_state_batch` - Read-only batch query for multiple state sections (`requests: [{section,...}]`)
 - `get_command_result` - Poll queued command status by `sequence`
+- `get_command_examples` - Structured tool examples for all supported commands
 
 ### `get_screenshot`
 
@@ -472,6 +474,24 @@ For level transitions, use this pattern:
 1. Queue `change_level` via `execute_command`
 2. Wait until `get_command_result` reports `completed=true` and `status=success`
 3. Send the next commands (single or `execute_batch`)
+
+### `get_state_batch`
+
+Run multiple read-only state queries in one request:
+
+```json
+{
+  "requests": [
+    {"section": "player"},
+    {"section": "enemies", "status": "alive", "limit": 8}
+  ]
+}
+```
+
+### `get_command_examples`
+
+Returns structured examples (including `execute_batch` and `get_state_batch`) so
+agents can generate valid command payloads without guessing parameter names.
 
 Agent-friendly aliases accepted by parser:
 - `teleport_player` -> `set_player_position`
