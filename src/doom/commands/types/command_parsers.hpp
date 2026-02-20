@@ -1,11 +1,9 @@
 #pragma once
 
 #include "dmcp/doom/commands.h"
-#include "mcp/json/json.hpp"
+#include "doom/internal/json_types.hpp"
 
 namespace dmcp {
-
-using json_value = ::mcp::json::Value;
 
 // Command type parsers - each returns true on success, false on failure
 bool parse_spawn_command(const json_value& params, dmcp_command_t* out);

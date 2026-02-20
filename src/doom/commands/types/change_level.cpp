@@ -1,10 +1,10 @@
-#include "parsers.hpp"
+#include "command_parsers.hpp"
 
 #include <cstdint>
 #include <limits>
 #include <string_view>
 
-#include "doom/commands/parsers.hpp"
+#include "doom/commands/json_parsers.hpp"
 
 namespace dmcp {
 
@@ -13,9 +13,8 @@ bool parse_change_level_command(const json_value& params, dmcp_command_t* out) {
 
   std::string_view map_name;
   if (!read_required_string(params, {"map_name", "level"}, &map_name) ||
-      !is_valid_map_name(map_name) ||
-      !copy_checked_string(out->data.change_level.map_name, sizeof(out->data.change_level.map_name),
-                           map_name)) {
+      !copy_normalized_map_name(out->data.change_level.map_name,
+                                sizeof(out->data.change_level.map_name), map_name)) {
     return false;
   }
 

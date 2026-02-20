@@ -1,4 +1,4 @@
-#include "doom/commands/parsers.hpp"
+#include "doom/commands/json_parsers.hpp"
 
 #include <cctype>
 #include <cmath>
@@ -100,6 +100,20 @@ bool copy_checked_string(char* dst, size_t dst_size, std::string_view value) {
     return false;
   }
   dmcp_strcpy(dst, value.data(), dst_size);
+  return true;
+}
+
+bool copy_normalized_map_name(char* dst, size_t dst_size, std::string_view map_name) {
+  if (!dst || dst_size == 0 || map_name.empty() || map_name.size() >= dst_size) {
+    return false;
+  }
+  if (!is_valid_map_name(map_name)) {
+    return false;
+  }
+  for (size_t i = 0; i < map_name.size(); ++i) {
+    dst[i] = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[i])));
+  }
+  dst[map_name.size()] = '\0';
   return true;
 }
 
@@ -228,6 +242,38 @@ bool read_optional_bool(const json_value& obj, std::initializer_list<const char*
     return true;
   }
   return parse_json_bool(candidate, out);
+}
+
+bool parse_position_coords(const json_value& params, position_coords* out) {
+  if (!out) {
+    return false;
+  }
+
+  json_value coord_source = params;
+  json_value position     = params["position"];
+  if (params.has_member("position")) {
+    if (!position.is_object()) {
+      return false;
+    }
+    coord_source = position;
+  }
+
+  double x = 0.0;
+  double y = 0.0;
+  if (!read_required_number(coord_source, {"x"}, &x) ||
+      !read_required_number(coord_source, {"y"}, &y) || !std::isfinite(x) || !std::isfinite(y)) {
+    return false;
+  }
+
+  double angle = 0.0;
+  if (!read_optional_number(params, {"angle"}, 0.0, &angle) || !std::isfinite(angle)) {
+    return false;
+  }
+
+  out->x     = x;
+  out->y     = y;
+  out->angle = angle;
+  return true;
 }
 
 }  // namespace dmcp

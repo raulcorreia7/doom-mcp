@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mcp/json/json.hpp"
+#include "doom/internal/json_types.hpp"
 
 #include <cerrno>
 #include <cstdint>
@@ -13,7 +13,11 @@
 
 namespace dmcp {
 
-using json_value = ::mcp::json::Value;
+struct position_coords {
+  double x;
+  double y;
+  double angle;
+};
 
 // JSON parsing utilities
 bool parse_json_number(const json_value& val, double* out);
@@ -26,8 +30,14 @@ json_value first_present_field(const json_value& obj, std::initializer_list<cons
 // String copying helper
 bool copy_checked_string(char* dst, size_t dst_size, std::string_view value);
 
+// Copy map name with uppercase normalization (validates and uppercases)
+bool copy_normalized_map_name(char* dst, size_t dst_size, std::string_view map_name);
+
 // Validation functions
 bool is_valid_map_name(std::string_view map_name);
+
+// Position parsing - extracts x, y from params["position"] or params directly
+bool parse_position_coords(const json_value& params, position_coords* out);
 
 // Reader helpers for command parsing
 bool read_required_string(const json_value& obj, std::initializer_list<const char*> keys,

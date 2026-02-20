@@ -1,11 +1,11 @@
-#include "parsers.hpp"
+#include "command_parsers.hpp"
 
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string_view>
 
-#include "doom/commands/parsers.hpp"
+#include "doom/commands/json_parsers.hpp"
 
 namespace dmcp {
 
@@ -19,23 +19,8 @@ bool parse_spawn_command(const json_value& params, dmcp_command_t* out) {
     return false;
   }
 
-  json_value position     = params["position"];
-  json_value coord_source = params;
-  if (params.has_member("position")) {
-    if (!position.is_object()) {
-      return false;
-    }
-    coord_source = position;
-  }
-
-  double x     = 0.0;
-  double y     = 0.0;
-  double angle = 0.0;
-  if (!read_required_number(coord_source, {"x"}, &x) ||
-      !read_required_number(coord_source, {"y"}, &y) || !std::isfinite(x) || !std::isfinite(y)) {
-    return false;
-  }
-  if (!read_optional_number(params, {"angle"}, 0.0, &angle) || !std::isfinite(angle)) {
+  position_coords pos;
+  if (!parse_position_coords(params, &pos)) {
     return false;
   }
 
@@ -45,9 +30,9 @@ bool parse_spawn_command(const json_value& params, dmcp_command_t* out) {
     return false;
   }
 
-  out->data.spawn.position.x = static_cast<float>(x);
-  out->data.spawn.position.y = static_cast<float>(y);
-  out->data.spawn.angle      = static_cast<float>(angle);
+  out->data.spawn.position.x = static_cast<float>(pos.x);
+  out->data.spawn.position.y = static_cast<float>(pos.y);
+  out->data.spawn.angle      = static_cast<float>(pos.angle);
   out->data.spawn.tid        = static_cast<std::int32_t>(tid);
 
   return true;
