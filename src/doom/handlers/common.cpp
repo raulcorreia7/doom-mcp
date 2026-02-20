@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 
+#include "dmcp/adapter/content.h"
 #include "dmcp/doom/api.h"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
@@ -28,6 +29,71 @@ static const command_tool_definition k_command_tools[] = {
     {"damage_entity", "damage_entity", "Apply damage to a target entity"},
     {"kill_entity", "kill_entity", "Kill a target entity"},
 };
+
+namespace {
+
+// Get current game mode from snapshot (returns UNKNOWN if no snapshot)
+dmcp_gamemode_t get_current_game_mode(context* ctx) {
+  if (!ctx) return DMCP_GAMEMODE_UNKNOWN;
+
+  std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
+  const dmcp_game_t&          game = ctx->last_snapshot.game;
+
+  if (game.version[0] == '\0') return DMCP_GAMEMODE_UNKNOWN;
+
+  if (std::strcmp(game.version, "shareware") == 0) return DMCP_GAMEMODE_SHAREWARE;
+  if (std::strcmp(game.version, "registered") == 0) return DMCP_GAMEMODE_REGISTERED;
+  if (std::strcmp(game.version, "commercial") == 0) return DMCP_GAMEMODE_COMMERCIAL;
+  if (std::strcmp(game.version, "retail") == 0 || std::strcmp(game.version, "ultimate") == 0)
+    return DMCP_GAMEMODE_RETAIL;
+
+  return DMCP_GAMEMODE_UNKNOWN;
+}
+
+// Validate command content against current game mode
+bool validate_command_content(context* ctx, const dmcp_command_t* cmd, std::string* error_message) {
+  if (!ctx || !cmd || !error_message) return false;
+
+  dmcp_gamemode_t mode = get_current_game_mode(ctx);
+  if (mode == DMCP_GAMEMODE_UNKNOWN) {
+    // No snapshot yet - can't validate, allow through and let adapter handle it
+    return true;
+  }
+
+  switch (cmd->type) {
+    case DMCP_CMD_SPAWN_ENTITY: {
+      if (!dmcp_is_enemy_spawnable(cmd->data.spawn.entity_class, mode)) {
+        *error_message =
+            dmcp_content_unavailable_message("Enemy", cmd->data.spawn.entity_class, mode);
+        return false;
+      }
+      break;
+    }
+    case DMCP_CMD_GIVE_ITEM: {
+      if (!dmcp_is_item_available(cmd->data.give_item.item_class, mode)) {
+        *error_message =
+            dmcp_content_unavailable_message("Item", cmd->data.give_item.item_class, mode);
+        return false;
+      }
+      break;
+    }
+    case DMCP_CMD_CHANGE_LEVEL: {
+      if (!dmcp_is_map_available(cmd->data.change_level.map_name, mode)) {
+        *error_message =
+            dmcp_content_unavailable_message("Map", cmd->data.change_level.map_name, mode);
+        return false;
+      }
+      break;
+    }
+    default:
+      // Other commands don't need content validation
+      break;
+  }
+
+  return true;
+}
+
+}  // namespace
 
 const command_tool_definition* find_command_tool(std::string_view tool_name) {
   for (const auto& tool : k_command_tools) {
@@ -203,6 +269,11 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
     if (parse_result.message && parse_result.message[0] != '\0') {
       *error_message = parse_result.message;
     }
+    return false;
+  }
+
+  // Validate content availability against current game mode
+  if (!validate_command_content(ctx, &cmd, error_message)) {
     return false;
   }
 
