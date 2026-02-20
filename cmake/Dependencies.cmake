@@ -49,11 +49,11 @@ CPMFindPackage(
 if(uWebSockets_ADDED)
   find_package(ZLIB REQUIRED)
   add_library(uWebSockets INTERFACE)
-  target_include_directories(uWebSockets INTERFACE "${uWebSockets_SOURCE_DIR}/src")
+  target_include_directories(uWebSockets SYSTEM INTERFACE "${uWebSockets_SOURCE_DIR}/src")
   target_link_libraries(uWebSockets INTERFACE uSockets ZLIB::ZLIB)
 
   if(NOT MSVC)
-    target_compile_options(uWebSockets INTERFACE -Wno-deprecated-declarations)
+    target_compile_options(uWebSockets INTERFACE -Wno-shadow -Wno-deprecated-declarations)
   endif()
 endif()
 
