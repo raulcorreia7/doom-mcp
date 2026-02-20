@@ -77,13 +77,14 @@ const char* const dmcp_shareware_restricted_weapons[] = {
 const size_t dmcp_shareware_restricted_weapons_count =
     sizeof(dmcp_shareware_restricted_weapons) / sizeof(dmcp_shareware_restricted_weapons[0]);
 
-const char* const dmcp_shareware_restricted_enemies[] = {"Arachnotron",       "PainElemental",
-                                                         "Pain Elemental",    "Revenant",
-                                                         "Mancubus",          "Fatso",
-                                                         "Archvile",          "Arch-vile",
-                                                         "Arch Vile",         "SpiderMastermind",
-                                                         "Spider Mastermind", "SpiderBoss",
-                                                         "Cyberdemon",        "Cyber"};
+// Enemies not present in Episode 1 (Knee-Deep in the Dead) / shareware
+const char* const dmcp_shareware_restricted_enemies[] = {
+    // Doom 2 exclusive monsters
+    "Arachnotron", "PainElemental", "Pain Elemental", "Revenant", "Mancubus", "Fatso", "Archvile",
+    "Arch-vile", "Arch Vile", "SpiderMastermind", "Spider Mastermind", "SpiderBoss", "Cyberdemon",
+    "Cyber",
+    // Doom 1 Episode 2+ monsters
+    "Cacodemon", "LostSoul", "Lost Soul"};
 
 const size_t dmcp_shareware_restricted_enemies_count =
     sizeof(dmcp_shareware_restricted_enemies) / sizeof(dmcp_shareware_restricted_enemies[0]);

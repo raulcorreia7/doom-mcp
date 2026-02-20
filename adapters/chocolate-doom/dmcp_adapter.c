@@ -178,8 +178,8 @@ void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx) {
     } else if (cmd.type == DMCP_CMD_GIVE_ITEM || cmd.type == DMCP_CMD_SPAWN_ENTITY) {
       if (gamemode == shareware) {
         message =
-            "Item/monster not available in shareware (Plasma, BFG, Super Shotgun, Cyberdemon, "
-            "etc.)";
+            "Content not available in shareware. Restricted: Plasma Rifle, BFG, Super Shotgun, "
+            "Cacodemon, Lost Soul, Cyberdemon, Spider Mastermind, and Doom II monsters";
       } else {
         message = "Command failed: invalid item/monster or unavailable in current mode";
       }
