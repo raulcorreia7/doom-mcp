@@ -5,6 +5,8 @@
 
 #include "adapter.h"
 
+#include "dmcp/adapter/validation.h"
+
 // ZDoom headers
 #include "common/console/c_console.h"
 #include "common/engine/printf.h"
@@ -84,14 +86,27 @@ static bool GiveItem(const dmcp_cmd_give_item_t* give) {
 
 // Helper to set player health
 static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
-  if (!health) return false;
+  if (!health) {
+    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: null command");
+    return false;
+  }
+
+  // Validate health value using adapter helper
+  int health_value = static_cast<int>(health->health);
+  if (!dmcp_validate_health(health_value)) {
+    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-200)", health_value);
+    return false;
+  }
 
   player_t* player = GetConsolePlayer();
-  if (!player->mo) return false;
+  if (!player || !player->mo) {
+    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: no player or mobj");
+    return false;
+  }
 
   // Direct health modification
-  player->mo->health = static_cast<int>(health->health);
-  player->health     = player->mo->health;
+  player->mo->health = health_value;
+  player->health     = health_value;
 
   return true;
 }
@@ -132,14 +147,25 @@ static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
 
 // Helper to damage entity
 static bool DamageEntity(const dmcp_cmd_damage_t* damage) {
-  if (!damage) return false;
-
-  AActor* actor = FindActorByTid(damage->target_tid);
-  if (!actor) {
+  if (!damage) {
+    Log(nullptr, MCP_LOG_WARN, "DamageEntity: null command");
     return false;
   }
 
-  P_DamageMobj(actor, nullptr, nullptr, static_cast<int>(damage->damage), damage->damage_type);
+  // Validate damage amount using adapter helper
+  int damage_value = static_cast<int>(damage->damage);
+  if (!dmcp_validate_damage(damage_value)) {
+    Log(nullptr, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-10000)", damage_value);
+    return false;
+  }
+
+  AActor* actor = FindActorByTid(damage->target_tid);
+  if (!actor) {
+    Log(nullptr, MCP_LOG_WARN, "DamageEntity: target tid %d not found", damage->target_tid);
+    return false;
+  }
+
+  P_DamageMobj(actor, nullptr, nullptr, damage_value, damage->damage_type);
   return true;
 }
 
