@@ -5,7 +5,6 @@
 #define DMCP_MAPPINGS_H
 
 #include <stddef.h>
-#include <string.h>
 
 #include "doomdef.h"
 #include "doomstat.h"
@@ -13,26 +12,13 @@
 #include "m_fixed.h"
 
 #include "dmcp/doom/dmcp.h"
+#include "dmcp/adapter/utils.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define DMCP_MAX_STRING 64
-
-static inline float dmcp_fixed_to_float(fixed_t fixed_val) {
-  return (float)fixed_val / (float)FRACUNIT;
-}
-
-static inline fixed_t dmcp_float_to_fixed(float val) { return (fixed_t)(val * (float)FRACUNIT); }
-
-static inline float dmcp_angle_to_radians(angle_t angle_val) {
-  return (float)angle_val * (3.14159265358979323846f * 2.0f) / (float)UINT_MAX;
-}
-
-static inline angle_t dmcp_degrees_to_angle(float degrees) {
-  return (angle_t)(degrees * (float)UINT_MAX / 360.0f);
-}
 
 static inline const char* dmcp_skill_to_string(skill_t skill) {
   switch (skill) {
@@ -146,16 +132,6 @@ static inline dmcp_gamemode_t dmcp_to_gamemode(GameMode_t mode) {
     default:
       return DMCP_GAMEMODE_UNKNOWN;
   }
-}
-
-static inline void dmcp_strcpy_safe(char* dest, const char* src, size_t dest_size) {
-  if (!dest || dest_size == 0) return;
-  if (!src) {
-    dest[0] = '\0';
-    return;
-  }
-  strncpy(dest, src, dest_size - 1);
-  dest[dest_size - 1] = '\0';
 }
 
 #ifdef __cplusplus

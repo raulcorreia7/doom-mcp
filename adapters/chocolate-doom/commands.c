@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "dmcp/adapter/content.h"
+#include "dmcp/adapter/utils.h"
 #include "dmcp/adapter/validation.h"
 
 #include "d_player.h"
@@ -25,41 +26,6 @@
 #include "r_state.h"
 #include "sounds.h"
 #include "w_wad.h"
-
-static int dmcp_ascii_tolower(int c) {
-  if (c >= 'A' && c <= 'Z') {
-    return c - 'A' + 'a';
-  }
-  return c;
-}
-
-static bool dmcp_str_equals_ci(const char* a, const char* b);
-
-static bool dmcp_str_equals_ci(const char* a, const char* b) {
-  if (!a || !b) {
-    return false;
-  }
-
-  while (*a && *b) {
-    if (dmcp_ascii_tolower((unsigned char)*a) != dmcp_ascii_tolower((unsigned char)*b)) {
-      return false;
-    }
-    ++a;
-    ++b;
-  }
-
-  return *a == '\0' && *b == '\0';
-}
-
-static int dmcp_clamp_int(int value, int min_value, int max_value) {
-  if (value < min_value) {
-    return min_value;
-  }
-  if (value > max_value) {
-    return max_value;
-  }
-  return value;
-}
 
 static bool dmcp_float_to_fixed_checked(float value, fixed_t* out) {
   double scaled;
@@ -662,7 +628,7 @@ static void dmcp_normalize_command(char* out, size_t out_size, const char* in) {
       continue;
     }
 
-    out[write_index++] = (char)dmcp_ascii_tolower(ch);
+    out[write_index++] = (char)tolower(ch);
     previous_space     = false;
   }
 

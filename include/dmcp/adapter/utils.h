@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
@@ -10,11 +11,27 @@ extern "C" {
 
 #define DMCP_FRACUNIT 65536
 
-static inline int dmcp_str_equals_ci(const char* a, const char* b) {
-  if (!a || !b) return 0;
+static inline int dmcp_clamp_int(int value, int min_value, int max_value) {
+  if (value < min_value) return min_value;
+  if (value > max_value) return max_value;
+  return value;
+}
+
+static inline void dmcp_strcpy_safe(char* dest, const char* src, size_t dest_size) {
+  if (!dest || dest_size == 0) return;
+  if (!src) {
+    dest[0] = '\0';
+    return;
+  }
+  strncpy(dest, src, dest_size - 1);
+  dest[dest_size - 1] = '\0';
+}
+
+static inline bool dmcp_str_equals_ci(const char* a, const char* b) {
+  if (!a || !b) return false;
   while (*a && *b) {
     if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
-      return 0;
+      return false;
     }
     ++a;
     ++b;
