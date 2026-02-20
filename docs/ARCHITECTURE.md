@@ -151,7 +151,8 @@ doom-mcp/
 │   │       ├── server.h       # Generic server API
 │   │       ├── transport.h    # Transport abstraction
 │   │       ├── constants.h    # Buffer sizes, limits
-│   │       └── result.h       # Result type and macros
+│   │       ├── result.h       # Result type and macros
+│   │       └── export.h       # Export macros for shared libs
 │   │
 │   └── dmcp/
 │       ├── doom/
@@ -167,7 +168,8 @@ doom-mcp/
 │       └── adapter/            # Shared adapter utilities
 │           ├── utils.h         # Coordinate/angle conversions
 │           ├── entities.h      # Entity name mappings
-│           └── validation.h    # Input validation helpers
+│           ├── validation.h    # Input validation helpers
+│           └── content.h       # Content lookup helpers for adapters
 │
 ├── src/
 │   ├── mcp/
