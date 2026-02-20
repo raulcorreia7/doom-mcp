@@ -173,7 +173,7 @@ static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_ty
 }
 
 static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
-  int amount;
+  int32_t amount;
 
   if (!player || !player->mo || !give || !give->item_class[0]) {
     return false;
@@ -183,7 +183,7 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
     return false;
   }
 
-  amount = dmcp_clamp_int(give->amount, 1, 1000);
+  amount = dmcp_clamp_int((int)give->amount, 1, 1000);
 
   if (dmcp_str_equals_ci(give->item_class, "Pistol")) {
     player->weaponowned[wp_pistol] = 1;
