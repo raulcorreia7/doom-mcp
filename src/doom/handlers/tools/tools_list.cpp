@@ -19,7 +19,7 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
                    "Get current game state including player position, health, enemies",
                    std::move(get_game_state_schema));
 
-  if (ctx->screenshot.enabled) {
+  if (ctx->screenshot.enabled.load()) {
     json_builder screenshot_schema;
     add_empty_object_schema(&screenshot_schema);
     add_command_tool(&tools, "get_screenshot", "Capture a screenshot of the current game state",
@@ -58,8 +58,17 @@ bool handle_tools_call(void* user_data, const char* /*method*/, const char* requ
   json_document doc;
   if (!doc.parse(request_json)) return false;
 
-  json_value        params = doc.root();
-  const std::string tool_name{params["name"].get_string()};
+  json_value params   = doc.root();
+  json_value name_val = params["name"];
+  if (!name_val.is_string()) {
+    const std::string resp = build_content_response("Missing or invalid 'name' field", true);
+    return write_json_response(resp, response_buffer, response_size);
+  }
+  const std::string tool_name{name_val.get_string()};
+  if (tool_name.empty()) {
+    const std::string resp = build_content_response("Tool name cannot be empty", true);
+    return write_json_response(resp, response_buffer, response_size);
+  }
 
   if (tool_name == "get_game_state") {
     return handle_tool_get_game_state(ctx, response_buffer, response_size);

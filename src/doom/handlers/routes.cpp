@@ -3,11 +3,11 @@
 #include <string_view>
 
 #include "dmcp/doom/api.h"
+#include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/serialization.hpp"
 #include "mcp/generic/constants.h"
 #include "mcp/json/json.hpp"
-#include "doom/handlers/tools/tools.hpp"
 
 namespace dmcp {
 

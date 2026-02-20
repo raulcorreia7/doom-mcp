@@ -79,6 +79,7 @@ bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t*
 // ============================================================================
 
 // Log a message (uses DMCP logging if available, otherwise printf)
+// Thread-safe: may be called from any thread
 void dmcp_adapter_log(int level, const char* fmt, ...);
 
 // ============================================================================

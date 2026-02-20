@@ -56,6 +56,7 @@ void dmcp_log(context* ctx, int level, const char* fmt, ...) {
     return;
   }
 
+  // Note: messages longer than 511 chars are silently truncated
   char    buffer[512];
   va_list args;
   va_start(args, fmt);
