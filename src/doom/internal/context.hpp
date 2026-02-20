@@ -16,14 +16,6 @@
 #include "pool.hpp"
 #include "screenshot.hpp"
 
-// Forward declarations for new subsystems
-namespace dmcp {
-class server_manager;
-class command_manager;
-class snapshot_manager;
-class screenshot_manager;
-}  // namespace dmcp
-
 namespace dmcp {
 
 struct context {

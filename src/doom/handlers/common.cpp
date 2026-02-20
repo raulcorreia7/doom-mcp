@@ -1,15 +1,14 @@
 #include <algorithm>
 #include <cerrno>
-#include <cstring>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <string_view>
-#include <vector>
 
-#include "dmcp/doom/content.h"
 #include "dmcp/doom/api.h"
+#include "dmcp/doom/content.h"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/json_types.hpp"
@@ -31,71 +30,6 @@ static const command_tool_definition k_command_tools[] = {
 };
 
 namespace {
-
-enum class enemy_status_filter {
-  alive,
-  dead,
-  all,
-};
-
-bool parse_enemy_status_filter(const json_value& args, enemy_status_filter* out_filter,
-                               std::string* out_error) {
-  if (!out_filter || !out_error) {
-    return false;
-  }
-
-  *out_filter = enemy_status_filter::alive;
-
-  if (!args.is_object()) {
-    return true;
-  }
-
-  json_value status_val = args["status"];
-  if (!status_val) {
-    return true;
-  }
-
-  if (!status_val.is_string()) {
-    *out_error = "status must be one of: alive, dead, all";
-    return false;
-  }
-
-  const std::string_view status(status_val.get_string());
-  if (status == "alive") {
-    *out_filter = enemy_status_filter::alive;
-    return true;
-  }
-
-  if (status == "dead") {
-    *out_filter = enemy_status_filter::dead;
-    return true;
-  }
-
-  if (status == "all") {
-    *out_filter = enemy_status_filter::all;
-    return true;
-  }
-
-  *out_error = "status must be one of: alive, dead, all";
-  return false;
-}
-
-bool enemy_matches_filter(const dmcp_enemy_t& enemy, enemy_status_filter filter) {
-  const bool is_alive = enemy.hp > 0;
-
-  switch (filter) {
-    case enemy_status_filter::alive:
-      return is_alive;
-    case enemy_status_filter::dead:
-      return !is_alive;
-    case enemy_status_filter::all:
-      return true;
-  }
-
-  return false;
-}
-
-const char* enemy_state_name(const dmcp_enemy_t& enemy) { return enemy.hp > 0 ? "alive" : "dead"; }
 
 dmcp_gamemode_t parse_game_mode_name(std::string_view mode_name) {
   if (mode_name == "shareware") return DMCP_GAMEMODE_SHAREWARE;
@@ -125,7 +59,6 @@ bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::str
 
   const dmcp_gamemode_t mode = get_snapshot_game_mode(ctx);
   if (mode == DMCP_GAMEMODE_UNKNOWN) {
-    // No snapshot yet: do not over-restrict. Adapter will validate on execution.
     return true;
   }
 
@@ -157,6 +90,27 @@ bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::str
   return true;
 }
 
+bool parse_size_from_number(const json_value& value, size_t* out) {
+  if (!out || !value || !value.is_number()) {
+    return false;
+  }
+
+  const std::string number_text = value.dump();
+  if (number_text.empty()) {
+    return false;
+  }
+
+  char* end_ptr                   = nullptr;
+  errno                           = 0;
+  const unsigned long long parsed = std::strtoull(number_text.c_str(), &end_ptr, 10);
+  if (!end_ptr || end_ptr == number_text.c_str() || *end_ptr != '\0' || errno == ERANGE) {
+    return false;
+  }
+
+  *out = static_cast<size_t>(parsed);
+  return true;
+}
+
 }  // namespace
 
 const command_tool_definition* find_command_tool(std::string_view tool_name) {
@@ -182,7 +136,6 @@ void dmcp_log(const context* ctx, int level, const char* fmt, ...) {
     return;
   }
 
-  // Note: messages longer than 511 chars are silently truncated
   char    buffer[512];
   va_list args;
   va_start(args, fmt);
@@ -231,386 +184,6 @@ dmcp_snapshot_t copy_latest_snapshot(context* ctx) {
   std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
   snapshot_copy = ctx->last_snapshot;
   return snapshot_copy;
-}
-
-namespace {
-
-json_builder build_vec3_json(const dmcp_vec3_t& position) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("x", static_cast<double>(position.x));
-  obj.add("y", static_cast<double>(position.y));
-  obj.add("z", static_cast<double>(position.z));
-  return obj;
-}
-
-json_builder build_player_json(const dmcp_player_t& player) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("hp", static_cast<int64_t>(player.hp));
-  obj.add("armor", static_cast<int64_t>(player.armor));
-  obj.add("armortype", player.armortype);
-  obj.add("position", build_vec3_json(player.position));
-  obj.add("angle", static_cast<double>(player.angle));
-  obj.add("readyweapon", player.readyweapon);
-  obj.add("pendingweapon", player.pendingweapon);
-
-  json_builder weapon_owned;
-  weapon_owned.start_array();
-  for (size_t i = 0; i < DMCP_MAX_WEAPONS; ++i) {
-    weapon_owned.push(static_cast<int64_t>(player.weaponowned[i]));
-  }
-  obj.add("weaponowned", std::move(weapon_owned));
-
-  json_builder ammo;
-  ammo.start_array();
-  for (size_t i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
-    ammo.push(static_cast<int64_t>(player.ammo[i]));
-  }
-  obj.add("ammo", std::move(ammo));
-
-  json_builder maxammo;
-  maxammo.start_array();
-  for (size_t i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
-    maxammo.push(static_cast<int64_t>(player.maxammo[i]));
-  }
-  obj.add("maxammo", std::move(maxammo));
-
-  obj.add("backpack", player.backpack != 0);
-
-  json_builder powers;
-  powers.start_array();
-  for (size_t i = 0; i < DMCP_MAX_POWERUPS; ++i) {
-    powers.push(static_cast<int64_t>(player.powers[i]));
-  }
-  obj.add("powers", std::move(powers));
-
-  json_builder cards;
-  cards.start_array();
-  for (size_t i = 0; i < DMCP_MAX_KEYS; ++i) {
-    cards.push(static_cast<int64_t>(player.cards[i]));
-  }
-  obj.add("cards", std::move(cards));
-
-  obj.add("playerstate", player.playerstate);
-  obj.add("cheats", static_cast<int64_t>(player.cheats));
-  obj.add("damagecount", static_cast<int64_t>(player.damagecount));
-  return obj;
-}
-
-json_builder build_level_json(const dmcp_level_t& level) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("tic", static_cast<int64_t>(level.tic));
-  obj.add("leveltime", static_cast<int64_t>(level.leveltime));
-  obj.add("level_id", level.level_id);
-  obj.add("level_name", level.level_name);
-  obj.add("kill_count", static_cast<int64_t>(level.kill_count));
-  obj.add("item_count", static_cast<int64_t>(level.item_count));
-  obj.add("secret_count", static_cast<int64_t>(level.secret_count));
-  obj.add("totalkills", static_cast<int64_t>(level.totalkills));
-  obj.add("totalitems", static_cast<int64_t>(level.totalitems));
-  obj.add("totalsecrets", static_cast<int64_t>(level.totalsecrets));
-  obj.add("skill", level.skill);
-  obj.add("gamestate", level.gamestate);
-  obj.add("paused", level.paused != 0);
-  return obj;
-}
-
-json_builder build_game_json(const dmcp_game_t& game) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("mode", game.mode);
-  obj.add("version", game.version);
-  obj.add("respawnmonsters", game.respawnmonsters != 0);
-  obj.add("consoleplayer", static_cast<int64_t>(game.consoleplayer));
-  return obj;
-}
-
-json_builder build_enemy_json(const dmcp_enemy_t& enemy) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("id", static_cast<int64_t>(enemy.id));
-  obj.add("hp", static_cast<int64_t>(enemy.hp));
-  obj.add("max_hp", static_cast<int64_t>(enemy.max_hp));
-  obj.add("state", enemy_state_name(enemy));
-  obj.add("position", build_vec3_json(enemy.position));
-  obj.add("angle", static_cast<double>(enemy.angle));
-  obj.add("target_id", static_cast<int64_t>(enemy.target_id));
-  obj.add("type", enemy.type);
-  return obj;
-}
-
-json_builder build_item_json(const dmcp_item_t& item) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("name", item.name);
-  obj.add("amount", static_cast<int64_t>(item.amount));
-  return obj;
-}
-
-json_builder build_entity_json(const dmcp_entity_t& entity) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("id", static_cast<int64_t>(entity.id));
-  obj.add("hp", static_cast<int64_t>(entity.hp));
-  obj.add("max_hp", static_cast<int64_t>(entity.max_hp));
-  obj.add("position", build_vec3_json(entity.position));
-  obj.add("angle", static_cast<double>(entity.angle));
-  obj.add("type", entity.type);
-  return obj;
-}
-
-bool parse_size_from_number(const json_value& value, size_t* out) {
-  if (!out || !value || !value.is_number()) {
-    return false;
-  }
-
-  const std::string number_text = value.dump();
-  if (number_text.empty()) {
-    return false;
-  }
-
-  char* end_ptr                   = nullptr;
-  errno                           = 0;
-  const unsigned long long parsed = std::strtoull(number_text.c_str(), &end_ptr, 10);
-  if (!end_ptr || end_ptr == number_text.c_str() || *end_ptr != '\0' || errno == ERANGE) {
-    return false;
-  }
-
-  *out = static_cast<size_t>(parsed);
-  return true;
-}
-
-}  // namespace
-
-std::string build_player_state_json(const dmcp_snapshot_t& snapshot) {
-  json_builder payload;
-  payload.start_object();
-  payload.add("player", build_player_json(snapshot.player));
-  return payload.finish();
-}
-
-std::string build_map_state_json(const dmcp_snapshot_t& snapshot) {
-  json_builder payload;
-  payload.start_object();
-  payload.add("map", build_level_json(snapshot.level));
-  return payload.finish();
-}
-
-std::string build_game_info_json(const dmcp_snapshot_t& snapshot) {
-  json_builder payload;
-  payload.start_object();
-  payload.add("game", build_game_json(snapshot.game));
-  return payload.finish();
-}
-
-std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
-                                     std::string_view status_filter) {
-  enemy_status_filter filter = enemy_status_filter::alive;
-  if (status_filter == "dead") {
-    filter = enemy_status_filter::dead;
-  } else if (status_filter == "all") {
-    filter = enemy_status_filter::all;
-  }
-
-  std::vector<size_t> matched_indexes;
-  matched_indexes.reserve(snapshot.enemy_count);
-  for (size_t i = 0; i < snapshot.enemy_count; ++i) {
-    if (enemy_matches_filter(snapshot.enemies[i], filter)) {
-      matched_indexes.push_back(i);
-    }
-  }
-
-  const size_t total = matched_indexes.size();
-  const size_t start = std::min(offset, total);
-  const size_t end   = std::min(start + limit, total);
-
-  json_builder payload;
-  payload.start_object();
-  payload.add("status", std::string(status_filter));
-  payload.add("enemy_count", static_cast<int64_t>(total));
-  payload.add("offset", static_cast<int64_t>(start));
-  payload.add("limit", static_cast<int64_t>(limit));
-  payload.add("returned", static_cast<int64_t>(end - start));
-
-  json_builder enemies;
-  enemies.start_array();
-  for (size_t i = start; i < end; ++i) {
-    enemies.push(build_enemy_json(snapshot.enemies[matched_indexes[i]]));
-  }
-  payload.add("enemies", std::move(enemies));
-  return payload.finish();
-}
-
-std::string build_inventory_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
-                                       size_t limit) {
-  const size_t total = snapshot.inventory_count;
-  const size_t start = std::min(offset, total);
-  const size_t end   = std::min(start + limit, total);
-
-  json_builder payload;
-  payload.start_object();
-  payload.add("inventory_count", static_cast<int64_t>(total));
-  payload.add("offset", static_cast<int64_t>(start));
-  payload.add("limit", static_cast<int64_t>(limit));
-  payload.add("returned", static_cast<int64_t>(end - start));
-
-  json_builder items;
-  items.start_array();
-  for (size_t i = start; i < end; ++i) {
-    items.push(build_item_json(snapshot.inventory[i]));
-  }
-  payload.add("inventory", std::move(items));
-  return payload.finish();
-}
-
-std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
-                                      size_t limit) {
-  const size_t total = snapshot.entity_count;
-  const size_t start = std::min(offset, total);
-  const size_t end   = std::min(start + limit, total);
-
-  json_builder payload;
-  payload.start_object();
-  payload.add("entity_count", static_cast<int64_t>(total));
-  payload.add("offset", static_cast<int64_t>(start));
-  payload.add("limit", static_cast<int64_t>(limit));
-  payload.add("returned", static_cast<int64_t>(end - start));
-
-  json_builder entities;
-  entities.start_array();
-  for (size_t i = start; i < end; ++i) {
-    entities.push(build_entity_json(snapshot.entities[i]));
-  }
-  payload.add("entities", std::move(entities));
-  return payload.finish();
-}
-
-bool parse_offset_limit_from_json(const json_value& args, size_t total_count, size_t default_limit,
-                                  size_t* out_offset, size_t* out_limit, std::string* out_error) {
-  if (!out_offset || !out_limit || !out_error) {
-    return false;
-  }
-
-  *out_offset = 0;
-  *out_limit  = default_limit;
-  *out_error  = "Invalid pagination params";
-
-  if (!args.is_object()) {
-    return true;
-  }
-
-  json_value offset_val = args["offset"];
-  if (offset_val) {
-    if (!parse_size_from_number(offset_val, out_offset)) {
-      *out_error = "offset must be a non-negative integer";
-      return false;
-    }
-  }
-
-  json_value limit_val = args["limit"];
-  if (limit_val) {
-    if (!parse_size_from_number(limit_val, out_limit) || *out_limit == 0) {
-      *out_error = "limit must be a positive integer";
-      return false;
-    }
-  }
-
-  if (*out_offset > total_count) {
-    *out_offset = total_count;
-  }
-
-  if (*out_limit > total_count && total_count > 0) {
-    *out_limit = total_count;
-  }
-
-  if (total_count == 0) {
-    *out_offset = 0;
-  }
-
-  return true;
-}
-
-bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_view section,
-                                 const json_value& args, std::string* out_payload,
-                                 std::string* out_error) {
-  if (!out_payload || !out_error) {
-    return false;
-  }
-
-  constexpr size_t k_default_limit = 64;
-
-  if (section.empty()) {
-    *out_error = "section is required (player, enemies, entities, map, inventory, game)";
-    return false;
-  }
-
-  if (section == "player") {
-    *out_payload = build_player_state_json(snapshot);
-    return true;
-  }
-
-  if (section == "map" || section == "level") {
-    *out_payload = build_map_state_json(snapshot);
-    return true;
-  }
-
-  if (section == "game" || section == "game_info") {
-    *out_payload = build_game_info_json(snapshot);
-    return true;
-  }
-
-  if (section == "enemies") {
-    enemy_status_filter filter = enemy_status_filter::alive;
-    if (!parse_enemy_status_filter(args, &filter, out_error)) {
-      return false;
-    }
-
-    size_t offset = 0;
-    size_t limit  = k_default_limit;
-    if (!parse_offset_limit_from_json(args, snapshot.enemy_count, k_default_limit, &offset, &limit,
-                                      out_error)) {
-      return false;
-    }
-
-    std::string_view status_filter = "alive";
-    if (filter == enemy_status_filter::dead) {
-      status_filter = "dead";
-    } else if (filter == enemy_status_filter::all) {
-      status_filter = "all";
-    }
-
-    *out_payload = build_enemies_state_json(snapshot, offset, limit, status_filter);
-    return true;
-  }
-
-  if (section == "entities") {
-    size_t offset = 0;
-    size_t limit  = k_default_limit;
-    if (!parse_offset_limit_from_json(args, snapshot.entity_count, k_default_limit, &offset, &limit,
-                                      out_error)) {
-      return false;
-    }
-
-    *out_payload = build_entities_state_json(snapshot, offset, limit);
-    return true;
-  }
-
-  if (section == "inventory") {
-    size_t offset = 0;
-    size_t limit  = k_default_limit;
-    if (!parse_offset_limit_from_json(args, snapshot.inventory_count, k_default_limit, &offset,
-                                      &limit, out_error)) {
-      return false;
-    }
-
-    *out_payload = build_inventory_state_json(snapshot, offset, limit);
-    return true;
-  }
-
-  *out_error = "Unknown section. Use one of: player, enemies, entities, map, inventory, game";
-  return false;
 }
 
 bool parse_sequence_field(const json_value& value, uint64_t* out_sequence) {
@@ -823,118 +396,6 @@ std::string build_route_error(std::string_view code, std::string_view message) {
 const command_tool_definition* get_command_tools_array() { return k_command_tools; }
 
 size_t get_command_tools_count() { return sizeof(k_command_tools) / sizeof(k_command_tools[0]); }
-
-void add_empty_object_schema(json_builder* schema) {
-  if (!schema) {
-    return;
-  }
-
-  schema->start_object();
-  schema->add("type", "object");
-
-  json_builder props;
-  props.start_object();
-  schema->add("properties", std::move(props));
-}
-
-void add_property(json_builder* props, const char* key, const char* type, const char* description) {
-  if (!props || !key || !type || !description) {
-    return;
-  }
-
-  json_builder prop;
-  prop.start_object();
-  prop.add("type", type);
-  prop.add("description", description);
-  props->add(key, std::move(prop));
-}
-
-void add_command_tool_schema(const char* tool_name, json_builder* schema) {
-  if (!tool_name || !schema) {
-    return;
-  }
-
-  schema->start_object();
-  schema->add("type", "object");
-
-  json_builder props;
-  props.start_object();
-
-  json_builder required;
-  required.start_array();
-  bool has_required = false;
-
-  if (std::strcmp(tool_name, "spawn_entity") == 0) {
-    add_property(&props, "entity_class", "string",
-                 "Entity class (enemy or pickup), eg DoomImp, Zombieman, Medikit");
-    add_property(&props, "x", "number", "Spawn X coordinate");
-    add_property(&props, "y", "number", "Spawn Y coordinate");
-    add_property(&props, "angle", "number", "Facing angle in degrees");
-    required.push("entity_class");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "change_level") == 0) {
-    add_property(&props, "map_name", "string", "Map name, eg E1M2 or MAP01");
-    add_property(&props, "skill_level", "integer", "Difficulty level 1-5");
-    add_property(&props, "reset_inventory", "boolean", "Reset inventory on map load");
-    required.push("map_name");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "give_item") == 0) {
-    add_property(&props, "item_class", "string", "Item class, eg Shotgun or Medikit");
-    add_property(&props, "amount", "integer", "Quantity to give");
-    required.push("item_class");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "set_player_health") == 0) {
-    add_property(&props, "health", "number", "Health value (alias: value)");
-    required.push("health");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "teleport_player") == 0 ||
-             std::strcmp(tool_name, "set_player_position") == 0) {
-    add_property(&props, "x", "number", "Destination X coordinate");
-    add_property(&props, "y", "number", "Destination Y coordinate");
-    add_property(&props, "angle", "number", "Facing angle in degrees");
-    required.push("x");
-    required.push("y");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "execute_console") == 0) {
-    add_property(&props, "command", "string", "Raw console command to execute");
-    required.push("command");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "pause_game") == 0) {
-    add_property(&props, "paused", "boolean", "Pause state (alias: pause)");
-    required.push("paused");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "damage_entity") == 0) {
-    add_property(&props, "target_tid", "integer", "Target enemy id from game state");
-    add_property(&props, "damage", "number", "Damage amount");
-    add_property(&props, "damage_type", "string", "Damage type label");
-    required.push("target_tid");
-    required.push("damage");
-    has_required = true;
-  } else if (std::strcmp(tool_name, "kill_entity") == 0) {
-    add_property(&props, "target_tid", "integer", "Target enemy id from game state");
-    required.push("target_tid");
-    has_required = true;
-  }
-
-  schema->add("properties", std::move(props));
-  if (has_required) {
-    schema->add("required", std::move(required));
-  }
-}
-
-void add_command_tool(json_builder* tools, const char* name, const char* description,
-                      json_builder schema) {
-  if (!tools || !name || !description) {
-    return;
-  }
-
-  json_builder tool;
-  tool.start_object();
-  tool.add("name", name);
-  tool.add("description", description);
-  tool.add("inputSchema", std::move(schema));
-  tools->push(std::move(tool));
-}
 
 bool handle_tool_command_alias(context* ctx, const command_tool_definition* command_tool,
                                const json_value& params, char* response_buffer,
