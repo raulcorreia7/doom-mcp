@@ -3,11 +3,13 @@
 #include "mcp/json/json.hpp"
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <limits>
 #include <string>
+#include <string_view>
 
 namespace dmcp {
 
@@ -26,5 +28,22 @@ bool copy_checked_string(char* dst, size_t dst_size, std::string_view value);
 
 // Validation functions
 bool is_valid_map_name(std::string_view map_name);
+
+// Reader helpers for command parsing
+bool read_required_string(const json_value& obj, std::initializer_list<const char*> keys,
+                          std::string_view* out);
+bool read_optional_string(const json_value& obj, std::initializer_list<const char*> keys,
+                          std::string_view default_value, std::string_view* out);
+bool read_required_number(const json_value& obj, std::initializer_list<const char*> keys,
+                          double* out);
+bool read_optional_number(const json_value& obj, std::initializer_list<const char*> keys,
+                          double default_value, double* out);
+bool read_required_int(const json_value& obj, std::initializer_list<const char*> keys,
+                       std::int64_t* out);
+bool read_optional_int(const json_value& obj, std::initializer_list<const char*> keys,
+                       std::int64_t default_value, std::int64_t* out);
+bool read_required_bool(const json_value& obj, std::initializer_list<const char*> keys, bool* out);
+bool read_optional_bool(const json_value& obj, std::initializer_list<const char*> keys,
+                        bool default_value, bool* out);
 
 }  // namespace dmcp

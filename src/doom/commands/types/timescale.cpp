@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "commands/parsers.hpp"
+#include "doom/commands/parsers.hpp"
 
 namespace dmcp {
 

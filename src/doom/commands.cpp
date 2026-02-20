@@ -15,6 +15,7 @@
 
 #include "dmcp/doom/api.h"
 #include "doom/commands/parsers.hpp"
+#include "doom/commands/types/parsers.hpp"
 #include "internal.hpp"
 #include "mcp/generic/protocol.h"
 #include "mcp/json/json.hpp"
@@ -299,305 +300,46 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     params = root;
   }
 
-  auto read_required_string = [](const dmcp::json_value&            obj,
-                                 std::initializer_list<const char*> keys,
-                                 std::string_view*                  out) -> bool {
-    if (!out) {
-      return false;
-    }
-
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    if (!candidate || !candidate.is_string()) {
-      return false;
-    }
-
-    const std::string_view value = candidate.get_string();
-    if (value.empty()) {
-      return false;
-    }
-
-    *out = value;
-    return true;
-  };
-
-  auto read_optional_string = [](const dmcp::json_value&            obj,
-                                 std::initializer_list<const char*> keys,
-                                 std::string_view default_value, std::string_view* out) -> bool {
-    if (!out) {
-      return false;
-    }
-
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    if (!candidate) {
-      *out = default_value;
-      return true;
-    }
-    if (!candidate.is_string()) {
-      return false;
-    }
-
-    const std::string_view value = candidate.get_string();
-    if (value.empty()) {
-      return false;
-    }
-
-    *out = value;
-    return true;
-  };
-
-  auto read_required_number = [](const dmcp::json_value&            obj,
-                                 std::initializer_list<const char*> keys, double* out) -> bool {
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    return dmcp::parse_json_number(candidate, out);
-  };
-
-  auto read_optional_number = [](const dmcp::json_value&            obj,
-                                 std::initializer_list<const char*> keys, double default_value,
-                                 double* out) -> bool {
-    if (!out) {
-      return false;
-    }
-
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    if (!candidate) {
-      *out = default_value;
-      return true;
-    }
-    return dmcp::parse_json_number(candidate, out);
-  };
-
-  auto read_required_int = [](const dmcp::json_value& obj, std::initializer_list<const char*> keys,
-                              std::int64_t* out) -> bool {
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    return dmcp::parse_json_integer(candidate, out);
-  };
-
-  auto read_optional_int = [](const dmcp::json_value& obj, std::initializer_list<const char*> keys,
-                              std::int64_t default_value, std::int64_t* out) -> bool {
-    if (!out) {
-      return false;
-    }
-
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    if (!candidate) {
-      *out = default_value;
-      return true;
-    }
-    return dmcp::parse_json_integer(candidate, out);
-  };
-
-  auto read_required_bool = [](const dmcp::json_value& obj, std::initializer_list<const char*> keys,
-                               bool* out) -> bool {
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    return dmcp::parse_json_bool(candidate, out);
-  };
-
-  auto read_optional_bool = [](const dmcp::json_value& obj, std::initializer_list<const char*> keys,
-                               bool default_value, bool* out) -> bool {
-    if (!out) {
-      return false;
-    }
-
-    const dmcp::json_value candidate = dmcp::first_present_field(obj, keys);
-    if (!candidate) {
-      *out = default_value;
-      return true;
-    }
-    return dmcp::parse_json_bool(candidate, out);
-  };
-
-  auto copy_checked_string = [](char* dst, size_t dst_size, std::string_view value) -> bool {
-    if (!dst || dst_size == 0 || value.empty() || value.size() >= dst_size) {
-      return false;
-    }
-    dmcp_strcpy(dst, value.data(), dst_size);
-    return true;
-  };
-
   if (type_str == "spawn_entity") {
-    out_cmd->type = DMCP_CMD_SPAWN_ENTITY;
-
-    std::string_view entity_class;
-    if (!read_required_string(params, {"entity_class", "entity", "class"}, &entity_class) ||
-        !copy_checked_string(out_cmd->data.spawn.entity_class,
-                             sizeof(out_cmd->data.spawn.entity_class), entity_class)) {
+    if (!dmcp::parse_spawn_command(params, out_cmd)) {
       return dmcp::invalid_command("spawn_entity requires non-empty string entity_class");
     }
-
-    dmcp::json_value position     = params["position"];
-    dmcp::json_value coord_source = params;
-    if (params.has_member("position")) {
-      if (!position.is_object()) {
-        return dmcp::invalid_command("spawn_entity position must be an object");
-      }
-      coord_source = position;
-    }
-
-    double x     = 0.0;
-    double y     = 0.0;
-    double angle = 0.0;
-    if (!read_required_number(coord_source, {"x"}, &x) ||
-        !read_required_number(coord_source, {"y"}, &y) || !std::isfinite(x) || !std::isfinite(y)) {
-      return dmcp::invalid_command("spawn_entity requires numeric x and y");
-    }
-    if (!read_optional_number(params, {"angle"}, 0.0, &angle) || !std::isfinite(angle)) {
-      return dmcp::invalid_command("spawn_entity angle must be numeric");
-    }
-
-    std::int64_t tid = 0;
-    if (!read_optional_int(params, {"tid"}, 0, &tid) || tid < 0 ||
-        tid > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
-      return dmcp::invalid_command("spawn_entity tid must be an integer >= 0");
-    }
-
-    out_cmd->data.spawn.position.x = static_cast<float>(x);
-    out_cmd->data.spawn.position.y = static_cast<float>(y);
-    out_cmd->data.spawn.angle      = static_cast<float>(angle);
-    out_cmd->data.spawn.tid        = static_cast<std::int32_t>(tid);
-
   } else if (type_str == "change_level") {
-    out_cmd->type = DMCP_CMD_CHANGE_LEVEL;
-
-    std::string_view map_name;
-    if (!read_required_string(params, {"map_name", "level"}, &map_name) ||
-        !dmcp::is_valid_map_name(map_name) ||
-        !copy_checked_string(out_cmd->data.change_level.map_name,
-                             sizeof(out_cmd->data.change_level.map_name), map_name)) {
+    if (!dmcp::parse_change_level_command(params, out_cmd)) {
       return dmcp::invalid_command("change_level requires map_name like E1M1 or MAP01");
     }
-
-    std::int64_t skill_level = 3;
-    if (!read_optional_int(params, {"skill_level"}, 3, &skill_level) || skill_level < 1 ||
-        skill_level > 5) {
-      return dmcp::invalid_command("change_level skill_level must be an integer in [1, 5]");
-    }
-
-    bool reset_inventory = false;
-    if (!read_optional_bool(params, {"reset_inventory"}, false, &reset_inventory)) {
-      return dmcp::invalid_command("change_level reset_inventory must be boolean");
-    }
-
-    out_cmd->data.change_level.skill_level     = static_cast<std::int32_t>(skill_level);
-    out_cmd->data.change_level.reset_inventory = reset_inventory;
-
   } else if (type_str == "give_item") {
-    out_cmd->type = DMCP_CMD_GIVE_ITEM;
-
-    std::string_view item_class;
-    if (!read_required_string(params, {"item_class", "item"}, &item_class) ||
-        !copy_checked_string(out_cmd->data.give_item.item_class,
-                             sizeof(out_cmd->data.give_item.item_class), item_class)) {
+    if (!dmcp::parse_give_item_command(params, out_cmd)) {
       return dmcp::invalid_command("give_item requires non-empty string item_class");
     }
-
-    std::int64_t amount = 1;
-    if (!read_optional_int(params, {"amount", "quantity"}, 1, &amount) || amount < 1 ||
-        amount > 1000) {
-      return dmcp::invalid_command("give_item amount must be an integer in [1, 1000]");
-    }
-    out_cmd->data.give_item.amount = static_cast<std::int32_t>(amount);
-
   } else if (type_str == "set_player_health") {
-    out_cmd->type = DMCP_CMD_SET_PLAYER_HEALTH;
-
-    double health = 0.0;
-    if (!read_required_number(params, {"health", "value"}, &health) || !std::isfinite(health) ||
-        health <= 0.0 || health > 200.0) {
+    if (!dmcp::parse_set_health_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_health health must be numeric in (0, 200]");
     }
-    out_cmd->data.set_health.health = static_cast<float>(health);
-
   } else if (type_str == "set_player_position" || type_str == "teleport_player") {
-    out_cmd->type = DMCP_CMD_SET_PLAYER_POSITION;
-
-    dmcp::json_value position     = params["position"];
-    dmcp::json_value coord_source = params;
-    if (params.has_member("position")) {
-      if (!position.is_object()) {
-        return dmcp::invalid_command("set_player_position position must be an object");
-      }
-      coord_source = position;
-    }
-
-    double x     = 0.0;
-    double y     = 0.0;
-    double angle = 0.0;
-    if (!read_required_number(coord_source, {"x"}, &x) ||
-        !read_required_number(coord_source, {"y"}, &y) || !std::isfinite(x) || !std::isfinite(y)) {
+    if (!dmcp::parse_set_position_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_position requires numeric x and y");
     }
-    if (!read_optional_number(params, {"angle"}, 0.0, &angle) || !std::isfinite(angle)) {
-      return dmcp::invalid_command("set_player_position angle must be numeric");
-    }
-
-    out_cmd->data.set_position.position.x = static_cast<float>(x);
-    out_cmd->data.set_position.position.y = static_cast<float>(y);
-    out_cmd->data.set_position.angle      = static_cast<float>(angle);
-
   } else if (type_str == "execute_console") {
-    out_cmd->type = DMCP_CMD_EXECUTE_CONSOLE;
-
-    std::string_view command;
-    if (!read_required_string(params, {"command"}, &command) ||
-        !copy_checked_string(out_cmd->data.console.command, sizeof(out_cmd->data.console.command),
-                             command)) {
+    if (!dmcp::parse_console_command(params, out_cmd)) {
       return dmcp::invalid_command("execute_console requires non-empty string command");
     }
-
   } else if (type_str == "pause_game") {
-    out_cmd->type = DMCP_CMD_PAUSE_GAME;
-
-    bool paused = false;
-    if (!read_required_bool(params, {"paused", "pause"}, &paused)) {
+    if (!dmcp::parse_pause_command(params, out_cmd)) {
       return dmcp::invalid_command("pause_game requires boolean paused");
     }
-    out_cmd->data.pause.paused = paused;
-
   } else if (type_str == "set_timescale") {
-    out_cmd->type = DMCP_CMD_SET_TIMESCALE;
-
-    double scale = 0.0;
-    if (!read_required_number(params, {"scale"}, &scale) || !std::isfinite(scale) || scale <= 0.0 ||
-        scale > 10.0) {
+    if (!dmcp::parse_timescale_command(params, out_cmd)) {
       return dmcp::invalid_command("set_timescale scale must be numeric in (0, 10]");
     }
-    out_cmd->data.timescale.scale = static_cast<float>(scale);
-
   } else if (type_str == "damage_entity") {
-    out_cmd->type = DMCP_CMD_DAMAGE_ENTITY;
-
-    std::int64_t target_tid = 0;
-    if (!read_required_int(params, {"target_tid"}, &target_tid) || target_tid < 0 ||
-        target_tid > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
+    if (!dmcp::parse_damage_command(params, out_cmd)) {
       return dmcp::invalid_command("damage_entity target_tid must be an integer >= 0");
     }
-
-    double damage = 0.0;
-    if (!read_required_number(params, {"damage"}, &damage) || !std::isfinite(damage) ||
-        damage <= 0.0 || damage > 10000.0) {
-      return dmcp::invalid_command("damage_entity damage must be numeric in (0, 10000]");
-    }
-
-    std::string_view damage_type;
-    if (!read_optional_string(params, {"damage_type"}, "Normal", &damage_type) ||
-        !copy_checked_string(out_cmd->data.damage.damage_type,
-                             sizeof(out_cmd->data.damage.damage_type), damage_type)) {
-      return dmcp::invalid_command("damage_entity damage_type must be a non-empty string");
-    }
-
-    out_cmd->data.damage.target_tid = static_cast<std::int32_t>(target_tid);
-    out_cmd->data.damage.damage     = static_cast<float>(damage);
-
   } else if (type_str == "kill_entity") {
-    out_cmd->type = DMCP_CMD_KILL_ENTITY;
-
-    std::int64_t target_tid = 0;
-    if (!read_required_int(params, {"target_tid"}, &target_tid) || target_tid < 0 ||
-        target_tid > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
+    if (!dmcp::parse_kill_command(params, out_cmd)) {
       return dmcp::invalid_command("kill_entity target_tid must be an integer >= 0");
     }
-    out_cmd->data.kill.target_tid = static_cast<std::int32_t>(target_tid);
-
   } else {
     return dmcp::invalid_command("Unsupported command type");
   }

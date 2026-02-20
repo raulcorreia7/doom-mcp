@@ -116,4 +116,107 @@ bool is_valid_map_name(std::string_view map_name) {
   return false;
 }
 
+bool read_required_string(const json_value& obj, std::initializer_list<const char*> keys,
+                          std::string_view* out) {
+  if (!out) {
+    return false;
+  }
+
+  const json_value candidate = first_present_field(obj, keys);
+  if (!candidate || !candidate.is_string()) {
+    return false;
+  }
+
+  const std::string_view value = candidate.get_string();
+  if (value.empty()) {
+    return false;
+  }
+
+  *out = value;
+  return true;
+}
+
+bool read_optional_string(const json_value& obj, std::initializer_list<const char*> keys,
+                          std::string_view default_value, std::string_view* out) {
+  if (!out) {
+    return false;
+  }
+
+  const json_value candidate = first_present_field(obj, keys);
+  if (!candidate) {
+    *out = default_value;
+    return true;
+  }
+  if (!candidate.is_string()) {
+    return false;
+  }
+
+  const std::string_view value = candidate.get_string();
+  if (value.empty()) {
+    return false;
+  }
+
+  *out = value;
+  return true;
+}
+
+bool read_required_number(const json_value& obj, std::initializer_list<const char*> keys,
+                          double* out) {
+  const json_value candidate = first_present_field(obj, keys);
+  return parse_json_number(candidate, out);
+}
+
+bool read_optional_number(const json_value& obj, std::initializer_list<const char*> keys,
+                          double default_value, double* out) {
+  if (!out) {
+    return false;
+  }
+
+  const json_value candidate = first_present_field(obj, keys);
+  if (!candidate) {
+    *out = default_value;
+    return true;
+  }
+  return parse_json_number(candidate, out);
+}
+
+bool read_required_int(const json_value& obj, std::initializer_list<const char*> keys,
+                       std::int64_t* out) {
+  const json_value candidate = first_present_field(obj, keys);
+  return parse_json_integer(candidate, out);
+}
+
+bool read_optional_int(const json_value& obj, std::initializer_list<const char*> keys,
+                       std::int64_t default_value, std::int64_t* out) {
+  if (!out) {
+    return false;
+  }
+
+  const json_value candidate = first_present_field(obj, keys);
+  if (!candidate) {
+    *out = default_value;
+    return true;
+  }
+  return parse_json_integer(candidate, out);
+}
+
+bool read_required_bool(const json_value& obj, std::initializer_list<const char*> keys, bool* out) {
+  const json_value candidate = first_present_field(obj, keys);
+  return parse_json_bool(candidate, out);
+}
+
+bool read_optional_bool(const json_value& obj, std::initializer_list<const char*> keys,
+                        bool default_value, bool* out) {
+  if (!out) {
+    return false;
+  }
+
+  const json_value candidate = first_present_field(obj, keys);
+  if (!candidate) {
+    *out = default_value;
+    return true;
+  }
+  return parse_json_bool(candidate, out);
+}
+
 }  // namespace dmcp

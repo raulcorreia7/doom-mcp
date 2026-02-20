@@ -58,6 +58,16 @@ set(DMCP_CORE_SOURCES
   src/doom/pool.cpp
   src/doom/screenshot.cpp
   src/doom/serialization.cpp
+  src/doom/commands/types/spawn.cpp
+  src/doom/commands/types/change_level.cpp
+  src/doom/commands/types/give_item.cpp
+  src/doom/commands/types/set_health.cpp
+  src/doom/commands/types/set_position.cpp
+  src/doom/commands/types/pause.cpp
+  src/doom/commands/types/timescale.cpp
+  src/doom/commands/types/damage.cpp
+  src/doom/commands/types/kill.cpp
+  src/doom/commands/types/console.cpp
 )
 
 add_library(mcp_generic ${DMCP_LIBRARY_TYPE}
