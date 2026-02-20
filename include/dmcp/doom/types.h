@@ -32,8 +32,8 @@ typedef struct {
 } dmcp_vec3_t;
 
 typedef struct {
-  float       hp;
-  float       armor;
+  int32_t     hp;
+  int32_t     armor;
   char        armortype[DMCP_MAX_STRING];
   dmcp_vec3_t position;
   float       angle;
@@ -81,8 +81,8 @@ typedef struct {
 
 typedef struct {
   int32_t     id;
-  float       hp;
-  float       max_hp;
+  int32_t     hp;
+  int32_t     max_hp;
   dmcp_vec3_t position;
   float       angle;
   int32_t     target_id;

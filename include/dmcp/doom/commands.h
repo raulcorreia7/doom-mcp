@@ -53,7 +53,7 @@ typedef struct {
 } dmcp_cmd_give_item_t;
 
 typedef struct {
-  float health;
+  int32_t health;
 } dmcp_cmd_set_health_t;
 
 typedef struct {
@@ -74,9 +74,9 @@ typedef struct {
 } dmcp_cmd_timescale_t;
 
 typedef struct {
-  int32_t target_tid;  // Target entity ID
-  float   damage;
-  char    damage_type[32];  // e.g., "Normal", "Fire", "Ice"
+  int32_t target_tid;
+  int32_t damage;
+  char    damage_type[32];
 } dmcp_cmd_damage_t;
 
 typedef struct {
