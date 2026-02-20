@@ -24,8 +24,14 @@ static inline float dmcp_fixed_to_float(fixed_t fixed_val) {
   return (float)fixed_val / (float)FRACUNIT;
 }
 
+static inline fixed_t dmcp_float_to_fixed(float val) { return (fixed_t)(val * (float)FRACUNIT); }
+
 static inline float dmcp_angle_to_radians(angle_t angle_val) {
   return (float)angle_val * (3.14159265358979323846f * 2.0f) / (float)UINT_MAX;
+}
+
+static inline angle_t dmcp_degrees_to_angle(float degrees) {
+  return (angle_t)(degrees * (float)UINT_MAX / 360.0f);
 }
 
 static inline const char* dmcp_skill_to_string(skill_t skill) {
@@ -124,6 +130,21 @@ static inline const char* dmcp_gamemode_to_string(boolean netgame, int deathmatc
       return "altdeath";
     default:
       return "unknown";
+  }
+}
+
+static inline dmcp_gamemode_t dmcp_to_gamemode(GameMode_t mode) {
+  switch (mode) {
+    case shareware:
+      return DMCP_GAMEMODE_SHAREWARE;
+    case registered:
+      return DMCP_GAMEMODE_REGISTERED;
+    case commercial:
+      return DMCP_GAMEMODE_COMMERCIAL;
+    case retail:
+      return DMCP_GAMEMODE_RETAIL;
+    default:
+      return DMCP_GAMEMODE_UNKNOWN;
   }
 }
 

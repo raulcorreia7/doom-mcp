@@ -46,8 +46,8 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
       memset(&enemy, 0, sizeof(enemy));
 
       enemy.id     = count;
-      enemy.hp     = (float)mo->health;
-      enemy.max_hp = (float)mo->info->spawnhealth;
+      enemy.hp     = mo->health;
+      enemy.max_hp = mo->info->spawnhealth;
 
       // Get current position and angle
       enemy.position.x = dmcp_fixed_to_float(mo->x);

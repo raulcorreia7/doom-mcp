@@ -20,18 +20,18 @@ void dmcp_chocolate_populate_level(dmcp_snapshot_t* snap) {
   dmcp_level_t* level;
   dmcp_game_t*  game;
   player_t*     p;
+  int           current_episode;
+  int           current_map;
 
   if (!snap) return;
 
   level = &snap->level;
 
-  // Fetch latest game state variables each time
   level->tic       = leveltime;
   level->leveltime = leveltime;
 
-  // Get current episode and map numbers
-  int current_episode = gameepisode;
-  int current_map     = gamemap;
+  current_episode = gameepisode;
+  current_map     = gamemap;
   snprintf(level->level_id, sizeof(level->level_id), "E%dM%d", current_episode, current_map);
 
 #ifdef CHOCOLATE_DOOM_BUILD

@@ -14,11 +14,11 @@ void dmcp_chocolate_populate_player(dmcp_snapshot_t* snap) {
   player_t*      p;
   dmcp_player_t* player;
   int            i;
+  int            current_consoleplayer;
 
   if (!snap) return;
 
-  // Get current console player index and validate
-  int current_consoleplayer = consoleplayer;
+  current_consoleplayer = consoleplayer;
   if (current_consoleplayer < 0 || current_consoleplayer >= MAXPLAYERS) return;
   if (!playeringame[current_consoleplayer]) return;
 
@@ -32,8 +32,8 @@ void dmcp_chocolate_populate_player(dmcp_snapshot_t* snap) {
   player = &snap->player;
 
   // Get current player health and armor
-  player->hp    = (float)p->health;
-  player->armor = (float)p->armorpoints;
+  player->hp    = p->health;
+  player->armor = p->armorpoints;
   dmcp_strcpy_safe(player->armortype, dmcp_armortype_to_string(p->armortype), DMCP_MAX_STRING);
 
   // Get current player position and angle

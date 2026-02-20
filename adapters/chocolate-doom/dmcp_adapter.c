@@ -78,15 +78,16 @@ static const char* gamestate_to_string(int gs) {
 
 static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
   dmcp_chocolate_t* ctx = (dmcp_chocolate_t*)user_data;
+  int               current_gamestate;
+  boolean           current_paused;
+
   if (!ctx || !snap) return;
 
-  // Always fetch latest game state dynamically
   dmcp_chocolate_populate_player(snap);
   dmcp_chocolate_populate_level(snap);
   dmcp_chocolate_populate_enemies(snap);
 
-  // Get current game state dynamically
-  int current_gamestate = gamestate;
+  current_gamestate = gamestate;
   if (current_gamestate != ctx->last_gamestate) {
     dmcp_adapter_log(MCP_LOG_INFO, "state transition: %s -> %s",
                      gamestate_to_string(ctx->last_gamestate),
@@ -94,8 +95,7 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
     ctx->last_gamestate = current_gamestate;
   }
 
-  // Get current pause state dynamically
-  bool current_paused = paused;
+  current_paused = paused;
   if (current_paused != ctx->last_paused) {
     dmcp_adapter_log(MCP_LOG_INFO, "pause state: %s", current_paused ? "paused" : "resumed");
     ctx->last_paused = current_paused;

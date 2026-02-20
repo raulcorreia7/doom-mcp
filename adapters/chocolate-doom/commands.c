@@ -1,13 +1,14 @@
 // Command execution for Chocolate Doom.
 
 #include "dmcp_adapter.h"
+#include "dmcp_mappings.h"
 
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "dmcp/adapter/content.h"
 #include "dmcp/adapter/validation.h"
-#include "dmcp/adapter/utils.h"
 
 #include "d_player.h"
 #include "d_think.h"
@@ -28,37 +29,6 @@ static int dmcp_ascii_tolower(int c) {
 }
 
 static bool dmcp_str_equals_ci(const char* a, const char* b);
-
-static bool dmcp_weapon_available_in_mode(const char* item_class) {
-  if (gamemode == shareware) {
-    if (dmcp_str_equals_ci(item_class, "PlasmaRifle") ||
-        dmcp_str_equals_ci(item_class, "Plasma Rifle") ||
-        dmcp_str_equals_ci(item_class, "BFG9000") || dmcp_str_equals_ci(item_class, "BFG") ||
-        dmcp_str_equals_ci(item_class, "SuperShotgun") ||
-        dmcp_str_equals_ci(item_class, "Super Shotgun")) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool dmcp_spawn_available_in_mode(const char* entity_class) {
-  if (gamemode == shareware) {
-    if (dmcp_str_equals_ci(entity_class, "Arachnotron") ||
-        dmcp_str_equals_ci(entity_class, "PainElemental") ||
-        dmcp_str_equals_ci(entity_class, "Pain Elemental") ||
-        dmcp_str_equals_ci(entity_class, "Revenant") ||
-        dmcp_str_equals_ci(entity_class, "Mancubus") ||
-        dmcp_str_equals_ci(entity_class, "Archvile") ||
-        dmcp_str_equals_ci(entity_class, "Arch-vile") ||
-        dmcp_str_equals_ci(entity_class, "SpiderMastermind") ||
-        dmcp_str_equals_ci(entity_class, "Spider Mastermind") ||
-        dmcp_str_equals_ci(entity_class, "Cyberdemon")) {
-      return false;
-    }
-  }
-  return true;
-}
 
 static bool dmcp_str_equals_ci(const char* a, const char* b) {
   if (!a || !b) {
@@ -209,7 +179,7 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
     return false;
   }
 
-  if (!dmcp_weapon_available_in_mode(give->item_class)) {
+  if (!dmcp_is_item_available(give->item_class, dmcp_to_gamemode(gamemode))) {
     return false;
   }
 
@@ -286,24 +256,26 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
   }
 
   if (dmcp_str_equals_ci(give->item_class, "Stimpack")) {
-    player->health     = dmcp_clamp_int(player->health + (10 * amount), 1, 200);
+    player->health =
+        dmcp_clamp_int(player->health + (DMCP_ITEM_STIMPACK * amount), 1, DMCP_PLAYER_MAX_HEALTH);
     player->mo->health = player->health;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "Medikit")) {
-    player->health     = dmcp_clamp_int(player->health + (25 * amount), 1, 200);
+    player->health =
+        dmcp_clamp_int(player->health + (DMCP_ITEM_MEDIKIT * amount), 1, DMCP_PLAYER_MAX_HEALTH);
     player->mo->health = player->health;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "GreenArmor") ||
       dmcp_str_equals_ci(give->item_class, "Green Armor")) {
-    player->armorpoints = 100;
+    player->armorpoints = DMCP_ARMOR_GREEN_LIMIT;
     player->armortype   = 1;
     return true;
   }
   if (dmcp_str_equals_ci(give->item_class, "BlueArmor") ||
       dmcp_str_equals_ci(give->item_class, "Blue Armor")) {
-    player->armorpoints = 200;
+    player->armorpoints = DMCP_PLAYER_MAX_ARMOR;
     player->armortype   = 2;
     return true;
   }
@@ -368,7 +340,7 @@ static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn) {
   if (!dmcp_resolve_spawn_type(spawn->entity_class, &type)) {
     return false;
   }
-  if (!dmcp_spawn_available_in_mode(spawn->entity_class)) {
+  if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
     return false;
   }
 
@@ -413,7 +385,7 @@ static int dmcp_health_points_from_command(float requested_health) {
     requested_health *= 100.0f;
   }
 
-  return dmcp_clamp_int((int)requested_health, 1, 200);
+  return dmcp_clamp_int((int)requested_health, 1, DMCP_PLAYER_MAX_HEALTH);
 }
 
 static bool dmcp_execute_set_player_health(player_t*                    player,
@@ -429,7 +401,8 @@ static bool dmcp_execute_set_player_health(player_t*                    player,
 
   // Validate using adapter helper
   if (!dmcp_validate_health(health)) {
-    dmcp_adapter_log(MCP_LOG_WARN, "set_player_health: health %d out of range (1-200)", health);
+    dmcp_adapter_log(MCP_LOG_WARN, "set_player_health: health %d out of range (1-%d)", health,
+                     DMCP_PLAYER_MAX_HEALTH);
     return false;
   }
 
@@ -557,7 +530,8 @@ static bool dmcp_execute_damage_entity(player_t* player, const dmcp_cmd_damage_t
   // Validate damage amount using adapter helper
   damage = (int)damage_cmd->damage;
   if (!dmcp_validate_damage(damage)) {
-    dmcp_adapter_log(MCP_LOG_WARN, "damage_entity: damage %d out of range (1-10000)", damage);
+    dmcp_adapter_log(MCP_LOG_WARN, "damage_entity: damage %d out of range (1-%d)", damage,
+                     DMCP_DAMAGE_MAX);
     return false;
   }
 
@@ -587,7 +561,7 @@ static bool dmcp_execute_kill_entity(player_t* player, const dmcp_cmd_kill_t* ki
   }
 
   source = (player && player->mo) ? player->mo : NULL;
-  damage = dmcp_clamp_int(target->health + 1024, 1, 32000);
+  damage = dmcp_clamp_int(target->health + DMCP_OVERKILL_BONUS, 1, 32000);
   P_DamageMobj(target, NULL, source, damage);
   return true;
 }
