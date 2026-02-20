@@ -22,8 +22,8 @@ static void test_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
 
   last_snapshot = snapshot;
 
-  snapshot->player.hp         = 100.0f;
-  snapshot->player.armor      = 50.0f;
+  snapshot->player.hp         = 100;
+  snapshot->player.armor      = 50;
   snapshot->player.position.x = 10.0f;
   snapshot->player.position.y = 20.0f;
   snapshot->player.position.z = 0.0f;
@@ -37,7 +37,7 @@ static void test_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   snapshot->level.secret_count = 2;
 }
 
-static dmcp_enemy_t create_test_enemy(int id, float hp, const char* type) {
+static dmcp_enemy_t create_test_enemy(int id, int hp, const char* type) {
   dmcp_enemy_t enemy;
   enemy.id         = id;
   enemy.hp         = hp;
@@ -313,13 +313,13 @@ TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
 TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   SECTION("Clear snapshot zeros all fields") {
     dmcp_snapshot_t snapshot = {};
-    snapshot.player.hp       = 100.0f;
+    snapshot.player.hp       = 100;
     snapshot.enemy_count     = 5;
 
     dmcp_snapshot_clear(&snapshot);
 
-    REQUIRE(snapshot.player.hp == 0.0f);
-    REQUIRE(snapshot.player.armor == 0.0f);
+    REQUIRE(snapshot.player.hp == 0);
+    REQUIRE(snapshot.player.armor == 0);
     REQUIRE(snapshot.player.position.x == 0.0f);
     REQUIRE(snapshot.player.position.y == 0.0f);
     REQUIRE(snapshot.player.ammo[0] == 0);
@@ -335,14 +335,14 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
     dmcp_snapshot_t snapshot = {};
     dmcp_snapshot_clear(&snapshot);
 
-    dmcp_enemy_t enemy = create_test_enemy(1, 60.0f, "Imp");
+    dmcp_enemy_t enemy = create_test_enemy(1, 60, "Imp");
 
     bool result = dmcp_snapshot_add_enemy(&snapshot, &enemy);
 
     REQUIRE(result == true);
     REQUIRE(snapshot.enemy_count == 1);
     REQUIRE(snapshot.enemies[0].id == 1);
-    REQUIRE(snapshot.enemies[0].hp == 60.0f);
+    REQUIRE(snapshot.enemies[0].hp == 60);
     REQUIRE(std::strcmp(snapshot.enemies[0].type, "Imp") == 0);
   }
 
@@ -350,9 +350,9 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
     dmcp_snapshot_t snapshot = {};
     dmcp_snapshot_clear(&snapshot);
 
-    dmcp_enemy_t enemy1 = create_test_enemy(1, 60.0f, "Imp");
-    dmcp_enemy_t enemy2 = create_test_enemy(2, 150.0f, "Demon");
-    dmcp_enemy_t enemy3 = create_test_enemy(3, 500.0f, "Baron");
+    dmcp_enemy_t enemy1 = create_test_enemy(1, 60, "Imp");
+    dmcp_enemy_t enemy2 = create_test_enemy(2, 150, "Demon");
+    dmcp_enemy_t enemy3 = create_test_enemy(3, 500, "Baron");
     REQUIRE(dmcp_snapshot_add_enemy(&snapshot, &enemy1));
     REQUIRE(dmcp_snapshot_add_enemy(&snapshot, &enemy2));
     REQUIRE(dmcp_snapshot_add_enemy(&snapshot, &enemy3));
@@ -369,7 +369,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
       dmcp_snapshot_add_enemy(&snapshot, &enemy);
     }
 
-    dmcp_enemy_t extra_enemy = create_test_enemy(999, 60.0f, "Imp");
+    dmcp_enemy_t extra_enemy = create_test_enemy(999, 60, "Imp");
     bool         result      = dmcp_snapshot_add_enemy(&snapshot, &extra_enemy);
 
     REQUIRE(result == false);
@@ -377,7 +377,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy with null snapshot fails") {
-    dmcp_enemy_t enemy  = create_test_enemy(1, 60.0f, "Imp");
+    dmcp_enemy_t enemy  = create_test_enemy(1, 60, "Imp");
     bool         result = dmcp_snapshot_add_enemy(nullptr, &enemy);
 
     REQUIRE(result == false);
@@ -578,8 +578,8 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
     dmcp_snapshot_t snapshot = {};
     dmcp_snapshot_clear(&snapshot);
 
-    snapshot.player.hp         = 100.0f;
-    snapshot.player.armor      = 50.0f;
+    snapshot.player.hp         = 100;
+    snapshot.player.armor      = 50;
     snapshot.player.position.x = 10.0f;
     snapshot.player.position.y = 20.0f;
     snapshot.player.position.z = 0.0f;
@@ -590,7 +590,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
     dmcp_strcpy(snapshot.level.level_name, "Entryway", DMCP_MAX_LEVEL_NAME);
     snapshot.level.kill_count = 5;
 
-    dmcp_enemy_t enemy = create_test_enemy(1, 60.0f, "Imp");
+    dmcp_enemy_t enemy = create_test_enemy(1, 60, "Imp");
     dmcp_snapshot_add_enemy(&snapshot, &enemy);
 
     char buffer[MCP_MAX_JSON_SIZE];
@@ -892,15 +892,21 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
     dmcp_command_t cmd = {};
     parse_ok(R"({"type":"set_player_health","params":{"health":50}})", &cmd);
     REQUIRE(cmd.type == DMCP_CMD_SET_PLAYER_HEALTH);
-    REQUIRE(cmd.data.set_health.health == 50.0f);
+    REQUIRE(cmd.data.set_health.health == 50);
 
-    parse_ok(R"({"type":"set_player_health","value":0.5})", &cmd);
-    REQUIRE(cmd.data.set_health.health == 0.5f);
+    parse_ok(R"({"type":"set_player_health","value":150})", &cmd);
+    REQUIRE(cmd.data.set_health.health == 150);
+  }
+
+  SECTION("Clamp set_player_health out-of-range values") {
+    dmcp_command_t cmd = {};
+    parse_ok(R"({"type":"set_player_health","params":{"health":250}})", &cmd);
+    REQUIRE(cmd.data.set_health.health == 200);
   }
 
   SECTION("Reject set_player_health invalid values") {
     parse_invalid(R"({"type":"set_player_health","params":{"health":0}})");
-    parse_invalid(R"({"type":"set_player_health","params":{"health":250}})");
+    parse_invalid(R"({"type":"set_player_health","params":{"health":-5}})");
   }
 
   SECTION("Parse set_player_position and teleport_player") {
