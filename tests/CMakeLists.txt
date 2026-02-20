@@ -5,6 +5,7 @@ set(UNIT_TEST_SOURCES
   unit/test_mcp_server.cpp
   unit/test_doom_context.cpp
   unit/test_screenshot.cpp
+  unit/test_layer_boundaries.cpp
 )
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
@@ -23,6 +24,11 @@ target_include_directories(dmcp_tests
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
+)
+
+target_compile_definitions(dmcp_tests
+  PRIVATE
+    DMCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 if(NOT MSVC)
