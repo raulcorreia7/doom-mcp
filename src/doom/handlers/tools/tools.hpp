@@ -74,6 +74,10 @@ bool handle_tool_execute_command(context* ctx, const json_value& params, char* r
                                  size_t response_size);
 bool handle_tool_get_command_result(context* ctx, const json_value& params, char* response_buffer,
                                     size_t response_size);
+bool handle_tool_get_available_content(context* ctx, const json_value& params,
+                                       char* response_buffer, size_t response_size);
+bool handle_tool_execute_batch(context* ctx, const json_value& params, char* response_buffer,
+                               size_t response_size);
 bool handle_tool_command_alias(context* ctx, const command_tool_definition* command_tool,
                                const json_value& params, char* response_buffer,
                                size_t response_size);
@@ -86,6 +90,8 @@ json_builder build_get_game_state_schema();
 json_builder build_get_screenshot_schema();
 json_builder build_execute_command_schema();
 json_builder build_get_command_result_schema();
+json_builder build_get_available_content_schema();
+json_builder build_execute_batch_schema();
 
 // ============================================================================
 // Tools List/Call Handlers (MCP protocol)

@@ -75,6 +75,8 @@ set(DMCP_CORE_SOURCES
   src/doom/handlers/tools/get_screenshot.cpp
   src/doom/handlers/tools/execute_command.cpp
   src/doom/handlers/tools/get_command_result.cpp
+  src/doom/handlers/tools/get_available_content.cpp
+  src/doom/handlers/tools/execute_batch.cpp
   src/doom/handlers/tools/tools_list.cpp
 )
 

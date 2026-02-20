@@ -14,12 +14,28 @@ extern "C" {
 // ============================================================================
 
 DMCP_API bool dmcp_is_weapon_available(const char* weapon_name, dmcp_gamemode_t mode);
-
 DMCP_API bool dmcp_is_enemy_spawnable(const char* enemy_type, dmcp_gamemode_t mode);
-
 DMCP_API bool dmcp_is_map_available(const char* map_name, dmcp_gamemode_t mode);
-
 DMCP_API bool dmcp_is_item_available(const char* item_name, dmcp_gamemode_t mode);
+
+// ============================================================================
+// All Available Content (for discovery endpoints)
+// ============================================================================
+
+extern DMCP_API const char* const dmcp_all_weapons[];
+extern DMCP_API const size_t      dmcp_all_weapons_count;
+
+extern DMCP_API const char* const dmcp_all_items[];
+extern DMCP_API const size_t      dmcp_all_items_count;
+
+extern DMCP_API const char* const dmcp_all_enemies[];
+extern DMCP_API const size_t      dmcp_all_enemies_count;
+
+extern DMCP_API const char* const dmcp_all_maps_doom1[];
+extern DMCP_API const size_t      dmcp_all_maps_doom1_count;
+
+extern DMCP_API const char* const dmcp_all_maps_doom2[];
+extern DMCP_API const size_t      dmcp_all_maps_doom2_count;
 
 // ============================================================================
 // Content Restriction Data (for adapter iteration)
