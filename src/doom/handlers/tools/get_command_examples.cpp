@@ -2,375 +2,248 @@
 
 namespace dmcp {
 
+namespace {
+
+// Helper to build a single parameter entry
+void add_param(json_builder* params, const char* key, const char* value) {
+  params->add(key, value);
+}
+
+void add_param(json_builder* params, const char* key, int64_t value) { params->add(key, value); }
+
+void add_param(json_builder* params, const char* key, double value) { params->add(key, value); }
+
+void add_param(json_builder* params, const char* key, bool value) { params->add(key, value); }
+
+// Build a command example entry with description
+json_builder build_entry(const char* description) {
+  json_builder entry;
+  entry.start_object();
+  entry.add("description", description);
+  return entry;
+}
+
+// Build example object with type and params
+json_builder build_example(const char* type) {
+  json_builder example;
+  example.start_object();
+  example.add("type", type);
+  return example;
+}
+
+// Add params to example and attach to entry
+void add_example_to_entry(json_builder* entry, json_builder* example, json_builder* params) {
+  example->add("params", *params);
+  entry->add("example", *example);
+}
+
+// Command with single string param
+void add_string_command(json_builder* result, const char* key, const char* type,
+                        const char* description, const char* param_key, const char* param_value) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example(type);
+  json_builder params;
+  params.start_object();
+  add_param(&params, param_key, param_value);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// Command with single int64 param
+void add_int_command(json_builder* result, const char* key, const char* type,
+                     const char* description, const char* param_key, int64_t param_value) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example(type);
+  json_builder params;
+  params.start_object();
+  add_param(&params, param_key, param_value);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// Command with single bool param
+void add_bool_command(json_builder* result, const char* key, const char* type,
+                      const char* description, const char* param_key, bool param_value) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example(type);
+  json_builder params;
+  params.start_object();
+  add_param(&params, param_key, param_value);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// Command with single double param
+void add_double_command(json_builder* result, const char* key, const char* type,
+                        const char* description, const char* param_key, double param_value) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example(type);
+  json_builder params;
+  params.start_object();
+  add_param(&params, param_key, param_value);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// give_item with item_class and amount
+void add_give_item_example(json_builder* result, const char* key, const char* item_class,
+                           int64_t amount, const char* description) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example("give_item");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "item_class", item_class);
+  add_param(&params, "amount", amount);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// spawn_entity specific helper
+void add_spawn_entity(json_builder* result) {
+  json_builder entry   = build_entry("Spawn an enemy at specific coordinates");
+  json_builder example = build_example("spawn_entity");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "entity_class", "DoomImp");
+  add_param(&params, "x", static_cast<int64_t>(1000));
+  add_param(&params, "y", static_cast<int64_t>(-500));
+  add_param(&params, "angle", static_cast<int64_t>(90));
+  add_example_to_entry(&entry, &example, &params);
+  result->add("spawn_entity", entry);
+}
+
+// change_level specific helper
+void add_change_level(json_builder* result) {
+  json_builder entry   = build_entry("Change to a different map/level");
+  json_builder example = build_example("change_level");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "map_name", "E1M2");
+  add_param(&params, "skill_level", static_cast<int64_t>(3));
+  add_param(&params, "reset_inventory", false);
+  add_example_to_entry(&entry, &example, &params);
+  result->add("change_level", entry);
+}
+
+// teleport_player / set_player_position helper
+void add_position_command(json_builder* result, const char* key, const char* type,
+                          const char* description, int64_t angle) {
+  json_builder entry   = build_entry(description);
+  json_builder example = build_example(type);
+  json_builder params;
+  params.start_object();
+  add_param(&params, "x", static_cast<int64_t>(1000));
+  add_param(&params, "y", static_cast<int64_t>(-500));
+  add_param(&params, "angle", angle);
+  add_example_to_entry(&entry, &example, &params);
+  result->add(key, entry);
+}
+
+// damage_entity specific helper
+void add_damage_entity(json_builder* result) {
+  json_builder entry   = build_entry("Apply damage to a specific enemy (use tid from game state)");
+  json_builder example = build_example("damage_entity");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "target_tid", static_cast<int64_t>(42));
+  add_param(&params, "damage", static_cast<int64_t>(50));
+  add_param(&params, "damage_type", "custom");
+  add_example_to_entry(&entry, &example, &params);
+  result->add("damage_entity", entry);
+}
+
+// kill_entity specific helper
+void add_kill_entity(json_builder* result) {
+  json_builder entry   = build_entry("Instantly kill a specific enemy (use tid from game state)");
+  json_builder example = build_example("kill_entity");
+  json_builder params;
+  params.start_object();
+  add_param(&params, "target_tid", static_cast<int64_t>(42));
+  add_example_to_entry(&entry, &example, &params);
+  result->add("kill_entity", entry);
+}
+
+// batch execution helper
+void add_batch_execution(json_builder* result) {
+  // Build individual commands
+  json_builder c1;
+  c1.start_object();
+  c1.add("type", "give_item");
+  json_builder p1;
+  p1.start_object();
+  p1.add("item_class", "Shotgun");
+  p1.add("amount", static_cast<int64_t>(1));
+  c1.add("params", p1);
+
+  json_builder c2;
+  c2.start_object();
+  c2.add("type", "give_item");
+  json_builder p2;
+  p2.start_object();
+  p2.add("item_class", "Shells");
+  p2.add("amount", static_cast<int64_t>(20));
+  c2.add("params", p2);
+
+  json_builder commands;
+  commands.start_array();
+  commands.push(c1);
+  commands.push(c2);
+
+  // Build the example
+  json_builder entry   = build_entry("Execute multiple commands in one request");
+  json_builder example = build_example("execute_batch");
+  json_builder params;
+  params.start_object();
+  params.add("commands", commands);
+  add_example_to_entry(&entry, &example, &params);
+  result->add("execute_batch", entry);
+}
+
+}  // namespace
+
 bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
                                       size_t response_size) {
   json_builder result;
   result.start_object();
 
-  // spawn_entity
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "spawn_entity");
-    json_builder params;
-    params.start_object();
-    params.add("entity_class", "DoomImp");
-    params.add("x", static_cast<int64_t>(1000));
-    params.add("y", static_cast<int64_t>(-500));
-    params.add("angle", static_cast<int64_t>(90));
-    example.add("params", params);
+  // Entity commands
+  add_spawn_entity(&result);
+  add_damage_entity(&result);
+  add_kill_entity(&result);
 
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Spawn an enemy at specific coordinates");
-    entry.add("example", example);
-    result.add("spawn_entity", entry);
-  }
+  // Level commands
+  add_change_level(&result);
 
-  // change_level
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "change_level");
-    json_builder params;
-    params.start_object();
-    params.add("map_name", "E1M2");
-    params.add("skill_level", static_cast<int64_t>(3));
-    params.add("reset_inventory", false);
-    example.add("params", params);
+  // give_item examples
+  add_give_item_example(&result, "give_item_weapon", "Shotgun", 1, "Give a weapon");
+  add_give_item_example(&result, "give_item_ammo_bullets", "Clip", 50,
+                        "Give bullets (pistol/chaingun ammo)");
+  add_give_item_example(&result, "give_item_ammo_shells", "Shells", 20, "Give shotgun shells");
+  add_give_item_example(&result, "give_item_ammo_rockets", "RocketAmmo", 10, "Give rockets");
+  add_give_item_example(&result, "give_item_ammo_cells", "Cell", 20,
+                        "Give plasma cells (BFG/plasma rifle ammo)");
+  add_give_item_example(&result, "give_item_health", "Medikit", 1, "Give health item");
+  add_give_item_example(&result, "give_item_armor", "BlueArmor", 1, "Give armor");
+  add_give_item_example(&result, "give_item_powerup", "Invulnerability", 1, "Give powerup");
 
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Change to a different map/level");
-    entry.add("example", example);
-    result.add("change_level", entry);
-  }
+  // Player commands
+  add_int_command(&result, "set_player_health", "set_player_health",
+                  "Set player health to specific value", "health", 100);
+  add_position_command(&result, "teleport_player", "teleport_player",
+                       "Teleport player to coordinates", 180);
+  add_position_command(&result, "set_player_position", "set_player_position",
+                       "Set player position (preserves momentum)", 0);
 
-  // give_item - weapon
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Shotgun");
-    params.add("amount", static_cast<int64_t>(1));
-    example.add("params", params);
+  // System commands
+  add_string_command(&result, "execute_console", "execute_console",
+                     "Execute raw console command (engine-specific)", "command", "god");
+  add_bool_command(&result, "pause_game", "pause_game", "Pause or unpause game simulation",
+                   "paused", true);
+  add_double_command(&result, "set_timescale", "set_timescale", "Adjust game simulation speed",
+                     "scale", 0.5);
 
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give a weapon");
-    entry.add("example", example);
-    result.add("give_item_weapon", entry);
-  }
-
-  // give_item - ammo (Clip)
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Clip");
-    params.add("amount", static_cast<int64_t>(50));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give bullets (pistol/chaingun ammo)");
-    entry.add("example", example);
-    result.add("give_item_ammo_bullets", entry);
-  }
-
-  // give_item - ammo (Shells)
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Shells");
-    params.add("amount", static_cast<int64_t>(20));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give shotgun shells");
-    entry.add("example", example);
-    result.add("give_item_ammo_shells", entry);
-  }
-
-  // give_item - ammo (RocketAmmo)
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "RocketAmmo");
-    params.add("amount", static_cast<int64_t>(10));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give rockets");
-    entry.add("example", example);
-    result.add("give_item_ammo_rockets", entry);
-  }
-
-  // give_item - ammo (Cell)
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Cell");
-    params.add("amount", static_cast<int64_t>(20));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give plasma cells (BFG/plasma rifle ammo)");
-    entry.add("example", example);
-    result.add("give_item_ammo_cells", entry);
-  }
-
-  // give_item - health
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Medikit");
-    params.add("amount", static_cast<int64_t>(1));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give health item");
-    entry.add("example", example);
-    result.add("give_item_health", entry);
-  }
-
-  // give_item - armor
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "BlueArmor");
-    params.add("amount", static_cast<int64_t>(1));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give armor");
-    entry.add("example", example);
-    result.add("give_item_armor", entry);
-  }
-
-  // give_item - powerup
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "give_item");
-    json_builder params;
-    params.start_object();
-    params.add("item_class", "Invulnerability");
-    params.add("amount", static_cast<int64_t>(1));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Give powerup");
-    entry.add("example", example);
-    result.add("give_item_powerup", entry);
-  }
-
-  // set_player_health
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "set_player_health");
-    json_builder params;
-    params.start_object();
-    params.add("health", static_cast<int64_t>(100));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Set player health to specific value");
-    entry.add("example", example);
-    result.add("set_player_health", entry);
-  }
-
-  // teleport_player
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "teleport_player");
-    json_builder params;
-    params.start_object();
-    params.add("x", static_cast<int64_t>(1000));
-    params.add("y", static_cast<int64_t>(-500));
-    params.add("angle", static_cast<int64_t>(180));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Teleport player to coordinates");
-    entry.add("example", example);
-    result.add("teleport_player", entry);
-  }
-
-  // set_player_position
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "set_player_position");
-    json_builder params;
-    params.start_object();
-    params.add("x", static_cast<int64_t>(1000));
-    params.add("y", static_cast<int64_t>(-500));
-    params.add("angle", static_cast<int64_t>(0));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Set player position (preserves momentum)");
-    entry.add("example", example);
-    result.add("set_player_position", entry);
-  }
-
-  // execute_console
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "execute_console");
-    json_builder params;
-    params.start_object();
-    params.add("command", "god");
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Execute raw console command (engine-specific)");
-    entry.add("example", example);
-    result.add("execute_console", entry);
-  }
-
-  // pause_game
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "pause_game");
-    json_builder params;
-    params.start_object();
-    params.add("paused", true);
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Pause or unpause game simulation");
-    entry.add("example", example);
-    result.add("pause_game", entry);
-  }
-
-  // set_timescale
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "set_timescale");
-    json_builder params;
-    params.start_object();
-    params.add("scale", 0.5);
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Adjust game simulation speed");
-    entry.add("example", example);
-    result.add("set_timescale", entry);
-  }
-
-  // damage_entity
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "damage_entity");
-    json_builder params;
-    params.start_object();
-    params.add("target_tid", static_cast<int64_t>(42));
-    params.add("damage", static_cast<int64_t>(50));
-    params.add("damage_type", "custom");
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Apply damage to a specific enemy (use tid from game state)");
-    entry.add("example", example);
-    result.add("damage_entity", entry);
-  }
-
-  // kill_entity
-  {
-    json_builder example;
-    example.start_object();
-    example.add("type", "kill_entity");
-    json_builder params;
-    params.start_object();
-    params.add("target_tid", static_cast<int64_t>(42));
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Instantly kill a specific enemy (use tid from game state)");
-    entry.add("example", example);
-    result.add("kill_entity", entry);
-  }
-
-  // batch execution
-  {
-    json_builder c1;
-    c1.start_object();
-    c1.add("type", "give_item");
-    json_builder p1;
-    p1.start_object();
-    p1.add("item_class", "Shotgun");
-    p1.add("amount", static_cast<int64_t>(1));
-    c1.add("params", p1);
-
-    json_builder c2;
-    c2.start_object();
-    c2.add("type", "give_item");
-    json_builder p2;
-    p2.start_object();
-    p2.add("item_class", "Shells");
-    p2.add("amount", static_cast<int64_t>(20));
-    c2.add("params", p2);
-
-    json_builder commands;
-    commands.start_array();
-    commands.push(c1);
-    commands.push(c2);
-
-    json_builder example;
-    example.start_object();
-    example.add("type", "execute_batch");
-    json_builder params;
-    params.start_object();
-    params.add("commands", commands);
-    example.add("params", params);
-
-    json_builder entry;
-    entry.start_object();
-    entry.add("description", "Execute multiple commands in one request");
-    entry.add("example", example);
-    result.add("execute_batch", entry);
-  }
+  // Batch execution
+  add_batch_execution(&result);
 
   const std::string payload = result.finish();
   const std::string resp    = build_content_response(payload, false);
