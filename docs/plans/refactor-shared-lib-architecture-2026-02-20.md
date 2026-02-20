@@ -123,11 +123,12 @@ Refactor DMCP codebase to achieve clean SRP-compliant architecture with proper s
 
 ### Phase 3: Architecture Refactoring (SRP)
 
-- [ ] **Task 3.1**: Split context into subsystem managers
+- [x] **Task 3.1**: Split context into subsystem managers
   - Objective: Break god object into server_manager, command_manager, snapshot_manager, screenshot_manager
   - Files: `src/doom/internal/context.hpp`, `src/doom/internal/subsystems/*.hpp` (new), `src/doom/context.cpp`
   - Done when: context only holds pointers to subsystems, each subsystem in its own file
   - Commit hint: `refactor(context): split into subsystem managers for SRP compliance`
+  - **Completed**: e720681 - Subsystem headers created, backward compatible ✓
 
 - [ ] **Task 3.2**: Modularize commands.cpp - extract queue and parsers
   - Objective: Split commands.cpp (803 lines) into focused modules
