@@ -1,5 +1,6 @@
 """E2E tests for direct JSON-RPC method aliases."""
 
+import json
 import time
 
 import requests
@@ -14,6 +15,21 @@ def call_rpc(port: int, method: str, params: dict, request_id: int = 1) -> dict:
     )
     response.raise_for_status()
     return response.json()
+
+
+def call_tool_json(
+    port: int, name: str, arguments: dict | None = None, request_id: int = 1
+) -> dict:
+    payload: dict = {"name": name}
+    if arguments is not None:
+        payload["arguments"] = arguments
+
+    data = call_rpc(port, "tools/call", payload, request_id=request_id)
+    assert "error" not in data
+
+    content = data.get("result", {}).get("content", [])
+    assert content and content[0].get("type") == "text"
+    return json.loads(content[0].get("text", "{}"))
 
 
 def get_player_state(port: int, request_id: int = 1) -> dict:
@@ -67,10 +83,116 @@ def test_tools_list_exposes_command_tools(fresh_game):
     assert "get_player" in names
     assert "get_map" in names
     assert "get_entities" in names
+    assert "get_state_batch" in names
     assert "execute_command" in names
+    assert "execute_batch" in names
     assert "get_command_result" in names
+    assert "get_command_examples" in names
     assert "spawn_entity" in names
     assert "teleport_player" in names
+
+
+def test_get_command_examples_separates_read_and_write_batches(fresh_game):
+    port = fresh_game.config.port
+
+    examples = call_tool_json(port, "get_command_examples", request_id=150)
+    assert "execute_batch" in examples
+    assert "get_state_batch" in examples
+
+    execute_batch_params = (
+        examples.get("execute_batch", {}).get("example", {}).get("params", {})
+    )
+    assert "commands" in execute_batch_params
+    assert "ordering" not in execute_batch_params
+
+    get_state_batch_params = (
+        examples.get("get_state_batch", {}).get("example", {}).get("params", {})
+    )
+    assert "requests" in get_state_batch_params
+    assert isinstance(get_state_batch_params.get("requests"), list)
+
+
+def test_execute_batch_queues_and_completes_commands(fresh_game):
+    port = fresh_game.config.port
+
+    result = call_tool_json(
+        port,
+        "execute_batch",
+        {
+            "commands": [
+                {"type": "pause_game", "pause": True},
+                {"type": "set_player_position", "x": 0, "y": 64, "angle": 0},
+            ]
+        },
+        request_id=160,
+    )
+
+    assert result.get("status") == "queued"
+    assert result.get("queued") == 2
+    assert result.get("rejected") == 0
+    assert result.get("execution_order") == [0, 1]
+
+    sequences = result.get("sequences", [])
+    assert len(sequences) == 2
+
+    first_done = wait_for(
+        lambda: (
+            get_command_result(port, int(sequences[0]), request_id=161).get("completed")
+            is True
+        )
+    )
+    second_done = wait_for(
+        lambda: (
+            get_command_result(port, int(sequences[1]), request_id=162).get("completed")
+            is True
+        )
+    )
+    assert first_done and second_done
+
+    first_result = get_command_result(port, int(sequences[0]), request_id=163)
+    second_result = get_command_result(port, int(sequences[1]), request_id=164)
+    assert first_result.get("status") == "success"
+    assert second_result.get("status") == "success"
+
+
+def test_execute_batch_rejects_change_level_entries(fresh_game):
+    port = fresh_game.config.port
+
+    result = call_tool_json(
+        port,
+        "execute_batch",
+        {
+            "commands": [
+                {"type": "change_level", "level": "E1M1"},
+                {"type": "pause_game", "pause": True},
+            ]
+        },
+        request_id=170,
+    )
+
+    assert result.get("status") == "queued"
+    assert result.get("queued") == 1
+    assert result.get("rejected") == 1
+
+    rejected = result.get("rejected_commands", [])
+    assert rejected
+    assert "change_level is not supported in execute_batch" in rejected[0].get(
+        "error", ""
+    )
+
+    sequences = result.get("sequences", [])
+    assert len(sequences) == 1
+
+    done = wait_for(
+        lambda: (
+            get_command_result(port, int(sequences[0]), request_id=171).get("completed")
+            is True
+        )
+    )
+    assert done
+
+    command_result = get_command_result(port, int(sequences[0]), request_id=172)
+    assert command_result.get("status") == "success"
 
 
 def test_direct_execute_command_method_accepts_agent_payloads(fresh_game):
