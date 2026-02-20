@@ -1,0 +1,57 @@
+# Documentation Maintenance Runbook
+
+This runbook keeps product-facing documentation fresh, linked, and easy to use
+for both humans and LLM agents.
+
+## Scope
+
+In scope:
+- `README.md`
+- `docs/README.md`
+- `docs/INTEGRATION.md`
+- Adapter READMEs under `adapters/`
+
+Out of scope (escalate to maintainers before editing):
+- Specifications/design docs (for example `docs/ARCHITECTURE.md`)
+- ADRs
+- Contracts and protocol compatibility commitments
+
+## Maintenance Loop
+
+1. Survey
+   - Inventory docs in scope.
+   - Mark freshness: current, at risk, stale.
+   - Note drift against code paths, commands, and exposed APIs.
+2. Prioritize
+   - Rank updates by user impact:
+     - P0: setup/build/run steps broken or misleading.
+     - P1: API/tool naming drift.
+     - P2: style/clarity improvements.
+3. Revise
+   - Update in-place where possible.
+   - Link to a single source of truth instead of duplicating content.
+   - Remove stale or redundant sections.
+4. Plan
+   - Record next review date and owner in the cadence table.
+
+## Freshness Signals
+
+- Build commands match `Makefile` and active scripts in `tests/integration/`.
+- Tool names/examples match `src/doom/handlers/tools/` behavior.
+- Endpoint examples match registered routes in `src/doom/context.cpp`.
+- Cross-links resolve and avoid duplicate long-form API content.
+
+## Cadence
+
+| Cadence | Owner | Trigger | Expected Output |
+|---------|-------|---------|-----------------|
+| Weekly | Docs DRI | Any merged PR touching CLI, API tools, or routes | Small corrections and link cleanup |
+| Release (pre-tag) | Release manager | Version bump/changelog prep | Full sweep of setup, compatibility, and examples |
+| Monthly | Docs DRI | No release activity | Drift audit and stale-content removal |
+
+## Update Checklist
+
+- Verify `make check` and `make headless` commands still match docs.
+- Verify MCP examples still work for `initialize`, `tools/list`, and `tools/call`.
+- Remove sections that duplicate another maintained document.
+- Capture owner and due date for the next review cycle.
