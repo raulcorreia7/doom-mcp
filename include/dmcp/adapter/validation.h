@@ -6,13 +6,13 @@
 extern "C" {
 #endif
 
-static inline bool dmcp_validate_health(float health) { return health > 0.0f && health <= 200.0f; }
+static inline bool dmcp_validate_health(int health) { return health > 0 && health <= 200; }
 
-static inline bool dmcp_validate_health_with_max(float health, float max_health) {
-  return health > 0.0f && health <= max_health;
+static inline bool dmcp_validate_health_with_max(int health, int max_health) {
+  return health > 0 && health <= max_health;
 }
 
-static inline bool dmcp_validate_armor(float armor) { return armor >= 0.0f && armor <= 200.0f; }
+static inline bool dmcp_validate_armor(int armor) { return armor >= 0 && armor <= 200; }
 
 static inline bool dmcp_validate_timescale(float scale) { return scale > 0.0f && scale <= 10.0f; }
 
@@ -29,9 +29,9 @@ static inline bool dmcp_validate_item_amount(int amount) { return amount >= 1 &&
 
 static inline bool dmcp_validate_tid(int tid) { return tid >= 0 && tid <= 32767; }
 
-static inline bool dmcp_validate_damage(float damage) {
-  return damage > 0.0f && damage <= 10000.0f;
-}
+static inline bool dmcp_validate_damage(int damage) { return damage > 0 && damage <= 10000; }
+
+static inline bool dmcp_validate_ammo(int ammo) { return ammo >= 0 && ammo <= 500; }
 
 #ifdef __cplusplus
 }
