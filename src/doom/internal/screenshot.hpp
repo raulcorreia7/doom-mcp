@@ -7,8 +7,8 @@
 
 namespace dmcp {
 
-std::string convert_pixels_to_ascii(const uint8_t* pixels, uint32_t width, uint32_t height,
-                                    uint32_t target_width);
+std::string convert_pixels_to_ascii(const uint8_t* pixels, size_t pixels_size, uint32_t width,
+                                    uint32_t height, uint32_t target_width);
 
 struct screenshot_state {
   std::atomic<bool>     enabled{false};
@@ -26,7 +26,8 @@ struct screenshot_state {
       return;
     }
     std::lock_guard<std::mutex> lock(mutex);
-    latest_ascii = convert_pixels_to_ascii(latest_pixels.data(), width, height, target_width);
+    latest_ascii = convert_pixels_to_ascii(latest_pixels.data(), latest_pixels.size(), width,
+                                           height, target_width);
   }
 
   const std::string& get_ascii() const { return latest_ascii; }

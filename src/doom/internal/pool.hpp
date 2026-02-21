@@ -11,6 +11,6 @@ struct pool_entry {
 };
 
 pool_entry* acquire_snapshot(std::vector<pool_entry>& pool);
-void        release_snapshot(std::vector<pool_entry>& pool, pool_entry* entry);
+bool        release_snapshot(std::vector<pool_entry>& pool, pool_entry* entry);
 
 }  // namespace dmcp

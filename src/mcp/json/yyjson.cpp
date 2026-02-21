@@ -53,6 +53,10 @@ Document::Document() : impl(std::make_unique<Impl>()) {}
 Document::~Document() = default;
 
 bool Document::parse(std::string_view json) {
+  if (impl->doc) {
+    yyjson_doc_free(impl->doc);
+    impl->doc = nullptr;
+  }
   impl->doc = yyjson_read(json.data(), json.size(), 0);
   return impl->doc != nullptr;
 }

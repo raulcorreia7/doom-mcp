@@ -182,6 +182,11 @@ mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx_h
     return MCP_ERROR_INVALID_ARGS;
   }
 
+  const uint32_t row_bytes = frame->width * 4;
+  if (frame->stride < row_bytes) {
+    return MCP_ERROR_INVALID_ARGS;
+  }
+
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
   if (!ctx->screenshot.enabled.load()) {
@@ -193,8 +198,18 @@ mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx_h
     std::lock_guard<std::mutex> lock(ctx->screenshot.mutex);
     ctx->screenshot.width  = frame->width;
     ctx->screenshot.height = frame->height;
-    ctx->screenshot.latest_pixels.assign(frame->pixels,
-                                         frame->pixels + (frame->width * frame->height * 4));
+
+    const size_t total_size = static_cast<size_t>(row_bytes) * frame->height;
+    ctx->screenshot.latest_pixels.resize(total_size);
+
+    if (frame->stride == row_bytes) {
+      std::memcpy(ctx->screenshot.latest_pixels.data(), frame->pixels, total_size);
+    } else {
+      uint8_t* dest = ctx->screenshot.latest_pixels.data();
+      for (uint32_t y = 0; y < frame->height; ++y) {
+        std::memcpy(dest + y * row_bytes, frame->pixels + y * frame->stride, row_bytes);
+      }
+    }
   }
 
   if (ctx->screenshot.pending_requests.load() > 0) {

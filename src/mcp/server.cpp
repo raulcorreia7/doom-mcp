@@ -69,8 +69,12 @@ static void ServerLog(const Server* server, int level, const char* fmt, ...) {
   char    buffer[512];
   va_list args;
   va_start(args, fmt);
-  std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+  int result = std::vsnprintf(buffer, sizeof(buffer), fmt, args);
   va_end(args);
+
+  if (result >= static_cast<int>(sizeof(buffer))) {
+    std::strcpy(buffer + sizeof(buffer) - 4, "...");
+  }
 
   server->config.on_log(server->config.log_user_data, level, buffer);
 }

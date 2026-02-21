@@ -61,6 +61,7 @@ bool        queue_command_and_respond(context* ctx, std::string_view command_jso
 bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_command_t* out_cmd,
                              std::string* error_message);
 const char* resolve_command_type_for_method(std::string_view method_name);
+bool        parse_size_from_number(const json_value& value, size_t* out);
 
 // Sequence parsing
 bool parse_sequence_field(const json_value& value, uint64_t* out_sequence);

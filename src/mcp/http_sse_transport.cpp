@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -55,7 +56,7 @@ struct Client {
   uWS::HttpResponse<false>*             response;
   std::string                           id;
   std::chrono::steady_clock::time_point connected_at;
-  bool                                  zombie = false;
+  std::atomic<bool>                     zombie{false};
   void*                                 handle = nullptr;
 };
 
@@ -219,11 +220,17 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
 
   // Handle disconnect
   res->onAborted([ctx, client]() {
+    std::lock_guard<std::mutex> lock(ctx->clients_mutex);
+    if (client->zombie.load(std::memory_order_acquire)) return;
+
+    bool expected = false;
+    if (!client->zombie.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+      return;
+    }
+
     if (ctx->callbacks.on_sse_disconnect && client->handle) {
       ctx->callbacks.on_sse_disconnect(ctx->user_data, client->handle);
     }
-    std::lock_guard<std::mutex> lock(ctx->clients_mutex);
-    if (client->zombie) return;
     auto it = std::find_if(ctx->clients.begin(), ctx->clients.end(),
                            [client](Client* c) { return c == client; });
     if (it != ctx->clients.end()) {
@@ -372,13 +379,13 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t l
         ctx->callbacks.on_sse_send(ctx->user_data, client->handle, sv.data(), sv.length());
       }
     } else {
-      client->zombie = true;
+      client->zombie.store(true, std::memory_order_release);
     }
   }
 
   ctx->clients.erase(std::remove_if(ctx->clients.begin(), ctx->clients.end(),
                                     [ctx](mcp::transport::Client* c) {
-                                      if (!c->zombie) {
+                                      if (!c->zombie.load(std::memory_order_acquire)) {
                                         return false;
                                       }
 

@@ -23,9 +23,14 @@ static char pixel_to_ascii(float brightness) {
   return ASCII_CHARS[std::clamp(index, 0, ASCII_CHARS_COUNT - 1)];
 }
 
-std::string convert_pixels_to_ascii(const uint8_t* pixels, uint32_t width, uint32_t height,
-                                    uint32_t target_width) {
+std::string convert_pixels_to_ascii(const uint8_t* pixels, size_t pixels_size, uint32_t width,
+                                    uint32_t height, uint32_t target_width) {
   if (!pixels || width == 0 || height == 0 || target_width == 0) {
+    return {};
+  }
+
+  const size_t required_size = static_cast<size_t>(width) * height * 4;
+  if (pixels_size < required_size) {
     return {};
   }
 

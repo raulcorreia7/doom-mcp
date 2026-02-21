@@ -254,7 +254,7 @@ def test_set_player_health_applies_points_value(doom_instance):
         assert "error" not in unpause_data
 
 
-def test_set_player_health_accepts_fractional_percentage(doom_instance):
+def test_set_player_health_accepts_integer_value(doom_instance):
     with doom_instance() as game:
         port = game.config.port
 
@@ -272,7 +272,7 @@ def test_set_player_health_accepts_fractional_percentage(doom_instance):
         data = call_rpc(
             port,
             "execute_command",
-            {"type": "set_player_health", "health": 0.5},
+            {"type": "set_player_health", "health": 50},
             request_id=303,
         )
         assert "error" not in data

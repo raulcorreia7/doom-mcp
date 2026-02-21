@@ -204,27 +204,6 @@ json_builder build_entity_json(const dmcp_entity_t& entity) {
   return obj;
 }
 
-bool parse_size_from_number(const json_value& value, size_t* out) {
-  if (!out || !value || !value.is_number()) {
-    return false;
-  }
-
-  const std::string number_text = value.dump();
-  if (number_text.empty()) {
-    return false;
-  }
-
-  char* end_ptr                   = nullptr;
-  errno                           = 0;
-  const unsigned long long parsed = std::strtoull(number_text.c_str(), &end_ptr, 10);
-  if (!end_ptr || end_ptr == number_text.c_str() || *end_ptr != '\0' || errno == ERANGE) {
-    return false;
-  }
-
-  *out = static_cast<size_t>(parsed);
-  return true;
-}
-
 }  // namespace
 
 std::string build_player_state_json(const dmcp_snapshot_t& snapshot) {

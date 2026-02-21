@@ -90,6 +90,8 @@ bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::str
   return true;
 }
 
+}  // namespace
+
 bool parse_size_from_number(const json_value& value, size_t* out) {
   if (!out || !value || !value.is_number()) {
     return false;
@@ -110,8 +112,6 @@ bool parse_size_from_number(const json_value& value, size_t* out) {
   *out = static_cast<size_t>(parsed);
   return true;
 }
-
-}  // namespace
 
 const command_tool_definition* find_command_tool(std::string_view tool_name) {
   for (const auto& tool : k_command_tools) {
@@ -139,8 +139,12 @@ void dmcp_log(const context* ctx, int level, const char* fmt, ...) {
   char    buffer[512];
   va_list args;
   va_start(args, fmt);
-  std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+  int result = std::vsnprintf(buffer, sizeof(buffer), fmt, args);
   va_end(args);
+
+  if (result >= static_cast<int>(sizeof(buffer))) {
+    std::strcpy(buffer + sizeof(buffer) - 4, "...");
+  }
 
   ctx->config.on_log(ctx->config.user_data, level, buffer);
 }
