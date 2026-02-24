@@ -16,5 +16,6 @@ bool parse_timescale_command(const json_value& params, dmcp_command_t* out);
 bool parse_damage_command(const json_value& params, dmcp_command_t* out);
 bool parse_kill_command(const json_value& params, dmcp_command_t* out);
 bool parse_console_command(const json_value& params, dmcp_command_t* out);
+bool parse_player_input_command(const json_value& params, dmcp_command_t* out);
 
 }  // namespace dmcp

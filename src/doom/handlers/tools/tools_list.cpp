@@ -67,6 +67,10 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
                    "Get working examples of all commands including ammo, weapons, items",
                    build_get_command_examples_schema());
 
+  add_command_tool(&tools, "input",
+                   "Send a single player input (movement, turn, attack, use) - one per tick",
+                   build_input_schema());
+
   const command_tool_definition* command_tools = get_command_tools_array();
   size_t                         count         = get_command_tools_count();
   for (size_t i = 0; i < count; ++i) {
@@ -165,6 +169,10 @@ bool handle_tools_call(void* user_data, const char* /*method*/, const char* requ
 
   if (tool_name == "get_command_examples") {
     return handle_tool_get_command_examples(ctx, response_buffer, response_size);
+  }
+
+  if (tool_name == "input") {
+    return handle_tool_input(ctx, params, response_buffer, response_size);
   }
 
   if (const command_tool_definition* command_tool = find_command_tool(tool_name)) {

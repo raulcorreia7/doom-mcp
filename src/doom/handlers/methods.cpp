@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "dmcp/doom/api.h"
+#include "doom/commands/types/command_parsers.hpp"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/serialization.hpp"
@@ -81,32 +82,6 @@ bool parse_command_result_sequences(const char* request_json, std::vector<uint64
 
   out_sequences->push_back(sequence);
   return true;
-}
-
-json_builder build_command_result_object(const dmcp_command_result_t& result) {
-  json_builder payload;
-  payload.start_object();
-  payload.add("sequence", static_cast<int64_t>(result.sequence));
-  payload.add("command_type", static_cast<int64_t>(result.command_type));
-
-  if (!result.completed) {
-    payload.add("status", "pending");
-  } else if (result.success) {
-    payload.add("status", "success");
-  } else {
-    payload.add("status", "failed");
-  }
-
-  payload.add("completed", result.completed);
-  payload.add("success", result.success);
-  if (result.entity_id >= 0) {
-    payload.add("entity_id", static_cast<int64_t>(result.entity_id));
-  }
-  if (result.message[0] != '\0') {
-    payload.add("message", result.message);
-  }
-
-  return payload;
 }
 
 }  // namespace
@@ -303,6 +278,62 @@ bool handle_method_get_state_section(void* user_data, const char* method, const 
   }
 
   return write_json_response(payload, response_buffer, response_size);
+}
+
+bool handle_method_input(void* user_data, const char* method, const char* request_json,
+                         char* response_buffer, size_t response_size) {
+  auto* ctx = static_cast<context*>(user_data);
+  if (!ctx || !method || std::strcmp(method, "input") != 0) {
+    return false;
+  }
+
+  dmcp_log(ctx, MCP_LOG_DEBUG, "method input");
+
+  json_document doc;
+  if (!doc.parse(request_json ? request_json : "{}")) {
+    json_builder error;
+    error.start_object();
+    error.add("status", "error");
+    error.add("message", "Invalid request params");
+    return write_json_response(error.finish(), response_buffer, response_size);
+  }
+
+  json_value root = doc.root();
+  if (!root.is_object()) {
+    json_builder error;
+    error.start_object();
+    error.add("status", "error");
+    error.add("message", "Request params must be an object");
+    return write_json_response(error.finish(), response_buffer, response_size);
+  }
+
+  dmcp_command_t cmd{};
+  if (!parse_player_input_command(root, &cmd)) {
+    json_builder error;
+    error.start_object();
+    error.add("status", "error");
+    error.add("message", "Invalid input action");
+    return write_json_response(error.finish(), response_buffer, response_size);
+  }
+
+  mcp_result_generic_t push_result = dmcp_push_input(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
+  if (push_result.code != MCP_RESULT_CODE_OK) {
+    json_builder error;
+    error.start_object();
+    error.add("status", "error");
+    error.add("message", push_result.message ? push_result.message : "Failed to queue input");
+    return write_json_response(error.finish(), response_buffer, response_size);
+  }
+
+  dmcp_log(ctx, MCP_LOG_INFO, "Input queued (action=%d seq=%llu)", cmd.data.input.action,
+           static_cast<unsigned long long>(cmd.sequence));
+
+  json_builder result;
+  result.start_object();
+  result.add("status", "executed");
+  result.add("sequence", static_cast<int64_t>(cmd.sequence));
+  result.add("action", static_cast<int64_t>(cmd.data.input.action));
+  return write_json_response(result.finish(), response_buffer, response_size);
 }
 
 }  // namespace dmcp

@@ -24,7 +24,22 @@ typedef enum {
   DMCP_CMD_SET_TIMESCALE,
   DMCP_CMD_DAMAGE_ENTITY,
   DMCP_CMD_KILL_ENTITY,
+  DMCP_CMD_PLAYER_INPUT,
 } dmcp_command_type_t;
+
+typedef enum {
+  DMCP_INPUT_NONE = 0,
+  DMCP_INPUT_FORWARD,
+  DMCP_INPUT_BACKWARD,
+  DMCP_INPUT_STRAFE_LEFT,
+  DMCP_INPUT_STRAFE_RIGHT,
+  DMCP_INPUT_TURN_LEFT,
+  DMCP_INPUT_TURN_RIGHT,
+  DMCP_INPUT_AIM,
+  DMCP_INPUT_ATTACK,
+  DMCP_INPUT_USE,
+  DMCP_INPUT_WEAPON,
+} dmcp_player_input_action_t;
 
 // Command flags
 #define DMCP_CMD_FLAG_IMMEDIATE (1 << 0)  // Execute immediately, don't queue
@@ -83,6 +98,12 @@ typedef struct {
   int32_t target_tid;
 } dmcp_cmd_kill_t;
 
+typedef struct {
+  dmcp_player_input_action_t action;
+  float                      aim_angle;
+  int32_t                    weapon_slot;
+} dmcp_cmd_player_input_t;
+
 // ============================================================================
 // Command Union
 // ============================================================================
@@ -103,6 +124,7 @@ typedef struct {
     dmcp_cmd_timescale_t    timescale;
     dmcp_cmd_damage_t       damage;
     dmcp_cmd_kill_t         kill;
+    dmcp_cmd_player_input_t input;
   } data;
   uint8_t _reserved[16];
 } dmcp_command_t;
@@ -147,6 +169,20 @@ DMCP_API mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx,
 
 // Clear all pending commands
 DMCP_API void dmcp_clear_commands(dmcp_context_t* ctx);
+
+// ============================================================================
+// Player Input Queue API (tick-based, one per tick)
+// ============================================================================
+
+DMCP_API mcp_result_generic_t dmcp_push_input(dmcp_context_t* ctx, dmcp_command_t* cmd);
+
+DMCP_API bool dmcp_pop_input(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+
+DMCP_API bool dmcp_has_input(const dmcp_context_t* ctx);
+
+DMCP_API uint32_t dmcp_input_count(const dmcp_context_t* ctx);
+
+DMCP_API void dmcp_clear_inputs(dmcp_context_t* ctx);
 
 // ============================================================================
 // JSON Command Parsing

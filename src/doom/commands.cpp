@@ -317,6 +317,87 @@ void dmcp_clear_commands(dmcp_context_t* ctx_handle) {
 }
 
 // ============================================================================
+// Player Input Queue API
+// ============================================================================
+
+mcp_result_generic_t dmcp_push_input(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
+  if (!ctx_handle || !cmd) {
+    return MCP_ERROR_INVALID_ARGS;
+  }
+
+  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+  if (!ctx->input_queue) {
+    return MCP_ERROR_DISABLED;
+  }
+
+  uint64_t sequence = 0;
+  if (!ctx->input_queue->push(*cmd, &sequence, nullptr)) {
+    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Input queue unavailable");
+  }
+
+  cmd->sequence = sequence;
+  return MCP_OK;
+}
+
+bool dmcp_pop_input(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
+  if (!ctx_handle || !out_cmd) {
+    return false;
+  }
+
+  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+  if (!ctx->input_queue) {
+    return false;
+  }
+
+  auto cmd = ctx->input_queue->pop();
+  if (!cmd) {
+    return false;
+  }
+
+  *out_cmd = *cmd;
+  return true;
+}
+
+bool dmcp_has_input(const dmcp_context_t* ctx_handle) {
+  if (!ctx_handle) {
+    return false;
+  }
+
+  auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
+  if (!ctx->input_queue) {
+    return false;
+  }
+
+  return !ctx->input_queue->empty();
+}
+
+uint32_t dmcp_input_count(const dmcp_context_t* ctx_handle) {
+  if (!ctx_handle) {
+    return 0;
+  }
+
+  auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
+  if (!ctx->input_queue) {
+    return 0;
+  }
+
+  return ctx->input_queue->size();
+}
+
+void dmcp_clear_inputs(dmcp_context_t* ctx_handle) {
+  if (!ctx_handle) {
+    return;
+  }
+
+  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+  if (!ctx->input_queue) {
+    return;
+  }
+
+  ctx->input_queue->clear();
+}
+
+// ============================================================================
 // JSON Parsing
 // ============================================================================
 
@@ -394,6 +475,10 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
   } else if (type_str == "kill_entity") {
     if (!dmcp::parse_kill_command(params, out_cmd)) {
       return dmcp::invalid_command("kill_entity target_tid must be an integer >= 0");
+    }
+  } else if (type_str == "player_input") {
+    if (!dmcp::parse_player_input_command(params, out_cmd)) {
+      return dmcp::invalid_command("player_input requires valid action");
     }
   } else {
     return dmcp::invalid_command("Unsupported command type");

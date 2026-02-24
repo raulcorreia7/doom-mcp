@@ -32,7 +32,8 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   ctx->screenshot.enabled.store(ctx->config.screenshot.enable);
 
-  ctx->cmd_queue = std::make_unique<dmcp::command_queue>();
+  ctx->cmd_queue   = std::make_unique<dmcp::command_queue>();
+  ctx->input_queue = std::make_unique<dmcp::command_queue>();
 
   mcp_server_config_t server_config = mcp_default_config();
   server_config.port                = ctx->config.port;
@@ -70,6 +71,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   register_method("get_screenshot", dmcp::handle_method_get_screenshot);
   register_method("execute_command", dmcp::handle_method_execute_command);
   register_method("get_command_result", dmcp::handle_method_get_command_result);
+  register_method("input", dmcp::handle_method_input);
 
   const char* command_method_aliases[] = {
       "spawn_entity",    "change_level",        "give_item",       "set_player_health",

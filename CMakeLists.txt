@@ -68,6 +68,7 @@ set(DMCP_CORE_SOURCES
   src/doom/commands/types/damage.cpp
   src/doom/commands/types/kill.cpp
   src/doom/commands/types/console.cpp
+  src/doom/commands/types/player_input.cpp
   src/doom/handlers/common.cpp
   src/doom/handlers/routes.cpp
   src/doom/handlers/methods.cpp
@@ -78,6 +79,7 @@ set(DMCP_CORE_SOURCES
   src/doom/handlers/tools/get_available_content.cpp
   src/doom/handlers/tools/execute_batch.cpp
   src/doom/handlers/tools/get_command_examples.cpp
+  src/doom/handlers/tools/input.cpp
   src/doom/handlers/tools/tools_list.cpp
   src/doom/handlers/state_json.cpp
   src/doom/handlers/schema_builders.cpp

@@ -206,3 +206,8 @@ void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats) {
   if (!ctx || !ctx->dmcp_ctx || !stats) return;
   dmcp_stats_get(ctx->dmcp_ctx, stats);
 }
+
+dmcp_context_t* dmcp_chocolate_get_dmcp_context(dmcp_chocolate_t* ctx) {
+  if (!ctx) return NULL;
+  return ctx->dmcp_ctx;
+}

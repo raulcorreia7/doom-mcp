@@ -56,6 +56,12 @@ void dmcp_chocolate_tick(dmcp_chocolate_t* ctx);
 // Process pending commands from MCP clients
 void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx);
 
+// Process pending player inputs from MCP clients (one per tick)
+void dmcp_chocolate_inputs_process(dmcp_chocolate_t* ctx);
+
+// Get the underlying DMCP context
+dmcp_context_t* dmcp_chocolate_get_dmcp_context(dmcp_chocolate_t* ctx);
+
 // ============================================================================
 // State Queries
 // ============================================================================
@@ -99,6 +105,9 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap);
 // Populate non-enemy interactive world entities (pickups, barrels)
 // Returns number of entities added
 int dmcp_chocolate_populate_entities(dmcp_snapshot_t* snap);
+
+// Get the current player struct (may be NULL if not in game)
+struct player_t* dmcp_get_player(void);
 
 #ifdef __cplusplus
 }

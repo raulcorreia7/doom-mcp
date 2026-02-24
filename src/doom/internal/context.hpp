@@ -22,6 +22,7 @@ struct context {
   dmcp_config_t                  config{};
   mcp_server_t*                  server = nullptr;
   std::unique_ptr<command_queue> cmd_queue;
+  std::unique_ptr<command_queue> input_queue;
 
   std::vector<pool_entry> pool;
   std::mutex              pool_mutex;

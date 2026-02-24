@@ -5,6 +5,7 @@ set(DMCP_CHOCOLATE_SOURCES
     state_level.c
     state_enemies.c
     commands.c
+    input.c
 )
 
 add_library(dmcp_chocolate ${DMCP_LIBRARY_TYPE} ${DMCP_CHOCOLATE_SOURCES})
