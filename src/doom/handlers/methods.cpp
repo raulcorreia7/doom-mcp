@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "dmcp/doom/api.h"
+#include "dmcp/doom/protocol.h"
 #include "doom/commands/types/command_parsers.hpp"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
@@ -193,7 +194,7 @@ bool handle_method_execute_command(void* user_data, const char* method, const ch
            method_name.data());
 
   std::string command_json;
-  if (method_name == "execute_command") {
+  if (method_name == tools::execute_command) {
     command_json = request_json ? request_json : "{}";
   } else {
     const std::string params_json = request_json ? request_json : "{}";
@@ -240,19 +241,19 @@ bool handle_method_get_state_section(void* user_data, const char* method, const 
   }
 
   std::string_view section;
-  if (method_name == "get_player") {
+  if (method_name == tools::get_player) {
     section = "player";
-  } else if (method_name == "get_map" || method_name == "get_level") {
+  } else if (method_name == tools::get_map || method_name == tools::get_level) {
     section = "map";
-  } else if (method_name == "get_game_info" || method_name == "get_game") {
+  } else if (method_name == tools::get_game_info || method_name == tools::get_game) {
     section = "game";
-  } else if (method_name == "get_enemies") {
+  } else if (method_name == tools::get_enemies) {
     section = "enemies";
-  } else if (method_name == "get_entities") {
+  } else if (method_name == tools::get_entities) {
     section = "entities";
-  } else if (method_name == "get_inventory") {
+  } else if (method_name == tools::get_inventory) {
     section = "inventory";
-  } else if (method_name == "get_state") {
+  } else if (method_name == tools::get_state) {
     json_value section_val = root["section"];
     if (!section_val.is_string()) {
       json_builder payload;

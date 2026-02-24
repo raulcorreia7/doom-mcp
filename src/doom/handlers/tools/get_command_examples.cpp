@@ -266,6 +266,43 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
   add_bool_command(&result, "pause_game", "pause_game", "Pause or unpause game simulation",
                    "paused", true);
 
+  // Player input examples (one action per tick)
+  add_string_command(&result, "input_forward", "player_input", "Move forward one tick", "a", "fwd");
+  add_string_command(&result, "input_back", "player_input", "Move backward one tick", "a", "back");
+  add_string_command(&result, "input_strafe_left", "player_input", "Strafe left one tick", "a",
+                     "left");
+  add_string_command(&result, "input_strafe_right", "player_input", "Strafe right one tick", "a",
+                     "right");
+  add_string_command(&result, "input_turn_left", "player_input", "Turn left one tick", "a",
+                     "tleft");
+  add_string_command(&result, "input_turn_right", "player_input", "Turn right one tick", "a",
+                     "tright");
+  add_string_command(&result, "input_attack", "player_input", "Attack one tick", "a", "atk");
+  add_string_command(&result, "input_use", "player_input", "Use (open door, etc.) one tick", "a",
+                     "use");
+
+  // Input with value examples
+  {
+    json_builder entry   = build_entry("Aim toward specific angle (0-360 degrees)");
+    json_builder example = build_example("player_input");
+    json_builder params;
+    params.start_object();
+    add_param(&params, "a", "aim");
+    add_param(&params, "v", static_cast<int64_t>(90));
+    add_example_to_entry(&entry, &example, &params);
+    result.add("input_aim", entry);
+  }
+  {
+    json_builder entry   = build_entry("Switch to weapon slot (1-7)");
+    json_builder example = build_example("player_input");
+    json_builder params;
+    params.start_object();
+    add_param(&params, "a", "wpn");
+    add_param(&params, "v", static_cast<int64_t>(3));
+    add_example_to_entry(&entry, &example, &params);
+    result.add("input_weapon", entry);
+  }
+
   // Batch execution
   add_batch_execution(&result);
   add_get_state_batch(&result);

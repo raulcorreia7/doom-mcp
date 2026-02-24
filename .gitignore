@@ -159,3 +159,4 @@ CMakeUserPresets.json
 screenshot*.png
 sse_stream.txt
 dummy_server
+build-choc/

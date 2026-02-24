@@ -9,6 +9,7 @@
 
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/content.h"
+#include "dmcp/doom/protocol.h"
 #include "doom/handlers/tools/tools.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/json_types.hpp"
@@ -17,16 +18,17 @@
 namespace dmcp {
 
 static const command_tool_definition k_command_tools[] = {
-    {"spawn_entity", "spawn_entity", "Spawn an entity in the current level"},
-    {"change_level", "change_level", "Change to another map/level"},
-    {"give_item", "give_item", "Give an item to the player"},
-    {"set_player_health", "set_player_health", "Set player health value"},
-    {"teleport_player", "teleport_player", "Teleport player to coordinates"},
-    {"set_player_position", "set_player_position", "Set player position and facing"},
-    {"execute_console", "execute_console", "Execute an engine console command"},
-    {"pause_game", "pause_game", "Pause or unpause game simulation"},
-    {"damage_entity", "damage_entity", "Apply damage to a target entity"},
-    {"kill_entity", "kill_entity", "Kill a target entity"},
+    {DMCP_TOOL_SPAWN_ENTITY, DMCP_CMD_NAME_SPAWN_ENTITY, "Spawn an entity in the current level"},
+    {DMCP_TOOL_CHANGE_LEVEL, DMCP_CMD_NAME_CHANGE_LEVEL, "Change to another map/level"},
+    {DMCP_TOOL_GIVE_ITEM, DMCP_CMD_NAME_GIVE_ITEM, "Give an item to the player"},
+    {DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_CMD_NAME_SET_PLAYER_HEALTH, "Set player health value"},
+    {DMCP_TOOL_TELEPORT_PLAYER, DMCP_CMD_NAME_TELEPORT_PLAYER, "Teleport player to coordinates"},
+    {DMCP_TOOL_SET_PLAYER_POSITION, DMCP_CMD_NAME_SET_PLAYER_POSITION,
+     "Set player position and facing"},
+    {DMCP_TOOL_EXECUTE_CONSOLE, DMCP_CMD_NAME_EXECUTE_CONSOLE, "Execute an engine console command"},
+    {DMCP_TOOL_PAUSE_GAME, DMCP_CMD_NAME_PAUSE_GAME, "Pause or unpause game simulation"},
+    {DMCP_TOOL_DAMAGE_ENTITY, DMCP_CMD_NAME_DAMAGE_ENTITY, "Apply damage to a target entity"},
+    {DMCP_TOOL_KILL_ENTITY, DMCP_CMD_NAME_KILL_ENTITY, "Kill a target entity"},
 };
 
 namespace {

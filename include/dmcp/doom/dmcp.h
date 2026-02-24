@@ -4,6 +4,7 @@
 #include "dmcp/doom/commands.h"
 #include "dmcp/doom/config.h"
 #include "dmcp/doom/content.h"
+#include "dmcp/doom/protocol.h"
 #include "dmcp/doom/types.h"
 
 #ifndef DMCP_VERSION_MAJOR

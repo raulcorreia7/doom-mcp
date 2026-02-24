@@ -4,21 +4,23 @@
 #include <cstdint>
 #include <string_view>
 
+#include "dmcp/doom/protocol.h"
 #include "doom/commands/json_parsers.hpp"
 
 namespace dmcp {
 
 static dmcp_player_input_action_t parse_action_string(std::string_view action_str) {
-  if (action_str == "fwd" || action_str == "forward") return DMCP_INPUT_FORWARD;
-  if (action_str == "back" || action_str == "backward") return DMCP_INPUT_BACKWARD;
-  if (action_str == "left" || action_str == "strafe_left") return DMCP_INPUT_STRAFE_LEFT;
-  if (action_str == "right" || action_str == "strafe_right") return DMCP_INPUT_STRAFE_RIGHT;
-  if (action_str == "tleft" || action_str == "turn_left") return DMCP_INPUT_TURN_LEFT;
-  if (action_str == "tright" || action_str == "turn_right") return DMCP_INPUT_TURN_RIGHT;
-  if (action_str == "aim") return DMCP_INPUT_AIM;
-  if (action_str == "atk" || action_str == "attack") return DMCP_INPUT_ATTACK;
-  if (action_str == "use") return DMCP_INPUT_USE;
-  if (action_str == "wpn" || action_str == "weapon") return DMCP_INPUT_WEAPON;
+  if (action_str == input::fwd || action_str == input::forward) return DMCP_INPUT_FORWARD;
+  if (action_str == input::back || action_str == input::backward) return DMCP_INPUT_BACKWARD;
+  if (action_str == input::left || action_str == input::strafe_left) return DMCP_INPUT_STRAFE_LEFT;
+  if (action_str == input::right || action_str == input::strafe_right)
+    return DMCP_INPUT_STRAFE_RIGHT;
+  if (action_str == input::tleft || action_str == input::turn_left) return DMCP_INPUT_TURN_LEFT;
+  if (action_str == input::tright || action_str == input::turn_right) return DMCP_INPUT_TURN_RIGHT;
+  if (action_str == input::aim) return DMCP_INPUT_AIM;
+  if (action_str == input::atk || action_str == input::attack) return DMCP_INPUT_ATTACK;
+  if (action_str == input::use) return DMCP_INPUT_USE;
+  if (action_str == input::wpn || action_str == input::weapon) return DMCP_INPUT_WEAPON;
   return DMCP_INPUT_NONE;
 }
 

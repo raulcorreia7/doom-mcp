@@ -1,4 +1,5 @@
 #include "dmcp/doom/commands.h"
+#include "dmcp/doom/protocol.h"
 
 #include <atomic>
 #include <cmath>
@@ -438,45 +439,46 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     params = root;
   }
 
-  if (type_str == "spawn_entity") {
+  if (type_str == dmcp::cmds::spawn_entity) {
     if (!dmcp::parse_spawn_command(params, out_cmd)) {
       return dmcp::invalid_command("spawn_entity requires non-empty string entity_class");
     }
-  } else if (type_str == "change_level") {
+  } else if (type_str == dmcp::cmds::change_level) {
     if (!dmcp::parse_change_level_command(params, out_cmd)) {
       return dmcp::invalid_command("change_level requires map_name like E1M1 or MAP01");
     }
-  } else if (type_str == "give_item") {
+  } else if (type_str == dmcp::cmds::give_item) {
     if (!dmcp::parse_give_item_command(params, out_cmd)) {
       return dmcp::invalid_command("give_item requires non-empty string item_class");
     }
-  } else if (type_str == "set_player_health") {
+  } else if (type_str == dmcp::cmds::set_player_health) {
     if (!dmcp::parse_set_health_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_health health must be numeric in (0, 200]");
     }
-  } else if (type_str == "set_player_position" || type_str == "teleport_player") {
+  } else if (type_str == dmcp::cmds::set_player_position ||
+             type_str == dmcp::cmds::teleport_player) {
     if (!dmcp::parse_set_position_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_position requires numeric x and y");
     }
-  } else if (type_str == "execute_console") {
+  } else if (type_str == dmcp::cmds::execute_console) {
     if (!dmcp::parse_console_command(params, out_cmd)) {
       return dmcp::invalid_command("execute_console requires non-empty string command");
     }
-  } else if (type_str == "pause_game") {
+  } else if (type_str == dmcp::cmds::pause_game) {
     if (!dmcp::parse_pause_command(params, out_cmd)) {
       return dmcp::invalid_command("pause_game requires boolean paused");
     }
-  } else if (type_str == "set_timescale") {
+  } else if (type_str == dmcp::cmds::set_timescale) {
     return dmcp::invalid_command("set_timescale is disabled");
-  } else if (type_str == "damage_entity") {
+  } else if (type_str == dmcp::cmds::damage_entity) {
     if (!dmcp::parse_damage_command(params, out_cmd)) {
       return dmcp::invalid_command("damage_entity target_tid must be an integer >= 0");
     }
-  } else if (type_str == "kill_entity") {
+  } else if (type_str == dmcp::cmds::kill_entity) {
     if (!dmcp::parse_kill_command(params, out_cmd)) {
       return dmcp::invalid_command("kill_entity target_tid must be an integer >= 0");
     }
-  } else if (type_str == "player_input") {
+  } else if (type_str == dmcp::cmds::player_input) {
     if (!dmcp::parse_player_input_command(params, out_cmd)) {
       return dmcp::invalid_command("player_input requires valid action");
     }

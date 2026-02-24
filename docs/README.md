@@ -403,6 +403,7 @@ Direct JSON-RPC method aliases are also available for agent compatibility:
 - `get_state`
 - `get_screenshot`
 - `execute_command`
+- `input` - single-tick player control
 
 These aliases map to the same underlying handlers used by `tools/call`.
 
@@ -412,6 +413,31 @@ Additional tool-only operations (via `tools/call`) include:
 - `get_state_batch` for read-only grouped state queries
 - `execute_batch` for queuing mutating commands in-order
 - `get_command_examples` for structured command/example discovery
+- `input` for single-tick player control (movement, aim, attack, use, weapon)
+
+### `input` Tool
+
+Send a single player input to control movement and actions. Each input executes for one game tick (35Hz).
+
+| Action | Shortcode | Full Name | Value |
+|--------|-----------|-----------|-------|
+| Forward | `fwd` | `forward` | - |
+| Backward | `back` | `backward` | - |
+| Strafe Left | `left` | `strafe_left` | - |
+| Strafe Right | `right` | `strafe_right` | - |
+| Turn Left | `tleft` | `turn_left` | - |
+| Turn Right | `tright` | `turn_right` | - |
+| Aim at Angle | `aim` | - | `v`: 0-360 degrees |
+| Attack | `atk` | `attack` | - |
+| Use | `use` | - | - |
+| Weapon | `wpn` | `weapon` | `v`: 1-7 |
+
+Example:
+```json
+{"name": "input", "arguments": {"a": "fwd"}}
+{"name": "input", "arguments": {"a": "aim", "v": 90}}
+{"name": "input", "arguments": {"a": "atk"}}
+```
 
 `execute_batch` rejects `change_level`; queue map changes separately with
 `execute_command`, wait for `get_command_result` success, then send follow-up

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "dmcp/doom/api.h"
+#include "dmcp/doom/protocol.h"
 #include "internal.hpp"
 #include "internal/mcp_handlers.hpp"
 #include "internal/serialization.hpp"
@@ -59,24 +60,25 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   // Agent compatibility aliases: allow direct JSON-RPC method calls without
   // requiring tools/call wrappers.
-  register_method("get_player", dmcp::handle_method_get_state_section);
-  register_method("get_enemies", dmcp::handle_method_get_state_section);
-  register_method("get_entities", dmcp::handle_method_get_state_section);
-  register_method("get_map", dmcp::handle_method_get_state_section);
-  register_method("get_level", dmcp::handle_method_get_state_section);
-  register_method("get_inventory", dmcp::handle_method_get_state_section);
-  register_method("get_game_info", dmcp::handle_method_get_state_section);
-  register_method("get_game", dmcp::handle_method_get_state_section);
-  register_method("get_state", dmcp::handle_method_get_state_section);
-  register_method("get_screenshot", dmcp::handle_method_get_screenshot);
-  register_method("execute_command", dmcp::handle_method_execute_command);
-  register_method("get_command_result", dmcp::handle_method_get_command_result);
-  register_method("input", dmcp::handle_method_input);
+  register_method(DMCP_TOOL_GET_PLAYER, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_ENEMIES, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_ENTITIES, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_MAP, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_LEVEL, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_INVENTORY, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_GAME_INFO, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_GAME, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_STATE, dmcp::handle_method_get_state_section);
+  register_method(DMCP_TOOL_GET_SCREENSHOT, dmcp::handle_method_get_screenshot);
+  register_method(DMCP_TOOL_EXECUTE_COMMAND, dmcp::handle_method_execute_command);
+  register_method(DMCP_TOOL_GET_COMMAND_RESULT, dmcp::handle_method_get_command_result);
+  register_method(DMCP_TOOL_PLAYER_INPUT, dmcp::handle_method_input);
 
   const char* command_method_aliases[] = {
-      "spawn_entity",    "change_level",        "give_item",       "set_player_health",
-      "teleport_player", "set_player_position", "execute_console", "pause_game",
-      "damage_entity",   "kill_entity",
+      DMCP_TOOL_SPAWN_ENTITY,      DMCP_TOOL_CHANGE_LEVEL,    DMCP_TOOL_GIVE_ITEM,
+      DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_TOOL_TELEPORT_PLAYER, DMCP_TOOL_SET_PLAYER_POSITION,
+      DMCP_TOOL_EXECUTE_CONSOLE,   DMCP_TOOL_PAUSE_GAME,      DMCP_TOOL_DAMAGE_ENTITY,
+      DMCP_TOOL_KILL_ENTITY,
   };
   for (const char* method_name : command_method_aliases) {
     register_method(method_name, dmcp::handle_method_execute_command);

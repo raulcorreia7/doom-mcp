@@ -437,6 +437,7 @@ For agent loops that need focused, low-overhead reads:
 - `get_state_batch` - Read-only batch query for multiple state sections (`requests: [{section,...}]`)
 - `get_command_result` - Poll queued command status by `sequence`
 - `get_command_examples` - Structured tool examples for all supported commands
+- `input` - Send player input (movement, aim, attack) - one action per tick
 
 ### `get_screenshot`
 
@@ -457,6 +458,30 @@ Queue a command to be executed by the game:
 | `pause_game` | Pause/unpause game | `paused` |
 | `damage_entity` | Damage specific target | `target_tid`, `damage`, `damage_type` |
 | `kill_entity` | Kill specific target | `target_tid` |
+
+### `input`
+
+Send a single player input to control movement and actions. Each input executes for one game tick (35Hz). Designed for agent loops that need human-like control.
+
+| Action | Shortcode | Full Name | Value |
+|--------|-----------|-----------|-------|
+| Forward | `fwd` | `forward` | - |
+| Backward | `back` | `backward` | - |
+| Strafe Left | `left` | `strafe_left` | - |
+| Strafe Right | `right` | `strafe_right` | - |
+| Turn Left | `tleft` | `turn_left` | - |
+| Turn Right | `tright` | `turn_right` | - |
+| Aim at Angle | `aim` | - | `v`: 0-360 degrees |
+| Attack | `atk` | `attack` | - |
+| Use | `use` | - | - |
+| Weapon | `wpn` | `weapon` | `v`: 1-7 |
+
+Example:
+```json
+{"name": "input", "arguments": {"a": "fwd"}}
+{"name": "input", "arguments": {"a": "aim", "v": 90}}
+{"name": "input", "arguments": {"a": "atk"}}
+```
 
 ### `execute_batch`
 

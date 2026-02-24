@@ -1,4 +1,5 @@
 #include "tools.hpp"
+#include "dmcp/doom/protocol.h"
 #include "mcp/generic/constants.h"
 
 namespace dmcp {
@@ -11,63 +12,66 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
   json_builder tools;
   tools.start_array();
 
-  add_command_tool(&tools, "get_player", "Get current player state only",
+  add_command_tool(&tools, DMCP_TOOL_GET_PLAYER, "Get current player state only",
                    build_get_player_schema());
 
-  add_command_tool(&tools, "get_enemies", "Get enemy list with pagination",
+  add_command_tool(&tools, DMCP_TOOL_GET_ENEMIES, "Get enemy list with pagination",
                    build_get_enemies_schema());
 
-  add_command_tool(&tools, "get_entities",
+  add_command_tool(&tools, DMCP_TOOL_GET_ENTITIES,
                    "Get interactive world entities (pickups/barrels), paginated",
                    build_get_entities_schema());
 
-  add_command_tool(&tools, "get_map", "Get current map/level state only", build_get_map_schema());
+  add_command_tool(&tools, DMCP_TOOL_GET_MAP, "Get current map/level state only",
+                   build_get_map_schema());
 
-  add_command_tool(&tools, "get_level", "Alias for get_map", build_get_map_schema());
+  add_command_tool(&tools, DMCP_TOOL_GET_LEVEL, "Alias for get_map", build_get_map_schema());
 
-  add_command_tool(&tools, "get_inventory", "Get inventory list with pagination",
+  add_command_tool(&tools, DMCP_TOOL_GET_INVENTORY, "Get inventory list with pagination",
                    build_get_inventory_schema());
 
-  add_command_tool(&tools, "get_game_info", "Get game mode/version metadata",
+  add_command_tool(&tools, DMCP_TOOL_GET_GAME_INFO, "Get game mode/version metadata",
                    build_get_game_info_schema());
 
-  add_command_tool(&tools, "get_game", "Alias for get_game_info", build_get_game_info_schema());
+  add_command_tool(&tools, DMCP_TOOL_GET_GAME, "Alias for get_game_info",
+                   build_get_game_info_schema());
 
-  add_command_tool(&tools, "get_state", "Get selected game state section for agents",
+  add_command_tool(&tools, DMCP_TOOL_GET_STATE, "Get selected game state section for agents",
                    build_get_state_schema());
 
-  add_command_tool(&tools, "get_state_batch",
+  add_command_tool(&tools, DMCP_TOOL_GET_STATE_BATCH,
                    "Get multiple state sections in one read-only batch request",
                    build_get_state_batch_schema());
 
   if (ctx->screenshot.enabled.load()) {
     json_builder screenshot_schema;
     add_empty_object_schema(&screenshot_schema);
-    add_command_tool(&tools, "get_screenshot", "Capture a screenshot of the current game state",
+    add_command_tool(&tools, DMCP_TOOL_GET_SCREENSHOT,
+                     "Capture a screenshot of the current game state",
                      std::move(screenshot_schema));
   }
 
-  add_command_tool(&tools, "execute_command",
+  add_command_tool(&tools, DMCP_TOOL_EXECUTE_COMMAND,
                    "Execute a game command (spawn enemy, change level, etc.)",
                    build_execute_command_schema());
 
-  add_command_tool(&tools, "get_command_result",
+  add_command_tool(&tools, DMCP_TOOL_GET_COMMAND_RESULT,
                    "Get asynchronous execution status for a queued command sequence",
                    build_get_command_result_schema());
 
-  add_command_tool(&tools, "get_available_content",
+  add_command_tool(&tools, DMCP_TOOL_GET_AVAILABLE_CONTENT,
                    "Get available weapons, items, enemies, and maps for the game mode",
                    build_get_available_content_schema());
 
-  add_command_tool(&tools, "execute_batch",
+  add_command_tool(&tools, DMCP_TOOL_EXECUTE_BATCH,
                    "Execute multiple mutating commands in a single request",
                    build_execute_batch_schema());
 
-  add_command_tool(&tools, "get_command_examples",
+  add_command_tool(&tools, DMCP_TOOL_GET_COMMAND_EXAMPLES,
                    "Get working examples of all commands including ammo, weapons, items",
                    build_get_command_examples_schema());
 
-  add_command_tool(&tools, "input",
+  add_command_tool(&tools, DMCP_TOOL_PLAYER_INPUT,
                    "Send a single player input (movement, turn, attack, use) - one per tick",
                    build_input_schema());
 
@@ -101,77 +105,69 @@ bool handle_tools_call(void* user_data, const char* /*method*/, const char* requ
     const std::string resp = build_content_response("Missing or invalid 'name' field", true);
     return write_json_response(resp, response_buffer, response_size);
   }
-  const std::string tool_name{name_val.get_string()};
+  const std::string_view tool_name{name_val.get_string()};
   if (tool_name.empty()) {
     const std::string resp = build_content_response("Tool name cannot be empty", true);
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  if (tool_name == "get_screenshot") {
+  if (tool_name == tools::get_screenshot) {
     return handle_tool_get_screenshot(ctx, response_buffer, response_size);
   }
 
-  if (tool_name == "get_player") {
+  if (tool_name == tools::get_player) {
     return handle_tool_get_player(ctx, response_buffer, response_size);
   }
 
-  if (tool_name == "get_enemies") {
+  if (tool_name == tools::get_enemies) {
     return handle_tool_get_enemies(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_entities") {
+  if (tool_name == tools::get_entities) {
     return handle_tool_get_entities(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_map") {
+  if (tool_name == tools::get_map || tool_name == tools::get_level) {
     return handle_tool_get_map(ctx, response_buffer, response_size);
   }
 
-  if (tool_name == "get_level") {
-    return handle_tool_get_map(ctx, response_buffer, response_size);
-  }
-
-  if (tool_name == "get_inventory") {
+  if (tool_name == tools::get_inventory) {
     return handle_tool_get_inventory(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_game_info") {
+  if (tool_name == tools::get_game_info || tool_name == tools::get_game) {
     return handle_tool_get_game_info(ctx, response_buffer, response_size);
   }
 
-  if (tool_name == "get_game") {
-    return handle_tool_get_game_info(ctx, response_buffer, response_size);
-  }
-
-  if (tool_name == "get_state") {
+  if (tool_name == tools::get_state) {
     return handle_tool_get_state(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_state_batch") {
+  if (tool_name == tools::get_state_batch) {
     return handle_tool_get_state_batch(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "execute_command") {
+  if (tool_name == tools::execute_command) {
     return handle_tool_execute_command(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_command_result") {
+  if (tool_name == tools::get_command_result) {
     return handle_tool_get_command_result(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_available_content") {
+  if (tool_name == tools::get_available_content) {
     return handle_tool_get_available_content(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "execute_batch") {
+  if (tool_name == tools::execute_batch) {
     return handle_tool_execute_batch(ctx, params, response_buffer, response_size);
   }
 
-  if (tool_name == "get_command_examples") {
+  if (tool_name == tools::get_command_examples) {
     return handle_tool_get_command_examples(ctx, response_buffer, response_size);
   }
 
-  if (tool_name == "input") {
+  if (tool_name == tools::player_input) {
     return handle_tool_input(ctx, params, response_buffer, response_size);
   }
 
