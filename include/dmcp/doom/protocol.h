@@ -89,6 +89,36 @@ extern "C" {
 #define DMCP_FIELD_NAME "name"
 #define DMCP_FIELD_ARGUMENTS "arguments"
 
+// ============================================================================
+// State Section Names
+// ============================================================================
+
+#define DMCP_SECTION_PLAYER "player"
+#define DMCP_SECTION_ENEMIES "enemies"
+#define DMCP_SECTION_ENTITIES "entities"
+#define DMCP_SECTION_MAP "map"
+#define DMCP_SECTION_INVENTORY "inventory"
+#define DMCP_SECTION_GAME "game"
+
+// ============================================================================
+// Entity Status Filter Values
+// ============================================================================
+
+#define DMCP_STATUS_ALIVE "alive"
+#define DMCP_STATUS_DEAD "dead"
+#define DMCP_STATUS_ALL "all"
+
+// ============================================================================
+// Game Mode Names
+// ============================================================================
+
+#define DMCP_MODE_SHAREWARE "shareware"
+#define DMCP_MODE_REGISTERED "registered"
+#define DMCP_MODE_COMMERCIAL "commercial"
+#define DMCP_MODE_DOOM2 "doom2"
+#define DMCP_MODE_RETAIL "retail"
+#define DMCP_MODE_ULTIMATE "ultimate"
+
 #ifdef __cplusplus
 }
 #endif
@@ -170,6 +200,36 @@ constexpr std::string_view wpn          = DMCP_INPUT_NAME_WPN;
 constexpr std::string_view weapon       = DMCP_INPUT_NAME_WEAPON;
 
 }  // namespace input
+
+namespace section {
+
+constexpr std::string_view player    = DMCP_SECTION_PLAYER;
+constexpr std::string_view enemies   = DMCP_SECTION_ENEMIES;
+constexpr std::string_view entities  = DMCP_SECTION_ENTITIES;
+constexpr std::string_view map       = DMCP_SECTION_MAP;
+constexpr std::string_view inventory = DMCP_SECTION_INVENTORY;
+constexpr std::string_view game      = DMCP_SECTION_GAME;
+
+}  // namespace section
+
+namespace status {
+
+constexpr std::string_view alive = DMCP_STATUS_ALIVE;
+constexpr std::string_view dead  = DMCP_STATUS_DEAD;
+constexpr std::string_view all   = DMCP_STATUS_ALL;
+
+}  // namespace status
+
+namespace mode {
+
+constexpr std::string_view shareware  = DMCP_MODE_SHAREWARE;
+constexpr std::string_view registered = DMCP_MODE_REGISTERED;
+constexpr std::string_view commercial = DMCP_MODE_COMMERCIAL;
+constexpr std::string_view doom2      = DMCP_MODE_DOOM2;
+constexpr std::string_view retail     = DMCP_MODE_RETAIL;
+constexpr std::string_view ultimate   = DMCP_MODE_ULTIMATE;
+
+}  // namespace mode
 
 }  // namespace dmcp
 

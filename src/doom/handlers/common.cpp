@@ -31,15 +31,15 @@ static const command_tool_definition k_command_tools[] = {
     {DMCP_TOOL_KILL_ENTITY, DMCP_CMD_NAME_KILL_ENTITY, "Kill a target entity"},
 };
 
-namespace {
-
-dmcp_gamemode_t parse_game_mode_name(std::string_view mode_name) {
-  if (mode_name == "shareware") return DMCP_GAMEMODE_SHAREWARE;
-  if (mode_name == "registered") return DMCP_GAMEMODE_REGISTERED;
-  if (mode_name == "commercial" || mode_name == "doom2") return DMCP_GAMEMODE_COMMERCIAL;
-  if (mode_name == "retail" || mode_name == "ultimate") return DMCP_GAMEMODE_RETAIL;
+dmcp_gamemode_t parse_game_mode_from_string(std::string_view mode_name) {
+  if (mode_name == mode::shareware) return DMCP_GAMEMODE_SHAREWARE;
+  if (mode_name == mode::registered) return DMCP_GAMEMODE_REGISTERED;
+  if (mode_name == mode::commercial || mode_name == mode::doom2) return DMCP_GAMEMODE_COMMERCIAL;
+  if (mode_name == mode::retail || mode_name == mode::ultimate) return DMCP_GAMEMODE_RETAIL;
   return DMCP_GAMEMODE_UNKNOWN;
 }
+
+namespace {
 
 dmcp_gamemode_t get_snapshot_game_mode(context* ctx) {
   if (!ctx) {
@@ -51,7 +51,7 @@ dmcp_gamemode_t get_snapshot_game_mode(context* ctx) {
     return DMCP_GAMEMODE_UNKNOWN;
   }
 
-  return parse_game_mode_name(ctx->last_snapshot.game.version);
+  return parse_game_mode_from_string(ctx->last_snapshot.game.version);
 }
 
 bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::string* out_error) {

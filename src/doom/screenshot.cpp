@@ -9,9 +9,9 @@
 
 namespace dmcp {
 
-static const char* ASCII_CHARS =
+static constexpr char ASCII_CHARS[] =
     "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
-static const int ASCII_CHARS_COUNT = 69;
+static constexpr int ASCII_CHARS_COUNT = 69;
 
 static float calculate_brightness(uint8_t r, uint8_t g, uint8_t b) {
   return static_cast<float>(r) * 0.299f + static_cast<float>(g) * 0.587f +

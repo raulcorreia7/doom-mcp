@@ -37,6 +37,7 @@ bool write_route_response(std::string_view json, int status, char* response_buff
 std::string build_route_error(std::string_view code, std::string_view message);
 
 // Game state
+dmcp_gamemode_t parse_game_mode_from_string(std::string_view mode_name);
 dmcp_snapshot_t copy_latest_snapshot(context* ctx);
 std::string     build_player_state_json(const dmcp_snapshot_t& snapshot);
 std::string     build_map_state_json(const dmcp_snapshot_t& snapshot);

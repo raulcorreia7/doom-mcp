@@ -58,15 +58,6 @@ void push_unique_string(json_builder* arr, std::vector<std::string>* seen, const
   arr->push(value);
 }
 
-// Parse game mode from string
-static dmcp_gamemode_t parse_game_mode(std::string_view mode_str) {
-  if (mode_str == "shareware") return DMCP_GAMEMODE_SHAREWARE;
-  if (mode_str == "registered") return DMCP_GAMEMODE_REGISTERED;
-  if (mode_str == "commercial" || mode_str == "doom2") return DMCP_GAMEMODE_COMMERCIAL;
-  if (mode_str == "retail" || mode_str == "ultimate") return DMCP_GAMEMODE_RETAIL;
-  return DMCP_GAMEMODE_UNKNOWN;
-}
-
 // Get game mode from snapshot, fallback to parameter, then retail
 static game_mode_resolution determine_game_mode(context* ctx, const json_value& params) {
   // First priority: use actual game mode from snapshot
@@ -75,7 +66,7 @@ static game_mode_resolution determine_game_mode(context* ctx, const json_value& 
     std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
     const dmcp_game_t&          game = ctx->last_snapshot.game;
     if (game.version[0] != '\0') {
-      snapshot_mode = parse_game_mode(game.version);
+      snapshot_mode = dmcp::parse_game_mode_from_string(game.version);
       if (snapshot_mode != DMCP_GAMEMODE_UNKNOWN) {
         return {snapshot_mode, "snapshot"};
       }
@@ -87,7 +78,7 @@ static game_mode_resolution determine_game_mode(context* ctx, const json_value& 
   if (args.is_object()) {
     json_value mode_val = args["game_mode"];
     if (mode_val.is_string()) {
-      dmcp_gamemode_t param_mode = parse_game_mode(mode_val.get_string());
+      dmcp_gamemode_t param_mode = dmcp::parse_game_mode_from_string(mode_val.get_string());
       if (param_mode != DMCP_GAMEMODE_UNKNOWN) {
         return {param_mode, "parameter"};
       }

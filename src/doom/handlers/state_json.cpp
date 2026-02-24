@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include "dmcp/doom/protocol.h"
 #include "dmcp/doom/types.h"
 #include "doom/internal/json_types.hpp"
 #include "doom/handlers/tools/tools.hpp"
@@ -19,7 +20,9 @@ enum class enemy_status_filter {
   all,
 };
 
-const char* enemy_state_name(const dmcp_enemy_t& enemy) { return enemy.hp > 0 ? "alive" : "dead"; }
+const char* enemy_state_name(const dmcp_enemy_t& enemy) {
+  return enemy.hp > 0 ? DMCP_STATUS_ALIVE : DMCP_STATUS_DEAD;
+}
 
 bool enemy_matches_filter(const dmcp_enemy_t& enemy, enemy_status_filter filter) {
   const bool is_alive = enemy.hp > 0;
@@ -59,17 +62,17 @@ bool parse_enemy_status_filter(const json_value& args, enemy_status_filter* out_
   }
 
   const std::string_view status(status_val.get_string());
-  if (status == "alive") {
+  if (status == status::alive) {
     *out_filter = enemy_status_filter::alive;
     return true;
   }
 
-  if (status == "dead") {
+  if (status == status::dead) {
     *out_filter = enemy_status_filter::dead;
     return true;
   }
 
-  if (status == "all") {
+  if (status == status::all) {
     *out_filter = enemy_status_filter::all;
     return true;
   }
