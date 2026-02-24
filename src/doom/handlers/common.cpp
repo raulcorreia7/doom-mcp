@@ -241,7 +241,7 @@ bool parse_sequence_from_params(const char* request_json, uint64_t* out_sequence
   return true;
 }
 
-std::string build_command_result_json(const dmcp_command_result_t& result) {
+json_builder build_command_result_object(const dmcp_command_result_t& result) {
   json_builder payload;
   payload.start_object();
   payload.add("sequence", static_cast<int64_t>(result.sequence));
@@ -264,7 +264,11 @@ std::string build_command_result_json(const dmcp_command_result_t& result) {
     payload.add("message", result.message);
   }
 
-  return payload.finish();
+  return payload;
+}
+
+std::string build_command_result_json(const dmcp_command_result_t& result) {
+  return build_command_result_object(result).finish();
 }
 
 bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_command_t* out_cmd,

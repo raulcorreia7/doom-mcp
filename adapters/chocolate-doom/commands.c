@@ -43,7 +43,7 @@ static bool dmcp_float_to_fixed_checked(float value, fixed_t* out) {
   return true;
 }
 
-static player_t* dmcp_get_player(void) {
+player_t* dmcp_get_player(void) {
   if (!playeringame[consoleplayer]) {
     return NULL;
   }

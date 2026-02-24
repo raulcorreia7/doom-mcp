@@ -142,8 +142,15 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   if (cfg->rgb_buffer_size < rgb_needed) {
     free(cfg->rgb_buffers[0]);
     free(cfg->rgb_buffers[1]);
-    cfg->rgb_buffers[0]  = (uint8_t*)malloc(rgb_needed);
-    cfg->rgb_buffers[1]  = (uint8_t*)malloc(rgb_needed);
+    cfg->rgb_buffers[0] = (uint8_t*)malloc(rgb_needed);
+    cfg->rgb_buffers[1] = (uint8_t*)malloc(rgb_needed);
+    if (!cfg->rgb_buffers[0] || !cfg->rgb_buffers[1]) {
+      free(cfg->rgb_buffers[0]);
+      free(cfg->rgb_buffers[1]);
+      cfg->rgb_buffers[0] = cfg->rgb_buffers[1] = NULL;
+      cfg->rgb_buffer_size                      = 0;
+      return NULL;
+    }
     cfg->rgb_buffer_size = rgb_needed;
   }
 
@@ -156,7 +163,11 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   if (g_output_size < out_needed) {
     free(g_output_buffer);
     g_output_buffer = (char*)malloc(out_needed);
-    g_output_size   = out_needed;
+    if (!g_output_buffer) {
+      g_output_size = 0;
+      return NULL;
+    }
+    g_output_size = out_needed;
   }
 
   out     = g_output_buffer;

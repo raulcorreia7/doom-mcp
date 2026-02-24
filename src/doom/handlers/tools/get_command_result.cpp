@@ -42,32 +42,6 @@ bool parse_sequences_request(const json_value& request, std::vector<uint64_t>* o
   return true;
 }
 
-json_builder build_command_result_object(const dmcp_command_result_t& result) {
-  json_builder payload;
-  payload.start_object();
-  payload.add("sequence", static_cast<int64_t>(result.sequence));
-  payload.add("command_type", static_cast<int64_t>(result.command_type));
-
-  if (!result.completed) {
-    payload.add("status", "pending");
-  } else if (result.success) {
-    payload.add("status", "success");
-  } else {
-    payload.add("status", "failed");
-  }
-
-  payload.add("completed", result.completed);
-  payload.add("success", result.success);
-  if (result.entity_id >= 0) {
-    payload.add("entity_id", static_cast<int64_t>(result.entity_id));
-  }
-  if (result.message[0] != '\0') {
-    payload.add("message", result.message);
-  }
-
-  return payload;
-}
-
 }  // namespace
 
 bool handle_tool_get_command_result(context* ctx, const json_value& params, char* response_buffer,

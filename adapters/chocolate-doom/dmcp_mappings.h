@@ -18,8 +18,6 @@
 extern "C" {
 #endif
 
-#define DMCP_MAX_STRING 64
-
 static inline const char* dmcp_skill_to_string(skill_t skill) {
   switch (skill) {
     case sk_baby:

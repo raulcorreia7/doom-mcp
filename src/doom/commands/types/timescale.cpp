@@ -1,5 +1,6 @@
 #include "command_parsers.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 #include "doom/commands/json_parsers.hpp"
@@ -16,7 +17,7 @@ bool parse_timescale_command(const json_value& params, dmcp_command_t* out) {
   }
 
   out->data.timescale.scale =
-      static_cast<float>(clamp_value(scale, DMCP_TIMESCALE_MIN, DMCP_TIMESCALE_MAX));
+      static_cast<float>(std::clamp(scale, DMCP_TIMESCALE_MIN, DMCP_TIMESCALE_MAX));
 
   return true;
 }
