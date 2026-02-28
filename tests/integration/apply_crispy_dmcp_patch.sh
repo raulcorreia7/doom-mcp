@@ -20,6 +20,12 @@ if [[ ! -e "$CRISPY_DIR/.git" ]]; then
 	exit 1
 fi
 
+# Check if already patched (DMCP_Init present in source)
+if grep -q "DMCP_Init" "$CRISPY_DIR/src/doom/d_main.c" 2>/dev/null; then
+	echo "DMCP integration already present in source"
+	exit 0
+fi
+
 if [[ ! -f "$PATCH_FILE" ]]; then
 	echo "error: patch file not found: $PATCH_FILE" >&2
 	exit 1
