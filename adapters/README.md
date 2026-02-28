@@ -14,6 +14,30 @@ adapters/
 └── fake/                # Test/fake adapter
 ```
 
+## Public API
+
+Every adapter implements the same minimal interface:
+
+```c
+#include "dmcp_hooks.h"
+
+typedef struct {
+    uint16_t port;             // 0 = default (6060)
+    uint16_t target_hz;        // 0 = default (35)
+    bool     screenshot_enabled;
+} dmcp_engine_config_t;
+
+// Config helpers (optional - engines can build config manually)
+dmcp_engine_config_t dmcp_engine_config_default(void);
+dmcp_engine_config_t dmcp_engine_config_from_env(void);
+dmcp_engine_config_t dmcp_engine_config_from_argv(int argc, char** argv, const char* flag);
+
+// Lifecycle (required)
+void DMCP_Init(const dmcp_engine_config_t* config);
+void DMCP_Shutdown(void);
+void DMCP_Tick(void);
+```
+
 ## Adding a New Engine
 
 ### 1. Create adapter directory
@@ -22,24 +46,47 @@ adapters/
 mkdir -p adapters/my-engine/{include,src,patches}
 ```
 
-### 2. Implement integration hooks
+### 2. Implement integration
+
+Create `adapters/my-engine/include/dmcp_integration.h`:
+
+```c
+#ifndef DMCP_INTEGRATION_H
+#define DMCP_INTEGRATION_H
+
+#include "dmcp_adapter.h"
+#include "dmcp_hooks.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void DMCP_Init(const dmcp_engine_config_t* config);
+void DMCP_Shutdown(void);
+void DMCP_Tick(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
 
 Create `adapters/my-engine/src/dmcp_integration.c`:
 
 ```c
 #include "dmcp_integration.h"
-#include "dmcp_hooks.h"
-#include <engine_headers.h>
 
 dmcp_myengine_t* g_dmcp_ctx = NULL;
 
-void DMCP_Init(void) {
-    dmcp_myengine_config_t cfg = dmcp_myengine_config_default();
-    int port = dmcp_engine_port_from_argv(argc, argv, "dmcp_port");
-    
-    if (port > 0) cfg.base.port = port;
-    
-    g_dmcp_ctx = dmcp_myengine_create(&cfg);
+void DMCP_Init(const dmcp_engine_config_t* config) {
+    dmcp_engine_config_t cfg = config ? *config : dmcp_engine_config_default();
+
+    dmcp_myengine_config_t adapter_cfg = dmcp_myengine_config_default();
+    adapter_cfg.base.port = cfg.port;
+    adapter_cfg.base.target_hz = cfg.target_hz;
+
+    g_dmcp_ctx = dmcp_myengine_create(&adapter_cfg);
 }
 
 void DMCP_Shutdown(void) {
@@ -59,7 +106,7 @@ void DMCP_Tick(void) {
 
 ### 3. Create engine patch
 
-Create minimal patch to add 3 hooks:
+Minimal patch to add 3 hooks:
 
 ```diff
 // In engine's main initialization (e.g., d_main.c)
@@ -69,18 +116,20 @@ Create minimal patch to add 3 hooks:
 
 void D_DoomMain(void) {
     // ... engine init ...
-    
+
 +#ifdef DMCP
-+    DMCP_Init();
++    dmcp_engine_config_t dmcp_cfg = dmcp_engine_config_from_argv(
++        myargc, myargv, "-dmcp_port");
++    DMCP_Init(&dmcp_cfg);
 +#endif
-    
+
     D_DoomLoop();
 }
 
 // In engine's main loop tick (e.g., g_game.c)
 void G_Ticker(void) {
     // ... engine tick ...
-    
+
 +#ifdef DMCP
 +    DMCP_Tick();
 +#endif
@@ -105,34 +154,8 @@ target_include_directories(myengine
 
 target_link_libraries(myengine
     PUBLIC dmcp::core
-    PRIVATE dmcp_adapter_common
 )
 ```
-
-### 5. Add to main CMakeLists.txt
-
-```cmake
-option(DMCP_BUILD_ADAPTER_MYENGINE "Build MyEngine adapter" OFF)
-
-if(DMCP_BUILD_ADAPTER_MYENGINE)
-    add_subdirectory(adapters/my-engine)
-endif()
-```
-
-### 6. Add Makefile target
-
-```makefile
-.PHONY: my-engine
-my-engine: submodules
-    @./tests/integration/build_my_engine.sh
-```
-
-## Common Utilities
-
-### dmcp_hooks.h
-
-- `dmcp_engine_config_t` - Standard engine configuration
-- `dmcp_engine_port_from_argv()` - Parse `-dmcp_port` from command line
 
 ## Build Commands
 
@@ -145,4 +168,23 @@ make engine-test ENGINE=crispy
 
 # Build all engines
 make engine-all
+```
+
+## Config Sources
+
+Engines can choose how to build config:
+
+```c
+// From command line
+dmcp_engine_config_t cfg = dmcp_engine_config_from_argv(argc, argv, "-dmcp_port");
+
+// From environment
+dmcp_engine_config_t cfg = dmcp_engine_config_from_env();
+
+// Manual
+dmcp_engine_config_t cfg = dmcp_engine_config_default();
+cfg.port = 8080;
+
+// NULL for defaults
+DMCP_Init(NULL);
 ```

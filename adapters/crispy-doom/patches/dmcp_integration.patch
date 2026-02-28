@@ -1,5 +1,5 @@
 diff --git a/src/doom/d_main.c b/src/doom/d_main.c
-index 2092987d..4804c700 100644
+index 2092987d..fb252b0f 100644
 --- a/src/doom/d_main.c
 +++ b/src/doom/d_main.c
 @@ -79,6 +79,10 @@
@@ -13,19 +13,22 @@ index 2092987d..4804c700 100644
  #include "doom_icon.c"
  
  //
-@@ -2445,6 +2449,10 @@ void D_DoomMain (void)
+@@ -2445,6 +2449,13 @@ void D_DoomMain (void)
  	    D_StartTitle ();                // start up intro loop
      }
  
 +#ifdef DMCP
-+    DMCP_Init();
++    dmcp_engine_config_t dmcp_cfg = dmcp_engine_config_default();
++    int dmcp_port = dmcp_engine_port_from_argv(myargc, myargv, "dmcp_port");
++    if (dmcp_port > 0) dmcp_cfg.port = dmcp_port;
++    DMCP_Init(&dmcp_cfg);
 +#endif
 +
      D_DoomLoop ();  // never returns
  }
  
 diff --git a/src/doom/g_game.c b/src/doom/g_game.c
-index 2af0fb32..56088b03 100644
+index 2af0fb32..20898914 100644
 --- a/src/doom/g_game.c
 +++ b/src/doom/g_game.c
 @@ -50,6 +50,10 @@
@@ -39,14 +42,316 @@ index 2af0fb32..56088b03 100644
  #include "wi_stuff.h"
  #include "hu_stuff.h"
  #include "st_stuff.h"
-@@ -1657,6 +1661,10 @@ void G_Ticker (void)
+@@ -1656,6 +1660,9 @@ void G_Ticker (void)
+       case GS_DEMOSCREEN: 
  	D_PageTicker (); 
  	break;
++    #ifdef DMCP
++        DMCP_Tick();
++    #endif
      }        
-+
-+#ifdef DMCP
-+    DMCP_Tick();
-+#endif
  } 
   
-  
+diff --git a/src/doom/CMakeLists.txt b/src/doom/CMakeLists.txt
+index 4545738a..d487eeb2 100644
+--- a/src/doom/CMakeLists.txt
++++ b/src/doom/CMakeLists.txt
+@@ -83,6 +83,21 @@ add_library(doom STATIC
+ 
+ target_include_directories(doom PRIVATE "../" "${CMAKE_CURRENT_BINARY_DIR}/../../")
+ 
++if(DMCP_ENABLE)
++    target_include_directories(doom PRIVATE
++        "${DMCP_ADAPTER_DIR}/include"
++        "${DMCP_ROOT}/include"
++        "${DMCP_ROOT}/adapters/common/include"
++        "${DMCP_ROOT}/build"
++        "${CMAKE_CURRENT_SOURCE_DIR}/.."
++        "${CMAKE_CURRENT_SOURCE_DIR}"
++        "${CMAKE_CURRENT_BINARY_DIR}/../.."
++    )
++    file(GLOB DMCP_ADAPTER_SOURCES "${DMCP_ADAPTER_DIR}/src/*.c")
++    list(APPEND DMCP_ADAPTER_SOURCES "${DMCP_ROOT}/adapters/common/src/dmcp_hooks.c")
++    target_sources(doom PRIVATE ${DMCP_ADAPTER_SOURCES})
++endif()
++
+ if (DEFINED EMSCRIPTEN)
+     set(SDL_FLAGS "-s USE_SDL=2")
+     if(ENABLE_SDL2_MIXER)
+@@ -100,6 +115,14 @@ else()
+         list(APPEND SDL_LINK_LIBS SDL2_net::SDL2_net)
+     endif()
+ endif()
++
++if(DMCP_ENABLE)
++    list(APPEND SDL_LINK_LIBS
++        "${DMCP_ROOT}/build/libdmcp_core.so"
++        "${DMCP_ROOT}/build/libdmcp_generic.so"
++    )
++endif()
++
+ target_link_libraries(doom ${SDL_LINK_LIBS})
+ set_target_properties(doom PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
+ set_target_properties(doom PROPERTIES LINK_FLAGS "${SDL_FLAGS}")
+diff --git a/src/doom/d_main.c b/src/doom/d_main.c
+index 2092987d..ec4984ed 100644
+--- a/src/doom/d_main.c
++++ b/src/doom/d_main.c
+@@ -79,6 +79,11 @@
+ 
+ #include "d_main.h"
+ 
++#ifdef DMCP
++#include "dmcp_integration.h"
++void DMCP_Link(void);
++#endif
++
+ #include "doom_icon.c"
+ 
+ //
+@@ -2445,6 +2450,13 @@ void D_DoomMain (void)
+ 	    D_StartTitle ();                // start up intro loop
+     }
+ 
++#ifdef DMCP
++    dmcp_engine_config_t dmcp_cfg = dmcp_engine_config_default();
++    int dmcp_port = dmcp_engine_port_from_argv(myargc, myargv, "dmcp_port");
++    if (dmcp_port > 0) dmcp_cfg.port = dmcp_port;
++    DMCP_Init(&dmcp_cfg);
++#endif
++
+     D_DoomLoop ();  // never returns
+ }
+ 
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 8b7fb8f6..885bca7b 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -40,18 +40,38 @@ if (DEFINED EMSCRIPTEN)
+         set(SDL_FLAGS "${SDL_FLAGS} -s USE_SDL_MIXER=2")
+         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s USE_SDL_MIXER=2")
+     endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+     if(ENABLE_SDL2_NET)
+         set(SDL_FLAGS "${SDL_FLAGS} -s USE_SDL_NET=2")
+         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s USE_SDL_NET=2")
+     endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+ else()
+     set(SDL_LINK_LIBS SDL2::SDL2main SDL2::SDL2)
+     if(ENABLE_SDL2_MIXER)
+         list(APPEND SDL_LINK_LIBS SDL2_mixer::SDL2_mixer)
+     endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+     if(ENABLE_SDL2_NET)
+         list(APPEND SDL_LINK_LIBS SDL2_net::SDL2_net)
+     endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
+ endif()
+ 
+ target_link_libraries("${PROGRAM_PREFIX}server" ${SDL_LINK_LIBS})
+@@ -139,6 +159,10 @@ if(WIN32)
+          "${PROJECT_SOURCE_DIR}/win32/")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ set(DEHACKED_SOURCE_FILES
+     deh_defs.h
+     deh_io.c            deh_io.h
+@@ -155,22 +179,42 @@ set(EXTRA_LIBS ${SDL_LINK_LIBS} textscreen pcsound opl)
+ if(SampleRate_FOUND)
+     list(APPEND EXTRA_LIBS SampleRate::samplerate)
+ endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+ if(PNG_FOUND)
+     list(APPEND EXTRA_LIBS PNG::PNG)
+ endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+ if(FluidSynth_FOUND)
+     list(APPEND EXTRA_LIBS FluidSynth::libfluidsynth)
+ endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
+ if(WIN32)
+ 	list(APPEND EXTRA_LIBS winmm shlwapi)
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if(WIN32)
+     add_executable("${PROGRAM_PREFIX}doom" WIN32 ${SOURCE_FILES_WITH_DEH} "${CMAKE_CURRENT_BINARY_DIR}/doom-res.rc")
+ else()
+     add_executable("${PROGRAM_PREFIX}doom" ${SOURCE_FILES_WITH_DEH})
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ target_include_directories("${PROGRAM_PREFIX}doom" PRIVATE ${GAME_INCLUDE_DIRS})
+ target_link_libraries("${PROGRAM_PREFIX}doom" doom ${EXTRA_LIBS})
+ set_target_properties("${PROGRAM_PREFIX}doom" PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
+@@ -180,12 +224,20 @@ if(MSVC)
+                           LINK_FLAGS "/MANIFEST:NO")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if(WIN32)
+     add_executable("${PROGRAM_PREFIX}heretic" WIN32 ${SOURCE_FILES_WITH_DEH} "${CMAKE_CURRENT_BINARY_DIR}/heretic-res.rc")
+ else()
+     add_executable("${PROGRAM_PREFIX}heretic" ${SOURCE_FILES_WITH_DEH})
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ target_include_directories("${PROGRAM_PREFIX}heretic" PRIVATE ${GAME_INCLUDE_DIRS})
+ target_link_libraries("${PROGRAM_PREFIX}heretic" heretic ${EXTRA_LIBS})
+ set_target_properties("${PROGRAM_PREFIX}heretic" PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
+@@ -195,12 +247,20 @@ if(MSVC)
+                           LINK_FLAGS "/MANIFEST:NO")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if(WIN32)
+     add_executable("${PROGRAM_PREFIX}hexen" WIN32 ${SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/hexen-res.rc")
+ else()
+     add_executable("${PROGRAM_PREFIX}hexen" ${SOURCE_FILES})
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ target_include_directories("${PROGRAM_PREFIX}hexen" PRIVATE ${GAME_INCLUDE_DIRS})
+ target_link_libraries("${PROGRAM_PREFIX}hexen" hexen ${EXTRA_LIBS})
+ set_target_properties("${PROGRAM_PREFIX}hexen" PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
+@@ -210,12 +270,20 @@ if(MSVC)
+                           LINK_FLAGS "/MANIFEST:NO")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if(WIN32)
+     add_executable("${PROGRAM_PREFIX}strife" WIN32 ${SOURCE_FILES_WITH_DEH} "${CMAKE_CURRENT_BINARY_DIR}/strife-res.rc")
+ else()
+     add_executable("${PROGRAM_PREFIX}strife" ${SOURCE_FILES_WITH_DEH})
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ target_include_directories("${PROGRAM_PREFIX}strife" PRIVATE ${GAME_INCLUDE_DIRS})
+ target_link_libraries("${PROGRAM_PREFIX}strife" strife ${EXTRA_LIBS})
+ set_target_properties("${PROGRAM_PREFIX}strife" PROPERTIES COMPILE_FLAGS "${SDL_FLAGS}")
+@@ -225,6 +293,10 @@ if(MSVC)
+                           LINK_FLAGS "/MANIFEST:NO")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ # Source files needed for chocolate-setup:
+ 
+ set(SETUP_FILES
+@@ -248,6 +320,10 @@ else()
+     add_executable("${PROGRAM_PREFIX}setup" ${SETUP_FILES} ${COMMON_SOURCE_FILES})
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ target_include_directories("${PROGRAM_PREFIX}setup"
+                            PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../")
+ target_link_libraries("${PROGRAM_PREFIX}setup" ${SDL_LINK_LIBS} setup textscreen)
+@@ -257,11 +333,19 @@ if(WIN32)
+     target_link_libraries("${PROGRAM_PREFIX}setup" winmm)
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if(MSVC)
+     set_target_properties("${PROGRAM_PREFIX}setup" PROPERTIES
+                           LINK_FLAGS "/MANIFEST:NO")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ if (DEFINED EMSCRIPTEN)
+     set_target_properties("${PROGRAM_PREFIX}setup" PROPERTIES LINK_FLAGS "${SDL_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -s ASYNCIFY=1 -s EXPORTED_FUNCTIONS=_main,ccall,cwrap,FS,ENV,PATH,ERRNO_CODES")
+     set_target_properties("${PROGRAM_PREFIX}strife" PROPERTIES LINK_FLAGS "${SDL_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -s ASYNCIFY=1 -s EXPORTED_FUNCTIONS=_main,ccall,cwrap,FS,ENV,PATH,ERRNO_CODES")
+@@ -270,6 +354,10 @@ if (DEFINED EMSCRIPTEN)
+     set_target_properties("${PROGRAM_PREFIX}hexen" PROPERTIES LINK_FLAGS "${SDL_FLAGS} -s ALLOW_MEMORY_GROWTH=1 -s ASYNCIFY=1 -s EXPORTED_FUNCTIONS=_main,ccall,cwrap,FS,ENV,PATH,ERRNO_CODES")
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ add_executable(midiread midifile.c z_native.c i_system.c m_argv.c m_misc.c d_iwad.c deh_str.c m_config.c)
+ target_compile_definitions(midiread PRIVATE "-DTEST")
+ target_include_directories(midiread PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../")
+@@ -280,6 +368,10 @@ else()
+     target_link_libraries(midiread SDL2::SDL2)
+ endif()
+ 
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()
++
+ add_executable(mus2mid mus2mid.c memio.c z_native.c i_system.c m_argv.c m_misc.c d_iwad.c deh_str.c m_config.c)
+ target_compile_definitions(mus2mid PRIVATE "-DSTANDALONE")
+ target_include_directories(mus2mid PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../")
+@@ -289,3 +381,7 @@ if (DEFINED EMSCRIPTEN)
+ else()
+     target_link_libraries(mus2mid SDL2::SDL2)
+ endif()
++
++if(DMCP_ENABLE)
++    set_target_properties(crispy-doom PROPERTIES LINK_FLAGS "-u_DMCP_Link")
++endif()

@@ -4,7 +4,9 @@
 #include <string.h>
 
 int dmcp_engine_port_from_argv(int argc, char** argv, const char* flag) {
-  if (!argv || !flag) return 0;
+  if (!argv || !flag || argc < 2) {
+    return 0;
+  }
 
   char needle[64];
   snprintf(needle, sizeof(needle), "-%s", flag);

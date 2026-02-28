@@ -2,14 +2,13 @@
 #define DMCP_INTEGRATION_H
 
 #include "dmcp_adapter.h"
+#include "dmcp_hooks.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern dmcp_crispy_t* g_dmcp_ctx;
-
-void DMCP_Init(void);
+void DMCP_Init(const dmcp_engine_config_t* config);
 void DMCP_Shutdown(void);
 void DMCP_Tick(void);
 

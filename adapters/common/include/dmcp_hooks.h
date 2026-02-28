@@ -8,19 +8,6 @@
 extern "C" {
 #endif
 
-typedef struct dmcp_hooks dmcp_hooks_t;
-
-typedef void (*dmcp_init_fn)(dmcp_hooks_t* hooks, int port);
-typedef void (*dmcp_tick_fn)(void);
-typedef void (*dmcp_shutdown_fn)(void);
-
-struct dmcp_hooks {
-  dmcp_init_fn     init;
-  dmcp_tick_fn     tick;
-  dmcp_shutdown_fn shutdown;
-  void*            ctx;
-};
-
 typedef struct {
   int  port;
   int  target_hz;
