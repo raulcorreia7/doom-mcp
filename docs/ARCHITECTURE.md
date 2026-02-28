@@ -3,6 +3,90 @@
 **Version**: 0.6.0  
 **Target Architecture**: Engine ↔ Adapter ↔ Doom MCP ↔ Generic MCP Layer
 
+## Layers Explained
+
+### What are the layers?
+
+DMCP is organized into four distinct layers, each with a single responsibility:
+
+| Layer | What it does | Why it exists |
+|-------|--------------|---------------|
+| **Generic MCP** | HTTP/SSE transport, JSON-RPC protocol | Reusable for any game/tool |
+| **Doom MCP** | Game state types, serialization, commands | Doom-specific logic |
+| **Adapter** | Engine integration, state extraction | Isolates engine specifics |
+| **Engine** | Game execution | The actual Doom port |
+
+### How do they interact?
+
+```
+Request Flow (Agent → Engine):
+  Agent → HTTP POST → Generic MCP → Doom MCP → Adapter → Engine
+
+Response Flow (Engine → Agent):  
+  Engine → Adapter → Doom MCP → Generic MCP → HTTP/SSE → Agent
+```
+
+Each layer only depends on layers below it. No circular dependencies.
+
+### Layer Details
+
+#### Generic MCP Layer
+
+**What**: Pure MCP protocol implementation with no game knowledge.
+
+**Files**: `src/mcp/`, `include/mcp/generic/`
+
+**Responsibilities**:
+- HTTP server (POST for JSON-RPC, GET for SSE)
+- JSON-RPC 2.0 request/response handling
+- Method registration and dispatch
+- Session management
+
+**Dependencies**: yyjson, uWebSockets (no DMCP dependencies)
+
+#### Doom MCP Layer
+
+**What**: Doom-specific types, serialization, and MCP tools.
+
+**Files**: `src/doom/`, `include/dmcp/doom/`
+
+**Responsibilities**:
+- Define game state types (player, enemies, level)
+- Serialize state to JSON
+- Implement MCP tools (get_player, execute_command, etc.)
+- Command parsing and dispatch
+
+**Dependencies**: Generic MCP layer only
+
+#### Adapter Layer
+
+**What**: Engine-specific integration code.
+
+**Files**: `adapters/<engine>/`
+
+**Responsibilities**:
+- Extract state from engine internals
+- Execute commands in engine context
+- Handle engine-specific quirks
+
+**Dependencies**: Doom MCP types, engine headers
+
+#### Adapter Helpers
+
+**What**: Shared utilities for adapters.
+
+**Files**: `include/dmcp/adapter/`
+
+**Responsibilities**:
+- Coordinate conversions (fixed-point to float)
+- Angle conversions (BAM to degrees/radians)
+- Entity name lookups
+- Input validation
+
+**Dependencies**: None (static inline functions)
+
+---
+
 ## Layer Overview
 
 ```
@@ -162,6 +246,7 @@ doom-mcp/
 │       │   ├── commands.h      # Command system
 │       │   ├── content.h       # Content availability APIs
 │       │   ├── constants.h     # Buffer sizes, limits
+│       │   ├── layer.h         # Layer plugin interface
 │       │   ├── export.h        # Export macros
 │       │   └── dmcp.h          # Convenience header
 │       │
@@ -208,20 +293,29 @@ doom-mcp/
 │       │       ├── get_state_sections.cpp
 │       │       ├── tools_list.cpp
 │       │       └── get_available_content.cpp
-│       └── commands/
-│           ├── parsers.cpp     # Command parsing
-│           ├── json_parsers.hpp
-│           └── types/          # Per-command implementations
-│               ├── spawn.cpp
-│               ├── set_health.cpp
-│               ├── set_position.cpp
-│               ├── change_level.cpp
-│               ├── give_item.cpp
-│               ├── damage.cpp
-│               ├── kill.cpp
-│               ├── pause.cpp
-│               ├── timescale.cpp
-│               └── console.cpp
+│       ├── commands/
+│       │   ├── parsers.cpp     # Command parsing
+│       │   ├── json_parsers.hpp
+│       │   └── types/          # Per-command implementations
+│       │       ├── spawn.cpp
+│       │       ├── set_health.cpp
+│       │       ├── set_position.cpp
+│       │       ├── change_level.cpp
+│       │       ├── give_item.cpp
+│       │       ├── damage.cpp
+│       │       ├── kill.cpp
+│       │       ├── pause.cpp
+│       │       ├── timescale.cpp
+│       │       └── console.cpp
+│       └── layers/            # Layer plugin system
+│           ├── registry.cpp    # Layer registry implementation
+│           ├── registry.hpp    # Layer registry header
+│           ├── orchestrator/   # Orchestrator layer
+│           │   ├── orchestrator.cpp
+│           │   └── orchestrator.hpp
+│           └── input/          # Input layer
+│               ├── input.cpp
+│               └── input.hpp
 │
 ├── adapters/
 │   ├── zdoom/
@@ -271,11 +365,20 @@ doom-mcp/
 |--------|------|--------------|---------|
 | `dmcp::generic` | STATIC/SHARED | yyjson, uWebSockets | Generic MCP protocol |
 | `dmcp::core` | STATIC/SHARED | dmcp::generic | Doom-specific MCP |
+| `dmcp::chocolate` | STATIC | dmcp::core | Chocolate Doom adapter |
 | `dmcp::zdoom` | STATIC | dmcp::core | ZDoom adapter |
 
 ## Build Configuration
 
 ```cmake
+# Option 1: find_package integration (recommended for consumers)
+find_package(dmcp CONFIG REQUIRED)
+target_link_libraries(myengine PRIVATE dmcp::core)
+
+# Option 2: Manual include/lib paths (legacy)
+# -DDMCP_INCLUDE_DIR="$PWD/include"
+# -DDMCP_LIB_DIR="$PWD/build"
+
 # Options
 option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build examples" ON)
@@ -287,10 +390,6 @@ option(DMCP_ENABLE_SANITIZERS "Enable sanitizers" OFF)
 # Build shared libraries
 cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
 cmake --build build-shared -j$(nproc)
-
-# Consumers can do:
-find_package(dmcp REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::core)
 ```
 
 ## Key Design Principles
@@ -306,6 +405,69 @@ target_link_libraries(myengine PRIVATE dmcp::core)
 9. **Library Flexibility**: Support both static and shared library builds
 10. **Stable JSON Boundary**: Doom core uses `internal/json_types.hpp` wrapper, never imports generic JSON internals directly
 11. **Content API Ownership**: Content availability APIs (`include/dmcp/doom/content.h`) owned by Doom core, not adapters
+12. **Layer Plugin System**: Composable functionality layers that can be enabled/disabled independently
+
+---
+
+## Layer Plugin System
+
+DMCP implements a composable layer/plugin system that splits functionality into independent layers, all sharing a single MCP server with namespaced tools. This enables agents to use only the integration patterns they need.
+
+### Layer Interface
+
+Each layer implements a virtual table (vtable) with registration hooks and lifecycle callbacks:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Layer VTable                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  name()           → const char*       (layer identifier)                   │
+│  description()    → const char*       (human-readable description)        │
+│  tool_count()     → size_t            (number of tools)                    │
+│  tools()          → const char**       (tool name array)                   │
+│  register_methods() → bool             (register JSON-RPC methods)         │
+│  register_routes() → bool              (register HTTP routes)             │
+│  tick()           → void               (per-frame updates)                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Available Layers
+
+| Layer | Tools | Purpose |
+|-------|-------|---------|
+| **Orchestrator** | `orchestrator.spawn_entity`, `orchestrator.change_level`, `orchestrator.give_item`, `orchestrator.set_player_health`, `orchestrator.teleport_player`, `orchestrator.execute_console`, `orchestrator.pause_game`, `orchestrator.damage_entity`, `orchestrator.kill_entity`, `orchestrator.get_state`, `orchestrator.get_screenshot` | Game state management and entity manipulation |
+| **Input** | `input.player_input` | Human-like input control for agents |
+
+### Configuration
+
+Layers are configured via `dmcp_config_t`:
+
+```c
+typedef struct {
+    // ... other fields ...
+    
+    struct {
+        bool orchestrator;  // Enable orchestrator layer (default: true)
+        bool input;         // Enable input layer (default: true)
+    } layers;
+    
+} dmcp_config_t;
+```
+
+**Default behavior**: Both layers are enabled. Set `config.layers.orchestrator = false` or `config.layers.input = false` to disable specific layers.
+
+### Tool Namespacing
+
+Tools are namespaced by layer name (e.g., `orchestrator.spawn_entity`). This prevents naming collisions and makes tool purpose explicit. Agents can discover available tools via the `tools/list` method.
+
+### Layer Lifecycle
+
+1. **Registration**: Layers register themselves with the global registry at startup
+2. **Enable/Disable**: Based on `dmcp_config_t` settings, layers are enabled/disabled
+3. **Method Registration**: Enabled layers register their JSON-RPC methods with the MCP server
+4. **Tick**: Enabled layers receive per-frame tick callbacks for state updates
+
+---
 
 ## Source Code Organization
 
