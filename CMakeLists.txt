@@ -5,20 +5,26 @@ option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build example servers" ON)
 option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests" OFF)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
-option(DMCP_BUILD_ADAPTER_CHOCOLATE "Build Chocolate Doom adapter" OFF)
+option(DMCP_BUILD_ADAPTER_CRISPY "Build Crispy Doom adapter" OFF)
 option(DMCP_BUILD_SHARED "Build shared libraries (.so/.dll)" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
 option(DMCP_INSTALL "Install headers and CMake package" ON)
 
 set(DMCP_ZDOOM_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated include directories for ZDoom SDK headers")
-set(DMCP_CHOCOLATE_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src" CACHE PATH "Chocolate Doom source include directory")
-set(DMCP_CHOCOLATE_DOOM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/src/doom" CACHE PATH "Chocolate Doom doom include directory")
-set(DMCP_CHOCOLATE_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/chocolate-doom/build" CACHE PATH "Chocolate Doom generated headers directory (must contain config.h)")
+set(DMCP_CRISPY_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/src" CACHE PATH "Crispy Doom source include directory")
+set(DMCP_CRISPY_DOOM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/src/doom" CACHE PATH "Crispy Doom doom include directory")
+set(DMCP_CRISPY_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/build" CACHE PATH "Crispy Doom generated headers directory (must contain config.h)")
 
 set(DMCP_LIBRARY_TYPE STATIC)
 if(DMCP_BUILD_SHARED)
   set(DMCP_LIBRARY_TYPE SHARED)
+endif()
+
+if(DMCP_BUILD_SHARED AND DMCP_BUILD_TESTS)
+  set(DMCP_BUILD_STATIC_FOR_TESTS ON)
+else()
+  set(DMCP_BUILD_STATIC_FOR_TESTS OFF)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -55,6 +61,7 @@ set(DMCP_CORE_SOURCES
   src/doom/commands/parsers.cpp
   src/doom/content.cpp
   src/doom/context.cpp
+  src/doom/layers/registry.cpp
   src/doom/pool.cpp
   src/doom/screenshot.cpp
   src/doom/serialization.cpp
@@ -85,25 +92,19 @@ set(DMCP_CORE_SOURCES
   src/doom/handlers/schema_builders.cpp
 )
 
-add_library(mcp_generic ${DMCP_LIBRARY_TYPE}
+add_library(dmcp_generic_objs OBJECT
   ${MCP_GENERIC_SOURCES}
   ${MCP_JSON_SOURCES}
 )
-add_library(mcp::generic ALIAS mcp_generic)
 
-target_include_directories(mcp_generic
+target_include_directories(dmcp_generic_objs
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
-target_link_libraries(mcp_generic
-  PRIVATE yyjson uWebSockets
-)
-
-target_compile_definitions(mcp_generic
+target_compile_definitions(dmcp_generic_objs
   PUBLIC
     DMCP_USE_YYJSON
     MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
@@ -111,64 +112,170 @@ target_compile_definitions(mcp_generic
     MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-# Always use hidden visibility
-set_target_properties(mcp_generic PROPERTIES
+set_target_properties(dmcp_generic_objs PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
   POSITION_INDEPENDENT_CODE ON
 )
 
-if(DMCP_BUILD_SHARED AND WIN32)
-  set_target_properties(mcp_generic PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+target_link_libraries(dmcp_generic_objs
+  PRIVATE yyjson uWebSockets
+)
+
+dmcp_enable_warnings(dmcp_generic_objs)
+
+if(DMCP_BUILD_SHARED)
+  add_library(generic SHARED $<TARGET_OBJECTS:dmcp_generic_objs>)
+  add_library(dmcp::generic ALIAS generic)
+  target_link_libraries(generic PRIVATE yyjson uWebSockets)
+  target_include_directories(generic
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(generic
+    PUBLIC
+      DMCP_USE_YYJSON
+      MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+      MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+      MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    PRIVATE
+      MCP_BUILDING
+  )
+  set_target_properties(generic PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME dmcp_generic
+  )
+  if(NOT WIN32)
+    target_link_options(generic PRIVATE
+      "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_generic.version"
+    )
+  endif()
+  dmcp_enable_warnings(generic)
 endif()
 
-# Define BUILDING macro when compiling the library
-target_compile_definitions(mcp_generic PRIVATE MCP_BUILDING)
-
-dmcp_enable_warnings(mcp_generic)
-
-add_library(dmcp_core ${DMCP_LIBRARY_TYPE} ${DMCP_CORE_SOURCES})
-add_library(dmcp::core ALIAS dmcp_core)
-
-target_include_directories(dmcp_core
+add_library(generic_static STATIC $<TARGET_OBJECTS:dmcp_generic_objs>)
+target_link_libraries(generic_static PRIVATE yyjson uWebSockets)
+target_include_directories(generic_static
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
+target_compile_definitions(generic_static
+  PUBLIC
+    DMCP_USE_YYJSON
+    MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    MCP_STATIC
+)
+set_target_properties(generic_static PROPERTIES
+  OUTPUT_NAME dmcp_generic
+  POSITION_INDEPENDENT_CODE ON
+)
+dmcp_enable_warnings(generic_static)
 
-target_link_libraries(dmcp_core PUBLIC mcp::generic)
+if(NOT DMCP_BUILD_SHARED)
+  add_library(dmcp::generic ALIAS generic_static)
+endif()
 
-target_compile_definitions(dmcp_core
+add_library(dmcp_core_objs OBJECT ${DMCP_CORE_SOURCES})
+
+target_include_directories(dmcp_core_objs
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(dmcp_core_objs PUBLIC dmcp_generic_objs)
+
+target_compile_definitions(dmcp_core_objs
   PUBLIC
     DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
     DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
     DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
-# Always use hidden visibility
-set_target_properties(dmcp_core PROPERTIES
+set_target_properties(dmcp_core_objs PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
   POSITION_INDEPENDENT_CODE ON
 )
 
-if(DMCP_BUILD_SHARED AND WIN32)
-  set_target_properties(dmcp_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+dmcp_enable_warnings(dmcp_core_objs)
+
+if(DMCP_BUILD_SHARED)
+  add_library(core SHARED $<TARGET_OBJECTS:dmcp_core_objs>)
+  add_library(dmcp::core ALIAS core)
+  target_link_libraries(core PUBLIC dmcp::generic)
+  target_include_directories(core
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(core
+    PUBLIC
+      DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+      DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+      DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    PRIVATE
+      DMCP_BUILDING
+  )
+  set_target_properties(core PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME dmcp_core
+  )
+  if(NOT WIN32)
+    target_link_options(core PRIVATE
+      "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_core.version"
+    )
+  endif()
+  dmcp_enable_warnings(core)
 endif()
 
-# Define BUILDING macro when compiling the library
-target_compile_definitions(dmcp_core PRIVATE DMCP_BUILDING)
+add_library(core_static STATIC $<TARGET_OBJECTS:dmcp_core_objs>)
+target_link_libraries(core_static PUBLIC generic_static)
+target_include_directories(core_static
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_compile_definitions(core_static
+  PUBLIC
+    DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    DMCP_STATIC
+)
+set_target_properties(core_static PROPERTIES
+  OUTPUT_NAME dmcp_core
+  POSITION_INDEPENDENT_CODE ON
+)
+dmcp_enable_warnings(core_static)
 
-dmcp_enable_warnings(dmcp_core)
+if(NOT DMCP_BUILD_SHARED)
+  add_library(dmcp::core ALIAS core_static)
+endif()
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
   add_subdirectory(adapters/zdoom)
 endif()
 
-if(DMCP_BUILD_ADAPTER_CHOCOLATE)
-  add_subdirectory(adapters/chocolate-doom)
+if(DMCP_BUILD_ADAPTER_CRISPY)
+  add_subdirectory(adapters/crispy-doom)
 endif()
 
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -185,8 +292,13 @@ if(DMCP_BUILD_TESTS AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_subdirectory(tests)
 endif()
 
-dmcp_enable_sanitizers(mcp_generic)
-dmcp_enable_sanitizers(dmcp_core)
+if(DMCP_BUILD_SHARED)
+  dmcp_enable_sanitizers(generic)
+  dmcp_enable_sanitizers(core)
+else()
+  dmcp_enable_sanitizers(generic_static)
+  dmcp_enable_sanitizers(core_static)
+endif()
 
 if(DMCP_ENABLE_SANITIZERS AND DMCP_BUILD_EXAMPLES AND NOT MSVC)
   target_compile_options(dummy_server PRIVATE -fsanitize=address,undefined)
@@ -202,43 +314,61 @@ if(DMCP_INSTALL)
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   )
 
-  # Install targets and create export (only for shared builds)
   if(DMCP_BUILD_SHARED)
     install(
-      TARGETS mcp_generic dmcp_core
-      EXPORT dmcp-targets
+      TARGETS generic core
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  else()
+    install(
+      TARGETS generic_static core_static
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  endif()
+
+  if(TARGET crispy)
+    install(
+      TARGETS crispy
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  endif()
+
+  if(TARGET zdoom)
+    install(
+      TARGETS zdoom
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  endif()
+
+  if(DMCP_BUILD_SHARED)
+    install(
+      TARGETS generic core
+      EXPORT dmcp-targets
       INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
 
-    if(TARGET dmcp_zdoom)
+    if(TARGET zdoom)
       install(
-        TARGETS dmcp_zdoom
+        TARGETS zdoom
         EXPORT dmcp-targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
       )
     endif()
 
-    if(TARGET dmcp_chocolate)
+    if(TARGET crispy)
       install(
-        TARGETS dmcp_chocolate
+        TARGETS crispy
         EXPORT dmcp-targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
       )
     endif()
-  endif()
 
-  # Export targets and install package config (only for shared builds)
-  if(DMCP_BUILD_SHARED)
-    # Install export file
     install(
       EXPORT dmcp-targets
       FILE dmcp-targets.cmake
@@ -246,17 +376,35 @@ if(DMCP_INSTALL)
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
     )
 
-    # Generate and install package config
     configure_package_config_file(
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp-config.cmake.in
       ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
       INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
     )
 
+    write_basic_package_version_file(
+      ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config-version.cmake
+      VERSION ${PROJECT_VERSION}
+      COMPATIBILITY SameMajorVersion
+    )
+
     install(
-      FILES ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
+      FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config-version.cmake
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
     )
+  endif()
+endif()
+
+# For static builds, also export targets to build tree for consumers using find_package
+if(NOT DMCP_BUILD_SHARED)
+  export(TARGETS generic_static core_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
+  if(TARGET zdoom)
+    export(TARGETS zdoom FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
+  endif()
+  if(TARGET crispy)
+    export(TARGETS crispy FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
   endif()
 endif()
 
@@ -266,7 +414,7 @@ message(STATUS "  Examples: ${DMCP_BUILD_EXAMPLES}")
 message(STATUS "  Tests: ${DMCP_BUILD_TESTS}")
 message(STATUS "  Integration tests: ${DMCP_BUILD_INTEGRATION_TESTS}")
 message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
-message(STATUS "  Chocolate Adapter: ${DMCP_BUILD_ADAPTER_CHOCOLATE}")
+message(STATUS "  Crispy Adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
 message(STATUS "  Shared libs: ${DMCP_BUILD_SHARED}")
 message(STATUS "  Install package: ${DMCP_INSTALL}")
 message(STATUS "  Sanitizers: ${DMCP_ENABLE_SANITIZERS}")

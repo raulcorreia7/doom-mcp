@@ -53,6 +53,12 @@ typedef struct {
   size_t      tool_count;
 } dmcp_layer_info_t;
 
+// ============================================================================
+// Layer Registry (Opaque Handle)
+// ============================================================================
+
+typedef struct dmcp_layer_registry_s dmcp_layer_registry_t;
+
 #ifdef __cplusplus
 }
 #endif

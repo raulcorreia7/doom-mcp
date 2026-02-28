@@ -7,6 +7,7 @@
 
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/protocol.h"
+#include "doom/layers/registry.hpp"
 #include "internal.hpp"
 #include "internal/mcp_handlers.hpp"
 #include "internal/serialization.hpp"
