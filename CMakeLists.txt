@@ -62,6 +62,7 @@ set(DMCP_CORE_SOURCES
   src/doom/content.cpp
   src/doom/context.cpp
   src/doom/layers/registry.cpp
+  src/doom/layers/input/input.cpp
   src/doom/pool.cpp
   src/doom/screenshot.cpp
   src/doom/serialization.cpp
@@ -90,6 +91,7 @@ set(DMCP_CORE_SOURCES
   src/doom/handlers/tools/tools_list.cpp
   src/doom/handlers/state_json.cpp
   src/doom/handlers/schema_builders.cpp
+  src/doom/layers/orchestrator/orchestrator.cpp
 )
 
 add_library(dmcp_generic_objs OBJECT
