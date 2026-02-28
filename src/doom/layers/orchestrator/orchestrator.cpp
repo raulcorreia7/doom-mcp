@@ -1,4 +1,5 @@
 #include <cstring>
+#include <new>
 
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/protocol.h"
@@ -17,6 +18,67 @@ const char* ORCHESTRATOR_TOOLS[] = {
     DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_TOOL_TELEPORT_PLAYER, DMCP_TOOL_EXECUTE_CONSOLE,
     DMCP_TOOL_PAUSE_GAME,        DMCP_TOOL_DAMAGE_ENTITY,   DMCP_TOOL_KILL_ENTITY,
     DMCP_TOOL_GET_STATE,         DMCP_TOOL_GET_SCREENSHOT,
+};
+
+struct orchestrator_layer_state {
+  orchestrator_layer* layer = nullptr;
+};
+
+const char* layer_name(void) { return "orchestrator"; }
+
+const char* layer_description(void) {
+  return "Game orchestration tools: spawn entities, change levels, give items, manage player state";
+}
+
+size_t tool_count(void) { return sizeof(ORCHESTRATOR_TOOLS) / sizeof(ORCHESTRATOR_TOOLS[0]); }
+
+const char** tools(void) { return ORCHESTRATOR_TOOLS; }
+
+bool register_methods(dmcp_layer_t* layer, mcp_server_t* server, void* user_data) {
+  if (!layer || !server || !user_data) {
+    return false;
+  }
+
+  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
+  if (!state || !state->layer) {
+    return false;
+  }
+
+  return state->layer->register_methods(server, user_data);
+}
+
+bool register_routes(dmcp_layer_t* layer, mcp_server_t* server, void* user_data) {
+  if (!layer || !server || !user_data) {
+    return false;
+  }
+
+  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
+  if (!state || !state->layer) {
+    return false;
+  }
+
+  return state->layer->register_routes(server, user_data);
+}
+
+void tick(dmcp_layer_t* layer, dmcp_context_t* ctx) {
+  if (!layer || !ctx) {
+    return;
+  }
+
+  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
+  if (state && state->layer) {
+    state->layer->tick(ctx);
+  }
+}
+
+static const dmcp_layer_vtable_t ORCHESTRATOR_LAYER_VTABLE = {
+    .name             = layer_name,
+    .description      = layer_description,
+    .tool_count       = tool_count,
+    .tools            = tools,
+    .register_methods = register_methods,
+    .register_routes  = register_routes,
+    .tick             = tick,
 };
 
 }  // namespace
@@ -79,18 +141,51 @@ bool orchestrator_layer::register_routes(mcp_server_t* server, void* user_data) 
 void orchestrator_layer::tick(dmcp_context_t* ctx) { (void)ctx; }
 
 dmcp_layer_t* create_orchestrator_layer() {
-  auto* layer = new (std::nothrow) orchestrator_layer();
-  if (!layer) {
+  auto* cpp_layer = new (std::nothrow) orchestrator_layer();
+  if (!cpp_layer) {
     return nullptr;
   }
 
-  dmcp_layer_t* handle = new (std::nothrow) dmcp_layer_t;
-  if (!handle) {
+  dmcp_layer_t* layer = new (std::nothrow) dmcp_layer_t;
+  if (!layer) {
+    delete cpp_layer;
+    return nullptr;
+  }
+
+  auto* state = new (std::nothrow) orchestrator_layer_state;
+  if (!state) {
+    delete cpp_layer;
     delete layer;
     return nullptr;
   }
 
-  return handle;
+  state->layer  = cpp_layer;
+  layer->vtable = &ORCHESTRATOR_LAYER_VTABLE;
+  layer->state  = state;
+
+  return layer;
 }
 
 }  // namespace dmcp
+
+extern "C" {
+
+dmcp_layer_t* dmcp_orchestrator_layer_create(void) { return dmcp::create_orchestrator_layer(); }
+
+void dmcp_orchestrator_layer_destroy(dmcp_layer_t* layer) {
+  if (!layer) {
+    return;
+  }
+
+  if (layer->state) {
+    auto* state = static_cast<dmcp::orchestrator_layer_state*>(layer->state);
+    if (state->layer) {
+      delete state->layer;
+    }
+    delete state;
+  }
+
+  delete layer;
+}
+
+}  // extern "C"

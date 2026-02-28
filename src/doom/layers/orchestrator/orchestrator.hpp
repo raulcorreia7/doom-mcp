@@ -8,6 +8,10 @@
 #include "dmcp/doom/protocol.h"
 #include "mcp/generic/server.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 namespace dmcp {
 
 struct context;
@@ -31,5 +35,13 @@ class orchestrator_layer {
 };
 
 dmcp_layer_t* create_orchestrator_layer();
+void          destroy_orchestrator_layer(dmcp_layer_t* layer);
 
 }  // namespace dmcp
+
+DMCP_API dmcp_layer_t* dmcp_orchestrator_layer_create(void);
+DMCP_API void          dmcp_orchestrator_layer_destroy(dmcp_layer_t* layer);
+
+#ifdef __cplusplus
+}
+#endif

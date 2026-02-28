@@ -7,6 +7,8 @@
 
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/protocol.h"
+#include "doom/layers/input/input.hpp"
+#include "doom/layers/orchestrator/orchestrator.hpp"
 #include "doom/layers/registry.hpp"
 #include "internal.hpp"
 #include "internal/mcp_handlers.hpp"
@@ -59,30 +61,38 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   register_method("tools/list", dmcp::handle_tools_list);
   register_method("tools/call", dmcp::handle_tools_call);
 
-  // Agent compatibility aliases: allow direct JSON-RPC method calls without
-  // requiring tools/call wrappers.
-  register_method(DMCP_TOOL_GET_PLAYER, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_ENEMIES, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_ENTITIES, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_MAP, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_LEVEL, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_INVENTORY, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_GAME_INFO, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_GAME, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_STATE, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_SCREENSHOT, dmcp::handle_method_get_screenshot);
-  register_method(DMCP_TOOL_EXECUTE_COMMAND, dmcp::handle_method_execute_command);
-  register_method(DMCP_TOOL_GET_COMMAND_RESULT, dmcp::handle_method_get_command_result);
-  register_method(DMCP_TOOL_PLAYER_INPUT, dmcp::handle_method_input);
+  ctx->layers = std::make_unique<dmcp::layer_registry>();
 
-  const char* command_method_aliases[] = {
-      DMCP_TOOL_SPAWN_ENTITY,      DMCP_TOOL_CHANGE_LEVEL,    DMCP_TOOL_GIVE_ITEM,
-      DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_TOOL_TELEPORT_PLAYER, DMCP_TOOL_SET_PLAYER_POSITION,
-      DMCP_TOOL_EXECUTE_CONSOLE,   DMCP_TOOL_PAUSE_GAME,      DMCP_TOOL_DAMAGE_ENTITY,
-      DMCP_TOOL_KILL_ENTITY,
-  };
-  for (const char* method_name : command_method_aliases) {
-    register_method(method_name, dmcp::handle_method_execute_command);
+  dmcp_layer_t* orchestrator_layer = dmcp_orchestrator_layer_create();
+  if (orchestrator_layer) {
+    ctx->layers->register_layer(orchestrator_layer);
+    if (ctx->config.layers.orchestrator) {
+      ctx->layers->enable("orchestrator");
+      if (!orchestrator_layer->vtable->register_methods(orchestrator_layer, ctx->server,
+                                                        ctx.get())) {
+        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register orchestrator layer methods");
+      }
+      if (!orchestrator_layer->vtable->register_routes(orchestrator_layer, ctx->server,
+                                                       ctx.get())) {
+        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register orchestrator layer routes");
+      }
+      dmcp_log(ctx.get(), MCP_LOG_INFO, "Orchestrator layer enabled");
+    }
+  }
+
+  dmcp_layer_t* input_layer = dmcp_input_layer_create();
+  if (input_layer) {
+    ctx->layers->register_layer(input_layer);
+    if (ctx->config.layers.input) {
+      ctx->layers->enable("input");
+      if (!input_layer->vtable->register_methods(input_layer, ctx->server, ctx.get())) {
+        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register input layer methods");
+      }
+      if (!input_layer->vtable->register_routes(input_layer, ctx->server, ctx.get())) {
+        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register input layer routes");
+      }
+      dmcp_log(ctx.get(), MCP_LOG_INFO, "Input layer enabled");
+    }
   }
 
   mcp_result_t route_state_result = mcp_server_route_register(
@@ -113,6 +123,10 @@ void dmcp_context_destroy(dmcp_context_t* ctx_handle) {
 
   dmcp_log(ctx, MCP_LOG_INFO, "DMCP context destroying");
 
+  if (ctx->layers) {
+    ctx->layers->destroy_all_layers();
+  }
+
   if (ctx->server) {
     mcp_server_destroy(ctx->server);
   }
@@ -131,6 +145,10 @@ void dmcp_context_tick(dmcp_context_t* ctx_handle) {
   if (!ctx_handle) return;
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+
+  if (ctx->layers) {
+    ctx->layers->tick_all(ctx_handle);
+  }
 
   const auto now = std::chrono::steady_clock::now();
   if (now - ctx->last_snapshot_time < ctx->min_interval) {

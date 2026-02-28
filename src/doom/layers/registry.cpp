@@ -96,6 +96,18 @@ const layer_entry* layer_registry::find_layer(const char* name) const {
   return &layers_[it->second];
 }
 
+void layer_registry::destroy_all_layers() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto& entry : layers_) {
+    if (entry.layer) {
+      delete entry.layer;
+      entry.layer = nullptr;
+    }
+  }
+  layers_.clear();
+  name_to_index_.clear();
+}
+
 }  // namespace dmcp
 
 extern "C" {

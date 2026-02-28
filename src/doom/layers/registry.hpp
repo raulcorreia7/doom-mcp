@@ -28,6 +28,7 @@ class layer_registry {
   bool enable(const char* name);
   bool disable(const char* name);
   void tick_all(dmcp_context_t* ctx);
+  void destroy_all_layers(void);
 
   size_t             layer_count() const;
   const layer_entry* get_layer(size_t index) const;
