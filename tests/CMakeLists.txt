@@ -3,9 +3,11 @@ cmake_minimum_required(VERSION 3.25)
 # Unit tests
 set(UNIT_TEST_SOURCES
   unit/test_mcp_server.cpp
+  unit/test_mcp_protocol.cpp
   unit/test_doom_context.cpp
   unit/test_screenshot.cpp
   unit/test_layer_boundaries.cpp
+  unit/test_layers.cpp
 )
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
@@ -14,11 +16,20 @@ endif()
 
 add_executable(dmcp_tests ${UNIT_TEST_SOURCES})
 
-target_link_libraries(dmcp_tests
-  PRIVATE
-    dmcp::core
-    Catch2::Catch2WithMain
-)
+if(DMCP_BUILD_SHARED)
+  target_link_libraries(dmcp_tests
+    PRIVATE
+      core_static
+      generic_static
+      Catch2::Catch2WithMain
+  )
+else()
+  target_link_libraries(dmcp_tests
+    PRIVATE
+      dmcp::core
+      Catch2::Catch2WithMain
+  )
+endif()
 
 target_include_directories(dmcp_tests
   PRIVATE

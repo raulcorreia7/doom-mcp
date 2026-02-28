@@ -1,5 +1,6 @@
 # CMake build directories
 build/
+build-shared/
 CMakeCache.txt
 CMakeFiles/
 CMakeScripts/
@@ -43,6 +44,7 @@ dmcp-release
 test_*
 *_test
 !test_mcp.sh
+!tests/unit/test_*.cpp
 !tests/e2e/test_*.py
 
 # Coverage reports
