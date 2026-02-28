@@ -1,5 +1,5 @@
-// Chocolate Doom Adapter for DMCP SDK
-// Provides MCP protocol integration for Chocolate Doom engine
+// Crispy Doom Adapter for DMCP SDK
+// Provides MCP protocol integration for Crispy Doom engine
 
 #ifndef DMCP_ADAPTER_H
 #define DMCP_ADAPTER_H
@@ -14,24 +14,24 @@
 extern "C" {
 #endif
 
-// Chocolate Doom DMCP context
-typedef struct dmcp_chocolate_s dmcp_chocolate_t;
+// Crispy Doom DMCP context
+typedef struct dmcp_crispy_s dmcp_crispy_t;
 
 // Configuration
 typedef struct {
   dmcp_config_t base;       // DMCP base config (set target_hz=35 for Doom)
   const char*   iwad_path;  // Path to IWAD file
   const char*   pwad_path;  // Path to PWAD file (optional)
-} dmcp_chocolate_config_t;
+} dmcp_crispy_config_t;
 
 // Get default configuration
-static inline dmcp_chocolate_config_t dmcp_chocolate_config_default(void) {
-  dmcp_chocolate_config_t cfg = {0};
-  cfg.base                    = dmcp_config_default();
-  cfg.base.target_hz          = 35;     // Doom runs at 35 tics/sec
-  cfg.base.screenshot.enable  = false;  // Disable ASCII screenshot path by default
-  cfg.iwad_path               = NULL;
-  cfg.pwad_path               = NULL;
+static inline dmcp_crispy_config_t dmcp_crispy_config_default(void) {
+  dmcp_crispy_config_t cfg   = {0};
+  cfg.base                   = dmcp_config_default();
+  cfg.base.target_hz         = 35;     // Doom runs at 35 tics/sec
+  cfg.base.screenshot.enable = false;  // Disable ASCII screenshot path by default
+  cfg.iwad_path              = NULL;
+  cfg.pwad_path              = NULL;
   return cfg;
 }
 
@@ -39,11 +39,11 @@ static inline dmcp_chocolate_config_t dmcp_chocolate_config_default(void) {
 // Lifecycle
 // ============================================================================
 
-// Create Chocolate Doom context with DMCP support
-dmcp_chocolate_t* dmcp_chocolate_create(const dmcp_chocolate_config_t* config);
+// Create Crispy Doom context with DMCP support
+dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config);
 
 // Destroy context
-void dmcp_chocolate_destroy(dmcp_chocolate_t* ctx);
+void dmcp_crispy_destroy(dmcp_crispy_t* ctx);
 
 // ============================================================================
 // Game Loop Integration
@@ -51,26 +51,26 @@ void dmcp_chocolate_destroy(dmcp_chocolate_t* ctx);
 
 // Call every game tic (35 Hz)
 // This snapshots game state and broadcasts to MCP clients
-void dmcp_chocolate_tick(dmcp_chocolate_t* ctx);
+void dmcp_crispy_tick(dmcp_crispy_t* ctx);
 
 // Process pending commands from MCP clients
-void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx);
+void dmcp_crispy_commands_process(dmcp_crispy_t* ctx);
 
 // Process pending player inputs from MCP clients (one per tick)
-void dmcp_chocolate_inputs_process(dmcp_chocolate_t* ctx);
+void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx);
 
 // Get the underlying DMCP context
-dmcp_context_t* dmcp_chocolate_get_dmcp_context(dmcp_chocolate_t* ctx);
+dmcp_context_t* dmcp_crispy_get_dmcp_context(dmcp_crispy_t* ctx);
 
 // ============================================================================
 // State Queries
 // ============================================================================
 
 // Check if DMCP server is running
-bool dmcp_chocolate_is_running(const dmcp_chocolate_t* ctx);
+bool dmcp_crispy_is_running(const dmcp_crispy_t* ctx);
 
 // Get statistics
-void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats);
+void dmcp_crispy_get_stats(dmcp_crispy_t* ctx, dmcp_stats_t* stats);
 
 // ============================================================================
 // Command Execution
@@ -78,7 +78,7 @@ void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats);
 
 // Execute a command received via MCP
 // Returns true if command was handled
-bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* cmd);
+bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd);
 
 // ============================================================================
 // Logging
@@ -92,22 +92,22 @@ void dmcp_adapter_log(int level, const char* fmt, ...);
 // Snapshot Population (called by adapter during tick)
 // ============================================================================
 
-// Populate player state from Chocolate Doom's player_t
-void dmcp_chocolate_populate_player(dmcp_snapshot_t* snap);
+// Populate player state from Crispy Doom's player_t
+void dmcp_crispy_populate_player(dmcp_snapshot_t* snap);
 
-// Populate level state from Chocolate Doom globals
-void dmcp_chocolate_populate_level(dmcp_snapshot_t* snap);
+// Populate level state from Crispy Doom globals
+void dmcp_crispy_populate_level(dmcp_snapshot_t* snap);
 
-// Populate enemies from Chocolate Doom's thinker list
+// Populate enemies from Crispy Doom's thinker list
 // Returns number of enemies added
-int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap);
+int dmcp_crispy_populate_enemies(dmcp_snapshot_t* snap);
 
 // Populate non-enemy interactive world entities (pickups, barrels)
 // Returns number of entities added
-int dmcp_chocolate_populate_entities(dmcp_snapshot_t* snap);
+int dmcp_crispy_populate_entities(dmcp_snapshot_t* snap);
 
 // Get the current player struct (may be NULL if not in game)
-struct player_t* dmcp_get_player(void);
+struct player_s* dmcp_get_player(void);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,7 @@
+{
+    global:
+        dmcp_crispy_*;
+        dmcp_adapter_*;
+    local:
+        *;
+};

@@ -2,7 +2,63 @@
 
 **Version**: 0.6.0
 
-A clean, modular C/C++ SDK for integrating Doom-family engines with AI agents via the Model Context Protocol (MCP).
+A C/C++ SDK that exposes Doom game state to AI agents via the Model Context Protocol (MCP).
+
+## What
+
+DMCP bridges Doom-family engines and AI assistants, enabling:
+
+- Real-time game state access (player, enemies, inventory, level)
+- Command execution (spawn entities, change levels, give items)
+- Tick-by-tick player control (movement, aiming, attacks)
+- Screenshot capture
+
+## Why
+
+| Use Case | Benefit |
+|----------|---------|
+| AI game playing | Agents read state and send inputs at 35Hz |
+| Automated testing | Headless control and verification |
+| Research | Low-latency state access for ML training |
+| Streaming | Real-time state via HTTP/SSE |
+
+## How
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   AI Agent      │────▶│  DMCP Server    │────▶│   Doom Engine   │
+│ (Claude/Cline)  │◀────│ (HTTP/SSE/MCP)  │◀────│ (Chocolate/etc) │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+1. **Agent** sends MCP requests via HTTP POST
+2. **DMCP** translates to game commands
+3. **Engine** executes and returns state
+
+## Quick Start
+
+```bash
+# Build + test
+make check
+
+# Run example server
+make run
+
+# Verify
+curl http://localhost:6060/health
+```
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Get running in 5 minutes |
+| [docs/USAGE.md](docs/USAGE.md) | Common patterns and workflows |
+| [docs/FEATURES.md](docs/FEATURES.md) | Complete feature overview |
+| [docs/README.md](docs/README.md) | Full API reference |
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Connect to MCP clients |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and layers |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Version history |
 
 ## Features
 
@@ -11,15 +67,7 @@ A clean, modular C/C++ SDK for integrating Doom-family engines with AI agents vi
 - **Object Pooling**: Reuses snapshot objects to minimize allocations
 - **Thread-Safe**: Proper synchronization for concurrent access
 - **HTTP/SSE Transport**: Built-in server using uWebSockets
-- **JSON-RPC 2.0**: Full MCP protocol support
-
-## Documentation
-
-- **[docs/README.md](docs/README.md)** - Full API documentation and examples
-- **[docs/INTEGRATION.md](docs/INTEGRATION.md)** - Connect to Claude, Cline, Continue, and other MCP tools
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview
-- **[docs/CHANGELOG.md](docs/CHANGELOG.md)** - Version history
-- **[docs/RUNBOOK.md](docs/RUNBOOK.md)** - Documentation maintenance workflow
+- **JSON-RPC 2.0**: Full MCP protocol support (2025-11-25)
 
 ## Quick Start
 
@@ -175,7 +223,14 @@ curl -X POST http://localhost:6060/mcp \
     "jsonrpc": "2.0",
     "id": 1,
     "method": "initialize",
-    "params": {}
+    "params": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "example-client",
+        "version": "1.0.0"
+      }
+    }
   }'
 ```
 
@@ -183,11 +238,10 @@ Response:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": "1",
+  "id": 1,
   "result": {
-    "protocolVersion": "2025-03-26",
+    "protocolVersion": "2025-11-25",
     "capabilities": {
-      "notifications": true,
       "tools": {"listChanged": true}
     },
     "serverInfo": {
@@ -198,7 +252,19 @@ Response:
 }
 ```
 
-#### 3. List Available Tools
+#### 3. Send initialized Notification
+
+```bash
+curl -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized",
+    "params": {}
+  }'
+```
+
+#### 4. List Available Tools
 
 ```bash
 curl -X POST http://localhost:6060/mcp \
@@ -371,10 +437,26 @@ class DMCPClient:
             "jsonrpc": "2.0",
             "id": 1,
             "method": "initialize",
-            "params": {}
+            "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "dmcp-python-example",
+                    "version": "1.0.0"
+                }
+            }
         }
-        resp = requests.post(self.mcp_url, json=payload)
-        return resp.json()
+        init_resp = requests.post(self.mcp_url, json=payload)
+        init_resp.raise_for_status()
+
+        # Required lifecycle step after initialize success
+        requests.post(self.mcp_url, json={
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {}
+        }).raise_for_status()
+
+        return init_resp.json()
     
     def get_player(self):
         """Get current player state"""

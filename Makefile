@@ -35,7 +35,7 @@ help:
 	@echo "Build targets:"
 	@echo "  make              - Build DMCP (default)"
 	@echo "  make dmcp         - Build DMCP library + examples"
-	@echo "  make all          - Build DMCP + Chocolate + Crispy"
+	@echo "  make all          - Build DMCP + Crispy"
 	@echo "  make debug        - Build with sanitizers"
 	@echo "  make release      - Build optimized"
 	@echo "  make clean        - Remove build directory"
@@ -60,7 +60,6 @@ help:
 	@echo "Other:"
 	@echo "  make install      - Install to $(PREFIX)"
 	@echo "  make submodules   - Init/update git submodules"
-	@echo "  make chocolate-doom - Build Chocolate Doom with DMCP"
 	@echo "  make crispy-doom  - Build Crispy Doom with DMCP"
 	@echo "  (set CRISPY_KEEP_PATCH=1 to keep Crispy patch applied)"
 	@echo "  make info         - Show configuration"
@@ -72,11 +71,11 @@ help:
 
 .PHONY: all dmcp build configure submodules
 
-# Default target builds just DMCP (not chocolate-doom)
+# Default target builds just DMCP
 default: dmcp
 
-# Build everything including Chocolate and Crispy Doom
-all: dmcp chocolate-doom crispy-doom
+# Build everything including Crispy Doom
+all: dmcp crispy-doom
 
 submodules:
 	@git submodule update --init --recursive
@@ -124,11 +123,11 @@ configure-tests:
 .PHONY: test test-verbose test-valgrind
 test: configure-tests
 	cmake --build $(BUILD_DIR) -j$(JOBS)
-	ctest --test-dir $(BUILD_DIR) -j$(JOBS) --output-on-failure
+	ctest --test-dir $(BUILD_DIR) -j1 --output-on-failure
 
 test-verbose: configure-tests
 	cmake --build $(BUILD_DIR) -j$(JOBS)
-	ctest --test-dir $(BUILD_DIR) --verbose
+	ctest --test-dir $(BUILD_DIR) -j1 --verbose
 
 test-valgrind: configure-tests
 	cmake --build $(BUILD_DIR) -j$(JOBS)
@@ -242,32 +241,6 @@ size:
 compdb: configure
 	@ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
 	@echo "compile_commands.json linked"
-
-# ==============================================================================
-# Chocolate Doom
-# ==============================================================================
-
-CHOCOLATE_BUILD_DIR ?= chocolate-doom/build
-CHOCOLATE_SOURCE_DIR ?= chocolate-doom
-
-.PHONY: chocolate-doom chocolate-doom-clean
-chocolate-doom: dmcp submodules
-	@if [ ! -d "$(CHOCOLATE_SOURCE_DIR)" ]; then \
-		echo "error: Chocolate Doom source dir not found: $(CHOCOLATE_SOURCE_DIR)"; \
-		exit 1; \
-	fi
-	@echo "Building Chocolate Doom with DMCP..."
-	@mkdir -p $(CHOCOLATE_BUILD_DIR)
-	@cmake -S $(CHOCOLATE_SOURCE_DIR) -B $(CHOCOLATE_BUILD_DIR) \
-		-DDMCP_ENABLE=ON \
-		-DDMCP_INCLUDE_DIR=$$(pwd)/include \
-		-DDMCP_LIB_DIR=$$(pwd)/$(BUILD_DIR)
-	@cmake --build $(CHOCOLATE_BUILD_DIR) -j$(JOBS)
-	@echo ""
-	@echo "Chocolate Doom built: $(CHOCOLATE_BUILD_DIR)/src/chocolate-doom"
-
-chocolate-doom-clean:
-	rm -rf $(CHOCOLATE_BUILD_DIR)
 
 # ==============================================================================
 # Crispy Doom

@@ -1,6 +1,6 @@
 # Adapter Packaging, ABI, and Protocol Cleanup
 
-**Status**: In Progress
+**Status**: Completed
 **Created**: 2026-02-24
 **Updated**: 2026-02-24T08:15:00
 
@@ -99,15 +99,17 @@ Refactor DMCP into a clean breaking-change release with full MCP spec compliance
   - Done when: Consumers link adapter targets directly with no manual `find_library` chains.
   - Notes: Fixed CMake target naming to produce correct exported names. Targets renamed from `dmcp_generic`/`dmcp_core`/`dmcp_chocolate`/`dmcp_zdoom` to `generic`/`core`/`chocolate`/`zdoom` with `OUTPUT_NAME` property set to produce `libdmcp_*.so`. This ensures exported targets have correct names (`dmcp::generic`, `dmcp::core`, `dmcp::chocolate`, `dmcp::zdoom`) instead of duplicated prefix (`dmcp::dmcp_generic`). Transitive dependencies properly configured: adapters link `dmcp::core` which transitively brings `dmcp::generic`. Verified consumer test project successfully links `dmcp::core` with no manual library chains. All 47 tests pass. Cleanup: removed stale `cmake/dmcpConfig.cmake.in`, removed accidentally tracked `build-shared/` from git, added `build-shared/` to `.gitignore`, simplified empty if/else blocks.
 
-- [ ] Task 11: Simplify Chocolate/Crispy consumer integration
+- [x] Task 11: Simplify Chocolate/Crispy consumer integration (2026-02-24)
   - Objective: Replace manual include/lib path wiring (`DMCP_INCLUDE_DIR`, `DMCP_LIB_DIR`, explicit transitive libs) with imported targets/components.
   - Files: `chocolate-doom/CMakeLists.txt`, `chocolate-doom/src/doom/CMakeLists.txt`, `adapters/crispy-doom/patches/dmcp_integration.patch`, `tests/integration/build_crispy_doom.sh`, `Makefile`.
   - Done when: Consumers stop manually linking `yyjson`, `uSockets`, `stdc++`, and direct DMCP archives.
+  - Notes: Replaced manual `DMCP_INCLUDE_DIR`/`DMCP_LIB_DIR` with `find_package(dmcp CONFIG REQUIRED)`. Consumers now use `target_link_libraries(doom PRIVATE dmcp::chocolate)`. Removed explicit linking of `yyjson`, `uSockets`, `OpenSSL`, `stdc++` (now transitive via `dmcp::chocolate`). Added build-tree export for static builds. All 47 tests pass.
 
-- [ ] Task 12: Verification matrix, docs, and test-harness stability
+- [x] Task 12: Verification matrix, docs, and test-harness stability (2026-02-24)
   - Objective: Finalize compliance/ABI/consumer verification and document all breaking changes.
   - Files: `tests/integration/*`, `tests/unit/*`, `docs/INTEGRATION.md`, `docs/README.md`, `docs/ARCHITECTURE.md`, adapter READMEs, `README.md`.
   - Done when: CI/local checks validate MCP compliance + packaging, and test harness no longer relies on flaky shared-port parallel execution behavior.
+  - Notes: Updated docs/INTEGRATION.md with new `find_package(dmcp CONFIG REQUIRED)` method. Updated docs/README.md with consumer CMake integration section. Updated docs/ARCHITECTURE.md with CMake targets table. Updated adapter READMEs. Added docs/CHANGELOG.md with 0.7.0 breaking changes. Changed Makefile test execution from parallel to sequential to fix flaky harness. All 47 tests pass.
 
 ## Decisions Log
 - 2026-02-24: Created a new plan file instead of changing completed historical plans to preserve auditability.

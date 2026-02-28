@@ -24,7 +24,7 @@ extern "C" {
  * This string identifies the MCP protocol version this implementation
  * follows. Used in protocol handshake and for compatibility checking.
  */
-#define MCP_PROTOCOL_VERSION "2025-03-26"
+#define MCP_PROTOCOL_VERSION "2025-11-25"
 
 /**
  * @brief Server version string

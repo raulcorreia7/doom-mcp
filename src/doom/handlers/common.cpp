@@ -125,8 +125,8 @@ const command_tool_definition* find_command_tool(std::string_view tool_name) {
 }
 
 const char* resolve_command_type_for_method(std::string_view method_name) {
-  if (method_name == "execute_command") {
-    return "execute_command";
+  if (method_name == tools::execute_command) {
+    return DMCP_TOOL_EXECUTE_COMMAND;
   }
 
   const command_tool_definition* tool = find_command_tool(method_name);

@@ -1,15 +1,25 @@
-# Doom Model Context Protocol (DMCP) SDK
+# DMCP API Reference
 
-A clean, modular SDK for integrating Doom-family engines with AI agents via the Model Context Protocol (MCP).
+Complete API documentation for the Doom Model Context Protocol SDK.
+
+**Version**: 0.6.0
 
 ## Documentation Map
 
-- [../README.md](../README.md) - Project entry point and quick start
-- [INTEGRATION.md](INTEGRATION.md) - MCP client setup and troubleshooting
-- [RUNBOOK.md](RUNBOOK.md) - Documentation maintenance cadence
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture and design details
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | Get running in 5 minutes |
+| [USAGE.md](USAGE.md) | Common patterns and workflows |
+| [FEATURES.md](FEATURES.md) | Complete feature overview |
+| [INTEGRATION.md](INTEGRATION.md) | Connect to MCP clients |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design and layers |
+| [MCP_COMPLIANCE.md](MCP_COMPLIANCE.md) | Protocol compliance matrix |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [../README.md](../README.md) | Project entry point |
 
-## Architecture
+---
+
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
@@ -92,14 +102,13 @@ make headless-crispy # Run headless e2e tests (Crispy)
 
 ```bash
 # Configure
-cmake -B build -S .
+cmake -B build -S . -DDMCP_BUILD_TESTS=ON
 
 # Build
 cmake --build build -j$(nproc)
 
-# Test
-cmake -B build -DDMCP_BUILD_TESTS=ON
-ctest --test-dir build
+# Test (run sequentially to avoid port race conditions)
+ctest --test-dir build -j1
 
 # Run
 ./build/dummy_server
@@ -113,10 +122,25 @@ ctest --test-dir build
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
-| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
+| `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
 ## Integration
+
+### Consumer CMake Integration (Recommended)
+
+For consumers integrating DMCP into their own engine:
+
+```cmake
+find_package(dmcp CONFIG REQUIRED)
+target_link_libraries(myengine PRIVATE dmcp::core)
+```
+
+This provides:
+- `dmcp::generic` - Generic MCP protocol layer
+- `dmcp::core` - Doom-specific MCP layer (depends on generic)
+- `dmcp::chocolate` - Chocolate Doom adapter (if enabled)
+- `dmcp::zdoom` - ZDoom adapter (if enabled)
 
 ### Generic MCP (for any game/tool)
 

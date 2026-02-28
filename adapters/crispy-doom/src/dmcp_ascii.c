@@ -213,9 +213,9 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   return g_output_buffer;
 }
 
-// Chocolate Doom integration helpers
+// Crispy Doom integration helpers
 
-char* dmcp_chocolate_render_ascii(const uint8_t* pixels, int width, int height, int target_width) {
+char* dmcp_crispy_render_ascii(const uint8_t* pixels, int width, int height, int target_width) {
   dmcp_ascii_config_t cfg;
   dmcp_ascii_config_init(&cfg);
   cfg.width    = target_width;
@@ -229,13 +229,13 @@ char* dmcp_chocolate_render_ascii(const uint8_t* pixels, int width, int height, 
   return result ? strdup(result) : NULL;
 }
 
-void dmcp_chocolate_ascii_set_last(char* ascii) {
+void dmcp_crispy_ascii_set_last(char* ascii) {
   free(g_last_ascii);
   g_last_ascii = ascii;
 }
 
-const char* dmcp_chocolate_ascii_get_last(void) { return g_last_ascii; }
+const char* dmcp_crispy_ascii_get_last(void) { return g_last_ascii; }
 
-bool dmcp_chocolate_ascii_preview_enabled(void) { return g_preview_enabled; }
+bool dmcp_crispy_ascii_preview_enabled(void) { return g_preview_enabled; }
 
-void dmcp_chocolate_ascii_preview_set(bool enabled) { g_preview_enabled = enabled; }
+void dmcp_crispy_ascii_preview_set(bool enabled) { g_preview_enabled = enabled; }

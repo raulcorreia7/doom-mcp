@@ -6,15 +6,32 @@ for both humans and LLM agents.
 ## Scope
 
 In scope:
-- `README.md`
-- `docs/README.md`
-- `docs/INTEGRATION.md`
+- `README.md` - Project entry point
+- `docs/QUICKSTART.md` - Quick start guide
+- `docs/USAGE.md` - Usage patterns
+- `docs/FEATURES.md` - Feature overview
+- `docs/README.md` - API reference
+- `docs/INTEGRATION.md` - MCP client setup
 - Adapter READMEs under `adapters/`
 
 Out of scope (escalate to maintainers before editing):
 - Specifications/design docs (for example `docs/ARCHITECTURE.md`)
 - ADRs
 - Contracts and protocol compatibility commitments
+
+## Documentation Map
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| `README.md` | Entry point, what/why/how | New users |
+| `docs/QUICKSTART.md` | Get running in 5 minutes | New users |
+| `docs/USAGE.md` | Common patterns | Developers |
+| `docs/FEATURES.md` | Complete feature list | All users |
+| `docs/README.md` | Full API reference | Integrators |
+| `docs/INTEGRATION.md` | MCP client setup | AI tool users |
+| `docs/ARCHITECTURE.md` | System design | Contributors |
+| `docs/MCP_COMPLIANCE.md` | Protocol compliance | Contributors |
+| `docs/CHANGELOG.md` | Version history | All users |
 
 ## Maintenance Loop
 

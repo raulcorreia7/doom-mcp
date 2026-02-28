@@ -242,17 +242,17 @@ bool handle_method_get_state_section(void* user_data, const char* method, const 
 
   std::string_view section;
   if (method_name == tools::get_player) {
-    section = "player";
+    section = section::player;
   } else if (method_name == tools::get_map || method_name == tools::get_level) {
-    section = "map";
+    section = section::map;
   } else if (method_name == tools::get_game_info || method_name == tools::get_game) {
-    section = "game";
+    section = section::game;
   } else if (method_name == tools::get_enemies) {
-    section = "enemies";
+    section = section::enemies;
   } else if (method_name == tools::get_entities) {
-    section = "entities";
+    section = section::entities;
   } else if (method_name == tools::get_inventory) {
-    section = "inventory";
+    section = section::inventory;
   } else if (method_name == tools::get_state) {
     json_value section_val = root["section"];
     if (!section_val.is_string()) {
@@ -284,7 +284,7 @@ bool handle_method_get_state_section(void* user_data, const char* method, const 
 bool handle_method_input(void* user_data, const char* method, const char* request_json,
                          char* response_buffer, size_t response_size) {
   auto* ctx = static_cast<context*>(user_data);
-  if (!ctx || !method || std::strcmp(method, "input") != 0) {
+  if (!ctx || !method || std::strcmp(method, DMCP_TOOL_PLAYER_INPUT) != 0) {
     return false;
   }
 

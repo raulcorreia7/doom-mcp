@@ -36,6 +36,9 @@ static constexpr const char* kJsonErrorNotFound =
     "{\"error\":{\"code\":\"not_found\",\"message\":\"Endpoint not found\"}}";
 static constexpr const char* kJsonErrorPayloadTooLarge =
     "{\"error\":{\"code\":\"payload_too_large\",\"message\":\"Payload too large\"}}";
+static constexpr const char* kJsonErrorNotAcceptable =
+    "{\"error\":{\"code\":\"not_acceptable\",\"message\":\"Accept header must include "
+    "text/event-stream\"}}";
 
 static void WriteJsonErrorResponse(uWS::HttpResponse<false>* res, std::string_view status,
                                    std::string_view payload) {
@@ -98,6 +101,29 @@ static std::string NormalizeHttpMethod(std::string_view method) {
 
 static bool MethodCanHaveBody(std::string_view method) {
   return method == "POST" || method == "PUT" || method == "PATCH";
+}
+
+static bool ContainsCaseInsensitive(std::string_view haystack, std::string_view needle) {
+  if (needle.empty() || haystack.size() < needle.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i + needle.size() <= haystack.size(); ++i) {
+    bool matches = true;
+    for (size_t j = 0; j < needle.size(); ++j) {
+      const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(haystack[i + j])));
+      const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(needle[j])));
+      if (a != b) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 static void WriteOptionsResponse(uWS::HttpResponse<false>* res) {
@@ -188,7 +214,12 @@ static void HandleHttpRequest(TransportContext* ctx, uWS::HttpResponse<false>* r
 
 static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
                          uWS::HttpRequest* req) {
-  (void)req;
+  const std::string_view accept_header = req->getHeader("accept");
+  if (!ContainsCaseInsensitive(accept_header, "text/event-stream")) {
+    WriteJsonErrorResponse(res, "406", kJsonErrorNotAcceptable);
+    return;
+  }
+
   // Setup SSE headers
   res->cork([res]() {
     res->writeHeader("Content-Type", "text/event-stream");
@@ -213,10 +244,6 @@ static void HandleGetSSE(TransportContext* ctx, uWS::HttpResponse<false>* res,
     ctx->callbacks.on_sse_connect(ctx->user_data, &client_handle);
     client->handle = client_handle;
   }
-
-  // Send initial connection event
-  std::string connect_msg = "event: connected\ndata: {\"client_id\":\"" + client->id + "\"}\n\n";
-  res->write(connect_msg);
 
   // Handle disconnect
   res->onAborted([ctx, client]() {

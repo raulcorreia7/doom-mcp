@@ -1,5 +1,5 @@
 // Enemy State Extraction
-// Enumerates and populates enemies from Chocolate Doom's thinker list
+// Enumerates and populates enemies from Crispy Doom's thinker list
 
 #include "dmcp_adapter.h"
 #include "enemy_types.h"
@@ -113,7 +113,7 @@ static int dmcp_world_entity_is_interactive(const mobj_t* mo) {
   return 0;
 }
 
-int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
+int dmcp_crispy_populate_enemies(dmcp_snapshot_t* snap) {
   thinker_t*   th;
   mobj_t*      mo;
   thinker_t*   t2;
@@ -184,7 +184,7 @@ int dmcp_chocolate_populate_enemies(dmcp_snapshot_t* snap) {
   return count;
 }
 
-int dmcp_chocolate_populate_entities(dmcp_snapshot_t* snap) {
+int dmcp_crispy_populate_entities(dmcp_snapshot_t* snap) {
   thinker_t*    th;
   mobj_t*       mo;
   dmcp_entity_t entity;

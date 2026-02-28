@@ -1,0 +1,154 @@
+name: Release Crispy Doom
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: crispy-doom-linux
+            asset_name: crispy-doom-linux.tar.gz
+            archive_cmd: tar -czf
+            bin_path: crispy-doom/build/src/crispy-doom
+          - os: macos-latest
+            artifact_name: crispy-doom-macos
+            asset_name: crispy-doom-macos.tar.gz
+            archive_cmd: tar -czf
+            bin_path: crispy-doom/build/src/crispy-doom
+          - os: windows-latest
+            artifact_name: crispy-doom-windows
+            asset_name: crispy-doom-windows.zip
+            archive_cmd: 7z a
+            bin_path: crispy-doom/build/src/Release/crispy-doom.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libsdl2-dev \
+            libsdl2-net-dev \
+            libsdl2-mixer-dev \
+            libpng-dev \
+            libsamplerate0-dev
+
+      - name: Install macOS Dependencies
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install sdl2 sdl2_net sdl2_mixer libpng libsamplerate
+
+      - name: Install Windows Dependencies
+        if: matrix.os == 'windows-latest'
+        run: |
+          vcpkg install sdl2 sdl2-net sdl2-mixer libpng libsamplerate --triplet x64-windows
+
+      - name: Apply Patch
+        shell: bash
+        run: |
+          ./tests/integration/apply_crispy_dmcp_patch.sh
+
+      - name: Pre-configure Crispy Doom (for headers)
+        shell: bash
+        run: |
+          CMAKE_ARGS=""
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          fi
+          cmake -S crispy-doom -B crispy-doom/build -DCMAKE_BUILD_TYPE=Release $CMAKE_ARGS
+
+      - name: Configure DMCP
+        shell: bash
+        run: |
+          CMAKE_ARGS=""
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          fi
+          cmake -B build -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release $CMAKE_ARGS
+
+      - name: Build DMCP
+        shell: bash
+        run: |
+          cmake --build build --config Release -j4
+
+      - name: Configure Crispy Doom
+        shell: bash
+        run: |
+          CMAKE_ARGS=""
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          fi
+          cmake -S crispy-doom -B crispy-doom/build \
+            -DDMCP_ENABLE=ON \
+            -DDMCP_ROOT="$(pwd)" \
+            -DCMAKE_BUILD_TYPE=Release \
+            $CMAKE_ARGS
+
+      - name: Build Crispy Doom
+        shell: bash
+        run: |
+          cmake --build crispy-doom/build --config Release -j4
+
+      - name: Package Artifacts
+        shell: bash
+        run: |
+          mkdir -p release_package
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp crispy-doom/build/src/Release/crispy-doom.exe release_package/
+            cp build/Release/dmcp_core.dll release_package/ 2>/dev/null || cp build/dmcp_core.dll release_package/ 2>/dev/null || true
+            cp build/Release/dmcp_generic.dll release_package/ 2>/dev/null || cp build/dmcp_generic.dll release_package/ 2>/dev/null || true
+            cp crispy-doom/build/src/Release/*.dll release_package/ || true
+            cp scripts/download_wad.bat release_package/
+          else
+            cp crispy-doom/build/src/crispy-doom release_package/
+            cp build/libdmcp_core.so release_package/ || true
+            cp build/libdmcp_generic.so release_package/ || true
+            cp scripts/download_wad.sh release_package/
+            chmod +x release_package/download_wad.sh
+          fi
+          
+          cd ..
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            7z a ${{ matrix.asset_name }} release_package/*
+          else
+            tar -czf ${{ matrix.asset_name }} release_package/*
+          fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.asset_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            */*.tar.gz
+            */*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

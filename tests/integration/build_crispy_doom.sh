@@ -86,19 +86,23 @@ fi
 echo "==> Applying Crispy Doom DMCP patch"
 "$SCRIPT_DIR/apply_crispy_dmcp_patch.sh"
 
-echo "==> Configuring DMCP core build"
+echo "==> Configuring Crispy Doom (pre-build for headers)"
+cmake -S "$DMCP_ROOT/crispy-doom" -B "$CRISPY_BUILD_DIR"
+
+echo "==> Configuring DMCP core build (shared)"
 cmake -B "$DMCP_BUILD_DIR" \
+	-DDMCP_BUILD_SHARED=ON \
 	-DDMCP_BUILD_TESTS=ON \
-	-DDMCP_BUILD_EXAMPLES=ON
+	-DDMCP_BUILD_EXAMPLES=ON \
+	-DDMCP_BUILD_ADAPTER_CRISPY=ON
 
 echo "==> Building DMCP core"
 cmake --build "$DMCP_BUILD_DIR" -j"$JOBS"
 
 echo "==> Configuring Crispy Doom with DMCP"
 cmake -S "$DMCP_ROOT/crispy-doom" -B "$CRISPY_BUILD_DIR" \
-	-DDMCP_ENABLE=ON \
-	-DDMCP_INCLUDE_DIR="$DMCP_ROOT/include" \
-	-DDMCP_LIB_DIR="$DMCP_BUILD_DIR"
+	-Ddmcp_DIR="$DMCP_BUILD_DIR" \
+	-DDMCP_ENABLE=ON
 
 echo "==> Building Crispy Doom"
 cmake --build "$CRISPY_BUILD_DIR" -j"$JOBS"

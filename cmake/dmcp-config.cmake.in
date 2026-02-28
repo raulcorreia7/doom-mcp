@@ -2,11 +2,6 @@
 
 include(CMakeFindDependencyMacro)
 
-# Include targets file
 include("${CMAKE_CURRENT_LIST_DIR}/dmcp-targets.cmake")
-
-# Provide compatibility variables
-set(DMCP_INCLUDE_DIRS "@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_INCLUDEDIR@")
-set(DMCP_LIBRARIES dmcp::dmcp_core dmcp::mcp_generic)
 
 check_required_components(dmcp)

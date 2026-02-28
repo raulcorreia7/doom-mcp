@@ -1,5 +1,5 @@
 // Type Mapping Utilities
-// Centralizes conversions from Chocolate Doom types to DMCP output
+// Centralizes conversions from Crispy Doom types to DMCP output
 
 #ifndef DMCP_MAPPINGS_H
 #define DMCP_MAPPINGS_H

@@ -37,12 +37,41 @@ Before connecting any MCP client, you need to run the Doom engine with DMCP enab
 
 ### Building with DMCP
 
+**Prerequisite**: Build DMCP SDK first:
+
 ```bash
-# Build DMCP first (library used by adapters)
+# Build DMCP (static library)
 cmake -B build -DDMCP_BUILD_TESTS=ON
 cmake --build build -j"$(nproc)"
 
-# Build Chocolate Doom with DMCP enabled
+# Or build shared libraries
+cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
+cmake --build build-shared -j"$(nproc)"
+```
+
+**New CMake Integration (Recommended)**
+
+```bash
+# Build Chocolate Doom with DMCP using find_package
+cmake -S chocolate-doom -B chocolate-doom/build \
+  -DCMAKE_PREFIX_PATH="$PWD/build" \
+  -DDMCP_ENABLE=ON
+cmake --build chocolate-doom/build -j"$(nproc)"
+```
+
+In your engine's CMakeLists.txt, DMCP is automatically found via `find_package`:
+
+```cmake
+find_package(dmcp CONFIG REQUIRED)
+target_link_libraries(myengine PRIVATE dmcp::core)
+```
+
+**Legacy Integration (Manual Paths)**
+
+For manual include/lib path wiring without CMake find_package:
+
+```bash
+# Build Chocolate Doom with DMCP (legacy method)
 cmake -S chocolate-doom -B chocolate-doom/build \
   -DDMCP_ENABLE=ON \
   -DDMCP_INCLUDE_DIR="$PWD/include" \

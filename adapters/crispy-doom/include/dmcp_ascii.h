@@ -48,12 +48,12 @@ const char* dmcp_ascii_get_output(void);
 const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
                               dmcp_ascii_config_t* cfg);
 
-// Chocolate Doom integration helpers
-char* dmcp_chocolate_render_ascii(const uint8_t* pixels, int width, int height, int target_width);
-void  dmcp_chocolate_ascii_set_last(char* ascii);
-const char* dmcp_chocolate_ascii_get_last(void);
-bool        dmcp_chocolate_ascii_preview_enabled(void);
-void        dmcp_chocolate_ascii_preview_set(bool enabled);
+// Crispy Doom integration helpers
+char* dmcp_crispy_render_ascii(const uint8_t* pixels, int width, int height, int target_width);
+void  dmcp_crispy_ascii_set_last(char* ascii);
+const char* dmcp_crispy_ascii_get_last(void);
+bool        dmcp_crispy_ascii_preview_enabled(void);
+void        dmcp_crispy_ascii_preview_set(bool enabled);
 
 #ifdef __cplusplus
 }

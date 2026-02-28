@@ -2,11 +2,14 @@
 
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <cinttypes>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <mutex>
+#include <random>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -17,6 +20,11 @@
 #include "mcp/generic/transport.h"
 
 namespace mcp {
+
+namespace {
+constexpr int kSessionIdHexLength  = 16;
+constexpr int kSessionIdBufferSize = kSessionIdHexLength + 1;  // +1 for null terminator
+}  // namespace
 
 // ============================================================================
 // Internal Types
@@ -36,6 +44,13 @@ struct RouteHandler {
   void*               user_data;
 };
 
+struct Session {
+  std::string                           id;
+  std::chrono::steady_clock::time_point created_at;
+  bool                                  initialize_completed{false};
+  bool                                  initialized_notification_received{false};
+};
+
 struct Server {
   mcp_server_config_t config;
 
@@ -50,6 +65,12 @@ struct Server {
   std::unordered_map<std::string, RouteHandler> routes;
   std::mutex                                    routes_mutex;
 
+  // Sessions (per-client lifecycle state)
+  std::unordered_map<std::string, Session> sessions;
+  std::mutex                               sessions_mutex;
+  std::mt19937                             rng;
+  std::mutex                               rng_mutex;
+
   // Statistics
   std::atomic<uint64_t> connected_clients{0};
   std::atomic<uint64_t> requests_handled{0};
@@ -60,6 +81,46 @@ struct Server {
   // State
   std::atomic<bool> running{false};
 };
+
+static constexpr int kJsonRpcServerNotInitialized = -32002;
+
+static std::string GenerateSessionId(Server* server) {
+  std::lock_guard<std::mutex>             lock(server->rng_mutex);
+  std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
+
+  char buf[kSessionIdBufferSize];
+  std::snprintf(buf, sizeof(buf), "%016" PRIx64, dist(server->rng));
+  return std::string(buf);
+}
+
+static Session* GetOrCreateSession(Server* server, const std::string& session_id) {
+  std::lock_guard<std::mutex> lock(server->sessions_mutex);
+  auto                        it = server->sessions.find(session_id);
+  if (it != server->sessions.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
+static Session* CreateSession(Server* server, std::string& out_session_id) {
+  out_session_id = GenerateSessionId(server);
+  std::lock_guard<std::mutex> lock(server->sessions_mutex);
+  Session                     session;
+  session.id                       = out_session_id;
+  session.created_at               = std::chrono::steady_clock::now();
+  server->sessions[out_session_id] = std::move(session);
+  return &server->sessions[out_session_id];
+}
+
+static std::string ExtractSessionId(const Value& params) {
+  if (params && params.is_object() && params.has_member("_sessionId")) {
+    Value sid = params["_sessionId"];
+    if (sid.is_string()) {
+      return std::string(sid.get_string(""));
+    }
+  }
+  return "";
+}
 
 static void ServerLog(const Server* server, int level, const char* fmt, ...) {
   if (!server || !server->config.on_log || !fmt) {
@@ -154,7 +215,8 @@ static std::string BuildJsonRpcResult(std::string_view id_json, std::string_view
   return response_doc.dump(false);
 }
 
-static std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_view message) {
+static std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_view message,
+                                     std::string_view data_json = {}) {
   Document response_doc;
   response_doc.create_object();
   Value response_root = response_doc.root();
@@ -178,6 +240,14 @@ static std::string BuildJsonRpcError(std::string_view id_json, int code, std::st
   Value error_root = error_doc.root();
   error_root.set_member("code", static_cast<int64_t>(code));
   error_root.set_member("message", message);
+
+  if (!data_json.empty()) {
+    Document data_doc;
+    if (data_doc.parse(std::string(data_json))) {
+      error_root.set_member("data", data_doc.root());
+    }
+  }
+
   response_root.set_member("error", error_root);
 
   return response_doc.dump(false);
@@ -188,7 +258,7 @@ static bool IsValidJson(const std::string& json) {
   return doc.parse(json);
 }
 
-static bool IsJsonRpcEnvelope(const std::string& json) {
+static bool IsJsonRpcResponseEnvelope(const std::string& json) {
   Document doc;
   if (!doc.parse(json)) {
     return false;
@@ -206,17 +276,37 @@ static bool IsJsonRpcEnvelope(const std::string& json) {
   return root.has_member("result") || root.has_member("error");
 }
 
+static bool IsJsonRpcMessage(const std::string& json) {
+  Document doc;
+  if (!doc.parse(json)) {
+    return false;
+  }
+
+  Value root = doc.root();
+  if (!root.is_object()) {
+    return false;
+  }
+
+  if (std::string(root["jsonrpc"].get_string()) != MCP_JSONRPC_VERSION) {
+    return false;
+  }
+
+  if (root.has_member("method") && root["method"].is_string()) {
+    return true;
+  }
+
+  return root.has_member("result") || root.has_member("error");
+}
+
 static bool IsValidJsonRpcId(const Value& id_value) {
   if (!id_value) return false;
   return id_value.is_string() || id_value.is_number() || id_value.is_null();
 }
 
-static std::string FormatSseEvent(const char* event_type, const char* json_payload) {
-  std::string message = "event: ";
-  message += event_type;
-  message += "\n";
+static std::string FormatSseMessage(std::string_view json_payload) {
+  std::string message = "event: message\n";
 
-  if (!json_payload || json_payload[0] == '\0') {
+  if (json_payload.empty()) {
     message += "data: {}\n\n";
     return message;
   }
@@ -251,36 +341,37 @@ static std::string FormatSseEvent(const char* event_type, const char* json_paylo
   return message;
 }
 
-// ============================================================================
-// Protocol Helpers
-// ============================================================================
+static std::string BuildJsonRpcNotification(std::string_view method, std::string_view params_json) {
+  Document notif_doc;
+  notif_doc.create_object();
+  Value root = notif_doc.root();
+  root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
+  root.set_member("method", method);
 
-static void BuildCapabilities(Builder& b, bool screenshot_enabled, const char* server_name) {
-  b.start_object();
-  b.add("protocolVersion", MCP_PROTOCOL_VERSION);
-
-  // capabilities object
-  Builder caps;
-  caps.start_object();
-  caps.add("notifications", true);
-
-  Builder tools;
-  tools.start_object();
-  tools.add("listChanged", true);
-  caps.add("tools", tools);
-
-  b.add("capabilities", caps);
-
-  if (screenshot_enabled) {
-    // Add screenshot capability
+  if (!params_json.empty()) {
+    Document params_doc;
+    if (params_doc.parse(std::string(params_json))) {
+      root.set_member("params", params_doc.root());
+    }
   }
 
-  // serverInfo object
-  Builder info;
-  info.start_object();
-  info.add("name", server_name ? server_name : "doom-mcp");
-  info.add("version", MCP_SERVER_VERSION);
-  b.add("serverInfo", info);
+  return notif_doc.dump(false);
+}
+
+static bool IsSupportedProtocolVersion(std::string_view requested_version) {
+  return requested_version == MCP_PROTOCOL_VERSION;
+}
+
+static std::string BuildUnsupportedProtocolData(std::string_view requested_version) {
+  Builder data;
+  data.start_object();
+
+  Builder supported;
+  supported.start_array();
+  supported.push(MCP_PROTOCOL_VERSION);
+  data.add("supported", std::move(supported));
+  data.add("requested", requested_version);
+  return data.finish();
 }
 
 // ============================================================================
@@ -293,7 +384,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   ServerLog(server, MCP_LOG_DEBUG, "HTTP POST %s", MCP_ENDPOINT_MCP);
 
   Document doc;
-  if (!doc.parse(body)) {
+  if (!doc.parse(body ? body : "")) {
     ServerLog(server, MCP_LOG_WARN, "Parse error on %s", MCP_ENDPOINT_MCP);
     std::string resp = BuildJsonRpcError("null", -32700, "Parse error");
     if (resp.size() >= response_size) {
@@ -318,29 +409,12 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     return true;
   }
 
-  Value method_value = req["method"];
-  if (!method_value.is_string()) {
-    ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC request: method missing or not string");
-    std::string resp = BuildJsonRpcError("null", -32600, "Invalid Request");
-    if (resp.size() >= response_size) {
-      *http_status = 500;
-      return false;
-    }
-    std::strcpy(response_buffer, resp.c_str());
-    server->requests_failed++;
-    return true;
-  }
-
-  std::string method          = std::string(method_value.get_string(""));
   bool        is_notification = !req.has_member("id");
   std::string id_json         = "null";
-  ServerLog(server, MCP_LOG_DEBUG, "JSON-RPC method=%s notification=%s", method.c_str(),
-            is_notification ? "true" : "false");
-
   if (!is_notification) {
     Value id_value = req["id"];
     if (!IsValidJsonRpcId(id_value)) {
-      ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC id for method=%s", method.c_str());
+      ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC id");
       std::string resp = BuildJsonRpcError("null", -32600, "Invalid Request");
       if (resp.size() >= response_size) {
         *http_status = 500;
@@ -352,6 +426,38 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     }
     id_json = id_value.dump();
   }
+
+  Value jsonrpc_value = req["jsonrpc"];
+  if (!jsonrpc_value.is_string() ||
+      std::string(jsonrpc_value.get_string("")) != MCP_JSONRPC_VERSION) {
+    ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC request: jsonrpc must be %s",
+              MCP_JSONRPC_VERSION);
+    std::string resp = BuildJsonRpcError(id_json, -32600, "Invalid Request");
+    if (resp.size() >= response_size) {
+      *http_status = 500;
+      return false;
+    }
+    std::strcpy(response_buffer, resp.c_str());
+    server->requests_failed++;
+    return true;
+  }
+
+  Value method_value = req["method"];
+  if (!method_value.is_string()) {
+    ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC request: method missing or not string");
+    std::string resp = BuildJsonRpcError(id_json, -32600, "Invalid Request");
+    if (resp.size() >= response_size) {
+      *http_status = 500;
+      return false;
+    }
+    std::strcpy(response_buffer, resp.c_str());
+    server->requests_failed++;
+    return true;
+  }
+
+  std::string method = std::string(method_value.get_string(""));
+  ServerLog(server, MCP_LOG_DEBUG, "JSON-RPC method=%s notification=%s", method.c_str(),
+            is_notification ? "true" : "false");
 
   if (method.empty()) {
     ServerLog(server, MCP_LOG_WARN, "Invalid JSON-RPC request: empty method");
@@ -368,15 +474,103 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   // Handle built-in methods
   if (method == "initialize") {
     ServerLog(server, MCP_LOG_INFO, "MCP initialize request received");
+
     if (is_notification) {
-      *http_status       = 202;
-      response_buffer[0] = '\0';
-      server->requests_handled++;
+      std::string resp = BuildJsonRpcError("null", -32600, "initialize must be a request");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
       return true;
     }
 
+    Value params = req["params"];
+    if (!params.is_object()) {
+      std::string resp = BuildJsonRpcError(id_json, -32602, "initialize params must be an object");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    Value protocol_version = params["protocolVersion"];
+    if (!protocol_version.is_string()) {
+      std::string resp =
+          BuildJsonRpcError(id_json, -32602, "initialize.params.protocolVersion is required");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    const std::string requested_version = std::string(protocol_version.get_string(""));
+    if (!IsSupportedProtocolVersion(requested_version)) {
+      std::string resp = BuildJsonRpcError(id_json, -32602, "Unsupported protocol version",
+                                           BuildUnsupportedProtocolData(requested_version));
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    if (!params["capabilities"].is_object()) {
+      std::string resp =
+          BuildJsonRpcError(id_json, -32602, "initialize.params.capabilities is required");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    if (!params["clientInfo"].is_object()) {
+      std::string resp =
+          BuildJsonRpcError(id_json, -32602, "initialize.params.clientInfo is required");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    std::string session_id;
+    Session*    session           = CreateSession(server, session_id);
+    session->initialize_completed = true;
+
     Builder b;
-    BuildCapabilities(b, true, server->config.server_name);
+    b.start_object();
+    b.add("protocolVersion", MCP_PROTOCOL_VERSION);
+
+    Builder caps;
+    caps.start_object();
+    Builder tools;
+    tools.start_object();
+    tools.add("listChanged", true);
+    caps.add("tools", tools);
+    b.add("capabilities", caps);
+
+    Builder info;
+    info.start_object();
+    info.add("name", server->config.server_name[0] ? server->config.server_name : "doom-mcp");
+    info.add("version", MCP_SERVER_VERSION);
+    b.add("serverInfo", info);
+
+    b.add("sessionId", session_id);
 
     std::string resp = BuildJsonRpcResult(id_json, b.finish());
 
@@ -391,6 +585,31 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
 
   if (method == "notifications/initialized") {
     ServerLog(server, MCP_LOG_INFO, "MCP notifications/initialized received");
+
+    std::string session_id = ExtractSessionId(req["params"]);
+    Session*    session    = session_id.empty() ? nullptr : GetOrCreateSession(server, session_id);
+
+    if (!session || !session->initialize_completed) {
+      if (is_notification) {
+        *http_status       = 202;
+        response_buffer[0] = '\0';
+        server->requests_failed++;
+        return true;
+      }
+
+      const std::string resp = BuildJsonRpcError(id_json, kJsonRpcServerNotInitialized,
+                                                 "Server not initialized: call initialize first");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    session->initialized_notification_received = true;
+
     if (is_notification) {
       *http_status       = 202;
       response_buffer[0] = '\0';
@@ -403,6 +622,33 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       std::strcpy(response_buffer, resp.c_str());
     }
     server->requests_handled++;
+    return true;
+  }
+
+  std::string session_id = ExtractSessionId(req["params"]);
+  Session*    session    = session_id.empty() ? nullptr : GetOrCreateSession(server, session_id);
+
+  if (!session || !session->initialize_completed || !session->initialized_notification_received) {
+    ServerLog(server, MCP_LOG_WARN, "Request before initialization complete: method=%s session=%s",
+              method.c_str(), session_id.c_str());
+
+    if (is_notification) {
+      *http_status       = 202;
+      response_buffer[0] = '\0';
+      server->requests_failed++;
+      return true;
+    }
+
+    const std::string resp = BuildJsonRpcError(
+        id_json, kJsonRpcServerNotInitialized,
+        "Client not initialized: send notifications/initialized after initialize");
+    if (resp.size() >= response_size) {
+      *http_status = 500;
+      return false;
+    }
+
+    std::strcpy(response_buffer, resp.c_str());
+    server->requests_failed++;
     return true;
   }
 
@@ -447,7 +693,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         std::string handler_json(handler_response);
         std::string resp;
 
-        if (IsJsonRpcEnvelope(handler_json)) {
+        if (IsJsonRpcResponseEnvelope(handler_json)) {
           resp = std::move(handler_json);
         } else if (IsValidJson(handler_json)) {
           resp = BuildJsonRpcResult(id_json, handler_json);
@@ -622,6 +868,13 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
 
   server->config = config ? *config : mcp_default_config();
 
+  // Seed RNG for session ID generation
+  {
+    std::random_device          rd;
+    std::lock_guard<std::mutex> lock(server->rng_mutex);
+    server->rng.seed(rd());
+  }
+
   {
     std::lock_guard<std::mutex> lock(server->routes_mutex);
     server->routes[mcp::BuildRouteKey("POST", MCP_ENDPOINT_MCP)]   = {mcp::HandleRouteMcp, server};
@@ -671,13 +924,20 @@ void mcp_server_destroy(mcp_server_t* server_handle) {
     mcp_sse_transport.destroy(server->transport);
   }
 
+  server->running.store(false, std::memory_order_release);
+
   delete server;
 }
 
 bool mcp_server_is_running(const mcp_server_t* server_handle) {
   if (!server_handle) return false;
   auto* server = reinterpret_cast<const mcp::Server*>(server_handle);
-  return server->running.load();
+
+  if (!server->transport) {
+    return false;
+  }
+
+  return mcp_sse_transport.is_running(server->transport);
 }
 
 mcp_result_t mcp_server_route_register(mcp_server_t* server_handle, const char* method,
@@ -767,7 +1027,15 @@ void mcp_server_event_broadcast(mcp_server_t* server_handle, const char* event_t
 
   auto* server = reinterpret_cast<mcp::Server*>(server_handle);
 
-  std::string msg = mcp::FormatSseEvent(event_type, json_payload);
+  std::string message_json;
+  if (mcp::IsJsonRpcMessage(json_payload)) {
+    message_json = json_payload;
+  } else {
+    std::string method = std::string("notifications/") + event_type;
+    message_json       = mcp::BuildJsonRpcNotification(method, json_payload);
+  }
+
+  std::string msg = mcp::FormatSseMessage(message_json);
 
   if (server->transport) {
     mcp_sse_transport.broadcast(server->transport, msg.data(), msg.size());

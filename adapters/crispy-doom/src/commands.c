@@ -1,4 +1,4 @@
-// Command execution for Chocolate Doom.
+// Command execution for Crispy Doom.
 
 #include "dmcp_adapter.h"
 #include "dmcp_mappings.h"
@@ -736,7 +736,7 @@ static bool dmcp_execute_kill_entity(player_t* player, const dmcp_cmd_kill_t* ki
   return true;
 }
 
-bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* cmd) {
+bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) {
   player_t* player;
 
   if (!ctx || !cmd) {
@@ -768,7 +768,7 @@ bool dmcp_chocolate_command_execute(dmcp_chocolate_t* ctx, const dmcp_command_t*
       return dmcp_execute_pause(&cmd->data.pause);
 
     case DMCP_CMD_SET_TIMESCALE:
-      // Doom simulation timing is fixed at 35 Hz in Chocolate Doom.
+      // Doom simulation timing is fixed at 35 Hz in Crispy Doom.
       return false;
 
     case DMCP_CMD_DAMAGE_ENTITY:

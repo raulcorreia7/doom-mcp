@@ -1,13 +1,20 @@
-set(DMCP_ZDOOM_SOURCES
-    adapter.cpp
-    commands.cpp
+file(GLOB DMCP_ZDOOM_SOURCES src/*.cpp)
+file(GLOB DMCP_ZDOOM_HEADERS include/*.h)
+
+add_library(zdoom ${DMCP_LIBRARY_TYPE} ${DMCP_ZDOOM_SOURCES})
+add_library(dmcp::zdoom ALIAS zdoom)
+
+set_target_properties(zdoom PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME dmcp_zdoom
 )
 
-add_library(dmcp_zdoom ${DMCP_LIBRARY_TYPE} ${DMCP_ZDOOM_SOURCES})
-add_library(dmcp::zdoom ALIAS dmcp_zdoom)
-
-if(DMCP_BUILD_SHARED AND WIN32)
-    set_target_properties(dmcp_zdoom PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+if(NOT WIN32 AND DMCP_BUILD_SHARED)
+    target_link_options(zdoom PRIVATE
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/dmcp_zdoom.version"
+    )
 endif()
 
 if("${DMCP_ZDOOM_INCLUDE_DIRS}" STREQUAL "")
@@ -17,18 +24,18 @@ if("${DMCP_ZDOOM_INCLUDE_DIRS}" STREQUAL "")
     )
 endif()
 
-target_include_directories(dmcp_zdoom
+target_include_directories(zdoom
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${DMCP_ZDOOM_INCLUDE_DIRS}
 )
 
-target_link_libraries(dmcp_zdoom
+target_link_libraries(zdoom
     PUBLIC
         dmcp::core
 )
 
-dmcp_enable_warnings(dmcp_zdoom)
+dmcp_enable_warnings(zdoom)

@@ -15,8 +15,6 @@ extern fixed_t forwardmove[2];
 extern fixed_t sidemove[2];
 extern fixed_t angleturn[3];
 
-extern player_t* dmcp_get_player(void);
-
 #define DMCP_SCHAR_MAX 127
 #define DMCP_SCHAR_MIN (-128)
 #define DMCP_SHORT_MAX 32767
@@ -52,7 +50,7 @@ static float normalize_angle_delta(float delta) {
   return delta;
 }
 
-bool dmcp_chocolate_input_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* cmd) {
+bool dmcp_crispy_input_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) {
   player_t* player;
   ticcmd_t* ticcmd;
   float     target_angle;
@@ -132,14 +130,14 @@ bool dmcp_chocolate_input_execute(dmcp_chocolate_t* ctx, const dmcp_command_t* c
   return true;
 }
 
-void dmcp_chocolate_inputs_process(dmcp_chocolate_t* ctx) {
+void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx) {
   dmcp_command_t input_cmd;
 
   if (!ctx) {
     return;
   }
 
-  if (dmcp_pop_input(dmcp_chocolate_get_dmcp_context(ctx), &input_cmd)) {
-    dmcp_chocolate_input_execute(ctx, &input_cmd);
+  if (dmcp_pop_input(dmcp_crispy_get_dmcp_context(ctx), &input_cmd)) {
+    dmcp_crispy_input_execute(ctx, &input_cmd);
   }
 }

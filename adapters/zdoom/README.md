@@ -27,7 +27,7 @@ The ZDoom adapter uses a streamlined C++ implementation:
 ## Requirements
 
 - ZDoom or GZDoom source code
-- DMCP SDK (built with DMCP_BUILD_ADAPTER_ZDOOM=ON)
+- DMCP SDK (built with `DMCP_BUILD_ADAPTER_ZDOOM=ON`)
 - CMake 3.25+
 
 ## Building
@@ -36,6 +36,13 @@ The ZDoom adapter uses a streamlined C++ implementation:
 # From doom-mcp root
 cmake -B build -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_ADAPTER_ZDOOM=ON
 cmake --build build
+```
+
+In your ZDoom-based engine's CMakeLists.txt:
+
+```cmake
+find_package(dmcp CONFIG REQUIRED)
+target_link_libraries(myengine PRIVATE dmcp::zdoom)
 ```
 
 ## Integration Points

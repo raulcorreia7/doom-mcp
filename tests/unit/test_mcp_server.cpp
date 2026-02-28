@@ -470,6 +470,10 @@ TEST_CASE("Generic MCP: Constants", "[api][constants]") {
     REQUIRE(std::strcmp(MCP_JSONRPC_VERSION, "2.0") == 0);
   }
 
+  SECTION("MCP protocol date version is current") {
+    REQUIRE(std::strcmp(MCP_PROTOCOL_VERSION, "2025-11-25") == 0);
+  }
+
   SECTION("Default port constant") { REQUIRE(MCP_DEFAULT_PORT == 6060); }
 
   SECTION("Default target Hz constant") { REQUIRE(MCP_DEFAULT_TARGET_HZ == 10); }

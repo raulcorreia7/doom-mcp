@@ -1,4 +1,4 @@
-// Chocolate Doom Adapter - Lifecycle
+// Crispy Doom Adapter - Lifecycle
 // Create, destroy, tick, and stats for DMCP integration
 
 #include "dmcp_adapter.h"
@@ -13,12 +13,12 @@
 #include "doomdef.h"
 #include "doomstat.h"
 
-struct dmcp_chocolate_s {
-  dmcp_context_t*         dmcp_ctx;
-  dmcp_chocolate_config_t config;
-  bool                    initialized;
-  int                     last_gamestate;
-  bool                    last_paused;
+struct dmcp_crispy_s {
+  dmcp_context_t*      dmcp_ctx;
+  dmcp_crispy_config_t config;
+  bool                 initialized;
+  int                  last_gamestate;
+  bool                 last_paused;
 };
 
 void dmcp_adapter_log(int level, const char* fmt, ...) {
@@ -56,7 +56,7 @@ void dmcp_adapter_log(int level, const char* fmt, ...) {
   va_end(args);
 }
 
-static void chocolate_log_callback(void* user_data, int level, const char* message) {
+static void crispy_log_callback(void* user_data, int level, const char* message) {
   (void)user_data;
   dmcp_adapter_log(level, "%s", message);
 }
@@ -77,16 +77,16 @@ static const char* gamestate_to_string(int gs) {
 }
 
 static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
-  dmcp_chocolate_t* ctx = (dmcp_chocolate_t*)user_data;
-  int               current_gamestate;
-  boolean           current_paused;
+  dmcp_crispy_t* ctx = (dmcp_crispy_t*)user_data;
+  int            current_gamestate;
+  boolean        current_paused;
 
   if (!ctx || !snap) return;
 
-  dmcp_chocolate_populate_player(snap);
-  dmcp_chocolate_populate_level(snap);
-  dmcp_chocolate_populate_enemies(snap);
-  dmcp_chocolate_populate_entities(snap);
+  dmcp_crispy_populate_player(snap);
+  dmcp_crispy_populate_level(snap);
+  dmcp_crispy_populate_enemies(snap);
+  dmcp_crispy_populate_entities(snap);
 
   current_gamestate = gamestate;
   if (current_gamestate != ctx->last_gamestate) {
@@ -103,16 +103,16 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
   }
 }
 
-dmcp_chocolate_t* dmcp_chocolate_create(const dmcp_chocolate_config_t* config) {
-  dmcp_chocolate_t* ctx;
-  dmcp_config_t     dmcp_cfg;
+dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config) {
+  dmcp_crispy_t* ctx;
+  dmcp_config_t  dmcp_cfg;
 
   if (!config) {
     dmcp_adapter_log(MCP_LOG_ERROR, "create failed: null config");
     return NULL;
   }
 
-  ctx = (dmcp_chocolate_t*)calloc(1, sizeof(dmcp_chocolate_t));
+  ctx = (dmcp_crispy_t*)calloc(1, sizeof(dmcp_crispy_t));
   if (!ctx) {
     dmcp_adapter_log(MCP_LOG_ERROR, "create failed: memory allocation failed");
     return NULL;
@@ -124,7 +124,7 @@ dmcp_chocolate_t* dmcp_chocolate_create(const dmcp_chocolate_config_t* config) {
 
   dmcp_cfg             = config->base;
   dmcp_cfg.on_snapshot = snapshot_callback;
-  dmcp_cfg.on_log      = chocolate_log_callback;
+  dmcp_cfg.on_log      = crispy_log_callback;
   dmcp_cfg.user_data   = ctx;
 
   ctx->dmcp_ctx = dmcp_context_create(&dmcp_cfg);
@@ -142,7 +142,7 @@ dmcp_chocolate_t* dmcp_chocolate_create(const dmcp_chocolate_config_t* config) {
   return ctx;
 }
 
-void dmcp_chocolate_destroy(dmcp_chocolate_t* ctx) {
+void dmcp_crispy_destroy(dmcp_crispy_t* ctx) {
   if (!ctx) return;
 
   dmcp_adapter_log(MCP_LOG_INFO, "adapter destroying");
@@ -154,7 +154,7 @@ void dmcp_chocolate_destroy(dmcp_chocolate_t* ctx) {
   free(ctx);
 }
 
-void dmcp_chocolate_tick(dmcp_chocolate_t* ctx) {
+void dmcp_crispy_tick(dmcp_crispy_t* ctx) {
   if (!ctx || !ctx->dmcp_ctx || !ctx->initialized) return;
 
   if (gamestate != GS_LEVEL) {
@@ -164,7 +164,7 @@ void dmcp_chocolate_tick(dmcp_chocolate_t* ctx) {
   dmcp_context_tick(ctx->dmcp_ctx);
 }
 
-void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx) {
+void dmcp_crispy_commands_process(dmcp_crispy_t* ctx) {
   dmcp_command_t cmd;
   int            cmd_count;
 
@@ -172,7 +172,7 @@ void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx) {
 
   cmd_count = 0;
   while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
-    bool        result = dmcp_chocolate_command_execute(ctx, &cmd);
+    bool        result = dmcp_crispy_command_execute(ctx, &cmd);
     const char* message;
     if (result) {
       message = "Command executed successfully";
@@ -197,17 +197,17 @@ void dmcp_chocolate_commands_process(dmcp_chocolate_t* ctx) {
   }
 }
 
-bool dmcp_chocolate_is_running(const dmcp_chocolate_t* ctx) {
+bool dmcp_crispy_is_running(const dmcp_crispy_t* ctx) {
   if (!ctx || !ctx->dmcp_ctx) return false;
   return dmcp_context_is_running(ctx->dmcp_ctx);
 }
 
-void dmcp_chocolate_get_stats(dmcp_chocolate_t* ctx, dmcp_stats_t* stats) {
+void dmcp_crispy_get_stats(dmcp_crispy_t* ctx, dmcp_stats_t* stats) {
   if (!ctx || !ctx->dmcp_ctx || !stats) return;
   dmcp_stats_get(ctx->dmcp_ctx, stats);
 }
 
-dmcp_context_t* dmcp_chocolate_get_dmcp_context(dmcp_chocolate_t* ctx) {
+dmcp_context_t* dmcp_crispy_get_dmcp_context(dmcp_crispy_t* ctx) {
   if (!ctx) return NULL;
   return ctx->dmcp_ctx;
 }

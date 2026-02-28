@@ -1,5 +1,5 @@
 // Level and Game State Extraction
-// Populates dmcp_level_t and dmcp_game_t from Chocolate Doom globals
+// Populates dmcp_level_t and dmcp_game_t from Crispy Doom globals
 
 #include "dmcp_adapter.h"
 #include "dmcp_mappings.h"
@@ -8,7 +8,7 @@
 #include "doomdef.h"
 #include "doomstat.h"
 
-#ifdef CHOCOLATE_DOOM_BUILD
+#ifdef CRISPY_DOOM_BUILD
 #include "hu_stuff.h"
 
 // Level name arrays from hu_stuff.c
@@ -16,7 +16,7 @@ extern const char* mapnames[];
 extern const char* mapnames_commercial[];
 #endif
 
-void dmcp_chocolate_populate_level(dmcp_snapshot_t* snap) {
+void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
   dmcp_level_t* level;
   dmcp_game_t*  game;
   player_t*     p;
@@ -34,7 +34,7 @@ void dmcp_chocolate_populate_level(dmcp_snapshot_t* snap) {
   current_map     = gamemap;
   snprintf(level->level_id, sizeof(level->level_id), "E%dM%d", current_episode, current_map);
 
-#ifdef CHOCOLATE_DOOM_BUILD
+#ifdef CRISPY_DOOM_BUILD
   // Get level name from mapnames array using current game mode
   if (gamemode == commercial) {
     // Doom II, Plutonia, TNT

@@ -5,6 +5,34 @@ All notable changes to the Doom Model Context Protocol (DMCP) SDK will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-02-24
+
+### Breaking Changes
+- Package config now uses `find_package(dmcp CONFIG REQUIRED)` - legacy `DMCP_INCLUDE_DIR`/`DMCP_LIB_DIR` still works but deprecated
+- Target names changed: `dmcp::dmcp_generic` → `dmcp::generic`, `dmcp::dmcp_core` → `dmcp::core`
+- Library output names: `libdmcp_generic.so`/`libdmcp_core.so` (previously `libdmcp_dmcp_generic.so`)
+- Protocol constants consolidated: raw string literals replaced with centralized constants in `include/dmcp/doom/protocol.h`
+- MCP lifecycle is now per-session (not server-global) - `initialize` returns `sessionId` which must be included in subsequent requests via `_sessionId` param
+- Removed backwards-compatibility aliases and deprecated constant names
+
+### Added
+- Per-session lifecycle state tracking to avoid cross-client state leakage
+- MCP JSON-RPC envelope validation
+- MCP initialize parameter validation
+- Protocol negotiation errors and pre-initialization request gating
+- Linker version scripts for symbol visibility control on Linux/Unix
+- Shared library build support with proper symbol export control
+- Installed adapter headers at `include/dmcp/adapters/` for C ABI boundary
+
+### Fixed
+- SSE implementation aligned with MCP spec (Accept header, Content-Type, Cache-Control headers)
+- Unknown endpoint responses no longer leak uWebSockets implementation details
+
+### Changed
+- Object library pattern for shared/static builds
+- Simplified CMake config file for relocatable install
+- Package version compatibility: `SameMajorVersion`
+
 ## [0.6.0] - 2026-02-13
 
 ### Breaking Changes

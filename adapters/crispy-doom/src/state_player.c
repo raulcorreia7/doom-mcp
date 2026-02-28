@@ -1,5 +1,5 @@
 // Player State Extraction
-// Populates dmcp_player_t from Chocolate Doom's player_t
+// Populates dmcp_player_t from Crispy Doom's player_t
 
 #include "dmcp_adapter.h"
 #include "enemy_types.h"
@@ -10,7 +10,7 @@
 #include "doomstat.h"
 #include "p_mobj.h"
 
-void dmcp_chocolate_populate_player(dmcp_snapshot_t* snap) {
+void dmcp_crispy_populate_player(dmcp_snapshot_t* snap) {
   player_t*      p;
   dmcp_player_t* player;
   int            i;

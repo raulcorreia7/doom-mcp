@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <string>
 
+#include "dmcp/doom/protocol.h"
 #include "internal/serialization.hpp"
 #include "yyjson.h"
 
@@ -77,7 +78,7 @@ static yyjson_mut_val* enemy_to_json(yyjson_mut_doc* doc, const dmcp_enemy_t& e)
   yyjson_mut_obj_add_sint(doc, obj, "id", e.id);
   yyjson_mut_obj_add_sint(doc, obj, "hp", e.hp);
   yyjson_mut_obj_add_sint(doc, obj, "max_hp", e.max_hp);
-  yyjson_mut_obj_add_str(doc, obj, "state", e.hp > 0 ? "alive" : "dead");
+  yyjson_mut_obj_add_str(doc, obj, "state", e.hp > 0 ? DMCP_STATUS_ALIVE : DMCP_STATUS_DEAD);
   yyjson_mut_obj_add_val(doc, obj, "position", vec3_to_json(doc, e.position));
   yyjson_mut_obj_add_real(doc, obj, "angle", e.angle);
   yyjson_mut_obj_add_sint(doc, obj, "target_id", e.target_id);

@@ -228,12 +228,26 @@ else
 	fail "Health check failed"
 fi
 
-# Test 2: MCP Initialize
+# Test 2: MCP Initialize rejects unsupported protocol
 echo ""
-echo "Test 2: MCP Initialize"
+echo "Test 2: MCP Initialize rejects unsupported protocol"
+INIT_UNSUPPORTED=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
+	-H "Content-Type: application/json" \
+	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
+if echo "$INIT_UNSUPPORTED" | grep -q 'Unsupported protocol version'; then
+	pass "Unsupported protocol version is rejected"
+else
+	echo "Unsupported protocol initialize response:"
+	printf '%s\n' "$INIT_UNSUPPORTED" | pretty_json
+	fail "Unsupported protocol version was not rejected"
+fi
+
+# Test 3: MCP Initialize
+echo ""
+echo "Test 3: MCP Initialize"
 INIT=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}')
+	-d '{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
 if echo "$INIT" | grep -q '"result"'; then
 	pass "Initialize succeeded"
 	printf '%s\n' "$INIT" | pretty_json
@@ -243,12 +257,23 @@ else
 	fail "Initialize failed"
 fi
 
-# Test 3: Tools list
+# Test 4: Client initialized notification
 echo ""
-echo "Test 3: Tools list"
+echo "Test 4: notifications/initialized"
+INIT_DONE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
+	-H "Content-Type: application/json" \
+	-d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}')
+pass "Initialized notification sent"
+if [ -n "$INIT_DONE" ]; then
+	printf '%s\n' "$INIT_DONE" | pretty_json
+fi
+
+# Test 5: Tools list
+echo ""
+echo "Test 5: Tools list"
 TOOLS=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+	-d '{"jsonrpc":"2.0","id":3,"method":"tools/list"}')
 if echo "$TOOLS" | grep -q 'get_player'; then
 	pass "Tools list contains get_player"
 	printf '%s\n' "$TOOLS" | pretty_json
@@ -266,12 +291,12 @@ else
 	fail "Tools list missing spawn_entity"
 fi
 
-# Test 4: Get player state
+# Test 6: Get player state
 echo ""
-echo "Test 4: Get player state"
+echo "Test 6: Get player state"
 STATE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_player"}}')
+	-d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_player"}}')
 if printf '%s\n' "$STATE" | game_state_has_player; then
 	pass "Player state contains player data"
 	printf '%s\n' "$STATE" | print_game_state_pretty
@@ -281,12 +306,12 @@ else
 	warn "Player state may be empty (game not started)"
 fi
 
-# Test 5: Direct method alias (get_player)
+# Test 7: Direct method alias (get_player)
 echo ""
-echo "Test 5: Direct JSON-RPC get_player"
+echo "Test 7: Direct JSON-RPC get_player"
 STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":4,"method":"get_player","params":{}}')
+	-d '{"jsonrpc":"2.0","id":5,"method":"get_player","params":{}}')
 if echo "$STATE_NATIVE" | grep -q '"result"'; then
 	pass "Direct method get_player is available"
 else
@@ -295,12 +320,12 @@ else
 	fail "Direct get_player method failed"
 fi
 
-# Test 6: Direct method alias (execute_command)
+# Test 8: Direct method alias (execute_command)
 echo ""
-echo "Test 6: Direct JSON-RPC execute_command"
+echo "Test 8: Direct JSON-RPC execute_command"
 COMMAND_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":5,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}')
+	-d '{"jsonrpc":"2.0","id":6,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}')
 if echo "$COMMAND_NATIVE" | grep -q '"queued"'; then
 	pass "Direct method execute_command is available"
 else
@@ -309,9 +334,9 @@ else
 	fail "Direct execute_command method failed"
 fi
 
-# Test 7: Game state route
+# Test 9: Game state route
 echo ""
-echo "Test 7: GET /game/state"
+echo "Test 9: GET /game/state"
 GAME_STATE_ROUTE=$(curl -s -m 2 "http://localhost:$DMCP_PORT/game/state" || true)
 if echo "$GAME_STATE_ROUTE" | grep -q '"player"'; then
 	pass "Game state route returns player data"
@@ -321,19 +346,19 @@ else
 	fail "Game state route failed"
 fi
 
-# Test 8: SSE streaming (quick check)
+# Test 10: SSE streaming (quick check)
 echo ""
-echo "Test 8: SSE endpoint"
-SSE_CHECK=$(curl -s -m 2 "http://localhost:$DMCP_PORT/mcp" 2>/dev/null | head -1 || true)
+echo "Test 10: SSE endpoint"
+SSE_CHECK=$(curl -s -m 2 -H "Accept: text/event-stream" "http://localhost:$DMCP_PORT/mcp" 2>/dev/null | head -1 || true)
 if [ -n "$SSE_CHECK" ]; then
 	pass "SSE stream on /mcp is accessible"
 else
 	warn "SSE stream on /mcp had no immediate data"
 fi
 
-# Test 9: Unknown endpoint error hygiene
+# Test 11: Unknown endpoint error hygiene
 echo ""
-echo "Test 9: Unknown endpoint returns generic error"
+echo "Test 11: Unknown endpoint returns generic error"
 UNKNOWN_RESPONSE=$(curl -s -i -m 2 "http://localhost:$DMCP_PORT/does-not-exist" || true)
 if echo "$UNKNOWN_RESPONSE" | grep -q '"code":"not_found"'; then
 	if echo "$UNKNOWN_RESPONSE" | grep -qi 'uWebSockets'; then
@@ -346,9 +371,9 @@ else
 	fail "Unknown endpoint did not return generic not_found error"
 fi
 
-# Test 10: Multiple requests
+# Test 12: Multiple requests
 echo ""
-echo "Test 10: Multiple concurrent requests"
+echo "Test 12: Multiple concurrent requests"
 REQUEST_PIDS=()
 for i in {1..5}; do
 	curl -s -m 2 "http://localhost:$DMCP_PORT/health" >/dev/null &
