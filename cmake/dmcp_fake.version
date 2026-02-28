@@ -1,0 +1,6 @@
+{
+    global:
+        dmcp_fake_*;
+    local:
+        *;
+};

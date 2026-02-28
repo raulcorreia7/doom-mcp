@@ -4,6 +4,7 @@ project(dmcp LANGUAGES C CXX VERSION 0.6.0)
 option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build example servers" ON)
 option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests" OFF)
+option(DMCP_BUILD_ADAPTER_FAKE "Build fake adapter (smoke/tests)" ON)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 option(DMCP_BUILD_ADAPTER_CRISPY "Build Crispy Doom adapter" OFF)
 option(DMCP_BUILD_SHARED "Build shared libraries (.so/.dll)" OFF)
@@ -280,6 +281,10 @@ if(DMCP_BUILD_ADAPTER_CRISPY)
   add_subdirectory(adapters/crispy-doom)
 endif()
 
+if(DMCP_BUILD_ADAPTER_FAKE)
+  add_subdirectory(adapters/fake)
+endif()
+
 if(DMCP_BUILD_EXAMPLES AND CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(dummy_server examples/dummy_server.cpp)
   target_link_libraries(dummy_server PRIVATE dmcp::core)
@@ -339,6 +344,15 @@ if(DMCP_INSTALL)
     )
   endif()
 
+  if(TARGET fake)
+    install(
+      TARGETS fake
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  endif()
+
   if(TARGET zdoom)
     install(
       TARGETS zdoom
@@ -366,6 +380,14 @@ if(DMCP_INSTALL)
     if(TARGET crispy)
       install(
         TARGETS crispy
+        EXPORT dmcp-targets
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+      )
+    endif()
+
+    if(TARGET fake)
+      install(
+        TARGETS fake
         EXPORT dmcp-targets
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
       )
@@ -408,6 +430,9 @@ if(NOT DMCP_BUILD_SHARED)
   if(TARGET crispy)
     export(TARGETS crispy FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
   endif()
+  if(TARGET fake)
+    export(TARGETS fake FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
+  endif()
 endif()
 
 message(STATUS "")
@@ -415,6 +440,7 @@ message(STATUS "DMCP ${PROJECT_VERSION}")
 message(STATUS "  Examples: ${DMCP_BUILD_EXAMPLES}")
 message(STATUS "  Tests: ${DMCP_BUILD_TESTS}")
 message(STATUS "  Integration tests: ${DMCP_BUILD_INTEGRATION_TESTS}")
+message(STATUS "  Fake Adapter: ${DMCP_BUILD_ADAPTER_FAKE}")
 message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
 message(STATUS "  Crispy Adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
 message(STATUS "  Shared libs: ${DMCP_BUILD_SHARED}")

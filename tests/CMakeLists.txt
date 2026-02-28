@@ -8,6 +8,7 @@ set(UNIT_TEST_SOURCES
   unit/test_screenshot.cpp
   unit/test_layer_boundaries.cpp
   unit/test_layers.cpp
+  unit/test_fake_adapter.cpp
 )
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
@@ -29,6 +30,10 @@ else()
       dmcp::core
       Catch2::Catch2WithMain
   )
+endif()
+
+if(TARGET dmcp::fake)
+  target_link_libraries(dmcp_tests PRIVATE dmcp::fake)
 endif()
 
 target_include_directories(dmcp_tests
