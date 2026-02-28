@@ -28,6 +28,8 @@ endif
 # Help
 # ==============================================================================
 
+ENGINES := crispy chocolate
+
 .PHONY: help
 help:
 	@echo "DMCP SDK - Development Makefile"
@@ -35,18 +37,26 @@ help:
 	@echo "Build targets:"
 	@echo "  make              - Build DMCP (default)"
 	@echo "  make dmcp         - Build DMCP library + examples"
-	@echo "  make all          - Build DMCP + Crispy"
+	@echo "  make all          - Build DMCP + all engines"
 	@echo "  make debug        - Build with sanitizers"
 	@echo "  make release      - Build optimized"
 	@echo "  make clean        - Remove build directory"
 	@echo "  make distclean    - Remove build + cache"
+	@echo ""
+	@echo "Engine targets (ENGINE=crispy|chocolate):"
+	@echo "  make engine       - Build engine with DMCP"
+	@echo "  make engine-test  - Run headless tests on engine"
+	@echo "  make engine-clean - Clean engine build"
+	@echo "  make engine-all   - Build all engines"
+	@echo ""
+	@echo "  Engines: $(ENGINES)"
+	@echo "  Example: make engine ENGINE=crispy"
 	@echo ""
 	@echo "Test targets:"
 	@echo "  make test         - Run unit tests"
 	@echo "  make test-verbose - Run tests with details"
 	@echo "  make download-wad - Download DOOM shareware"
 	@echo "  make headless     - Run e2e headless tests"
-	@echo "  make headless-crispy - Run e2e headless tests on Crispy"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make run          - Run dummy server"
@@ -60,8 +70,6 @@ help:
 	@echo "Other:"
 	@echo "  make install      - Install to $(PREFIX)"
 	@echo "  make submodules   - Init/update git submodules"
-	@echo "  make crispy-doom  - Build Crispy Doom with DMCP"
-	@echo "  (set CRISPY_KEEP_PATCH=1 to keep Crispy patch applied)"
 	@echo "  make info         - Show configuration"
 	@echo "  make compdb       - Generate compile_commands.json"
 
@@ -74,8 +82,8 @@ help:
 # Default target builds just DMCP
 default: dmcp
 
-# Build everything including Crispy Doom
-all: dmcp crispy-doom
+# Build everything including all engines
+all: dmcp engine-all
 
 submodules:
 	@git submodule update --init --recursive
@@ -261,6 +269,63 @@ crispy-doom: submodules
 
 crispy-doom-clean:
 	rm -rf $(CRISPY_BUILD_DIR)
+
+# ==============================================================================
+# Unified Engine Interface
+# ==============================================================================
+
+ENGINE ?= crispy
+
+.PHONY: engine engine-test engine-clean engine-all engine-update
+engine:
+ifndef ENGINE
+	$(error ENGINE is required. Use: make engine ENGINE=crispy|chocolate)
+endif
+	@case "$(ENGINE)" in \
+		crispy) \
+			$(MAKE) crispy-doom ;; \
+		chocolate) \
+			$(MAKE) chocolate-doom ;; \
+		*) \
+			echo "error: Unknown engine '$(ENGINE)'. Supported: $(ENGINES)"; \
+			exit 1 ;; \
+	esac
+
+engine-test:
+ifndef ENGINE
+	$(error ENGINE is required. Use: make engine-test ENGINE=crispy|chocolate)
+endif
+	@DOOM_ENGINE=$(ENGINE) $(MAKE) headless
+
+engine-clean:
+ifndef ENGINE
+	$(error ENGINE is required. Use: make engine-clean ENGINE=crispy|chocolate)
+endif
+	@case "$(ENGINE)" in \
+		crispy) \
+			$(MAKE) crispy-doom-clean ;; \
+		chocolate) \
+			rm -rf chocolate-doom/build ;; \
+		*) \
+			echo "error: Unknown engine '$(ENGINE)'. Supported: $(ENGINES)"; \
+			exit 1 ;; \
+	esac
+
+engine-all:
+	@for e in $(ENGINES); do \
+		echo "==> Building $$e..."; \
+		$(MAKE) engine ENGINE=$$e || exit 1; \
+	done
+
+engine-update:
+ifndef ENGINE
+	$(error ENGINE is required. Use: make engine-update ENGINE=crispy VERSION=7.1.0)
+endif
+	@echo "Updating $(ENGINE) submodule..."
+	@cd $(ENGINE)-doom && git fetch origin && \
+		git checkout $${VERSION:-main} && \
+		git submodule update --init --recursive
+	@echo "Done. Don't forget to commit the submodule update."
 
 # ==============================================================================
 # Shortcuts

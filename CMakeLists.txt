@@ -273,6 +273,8 @@ if(NOT DMCP_BUILD_SHARED)
   add_library(dmcp::core ALIAS core_static)
 endif()
 
+add_subdirectory(adapters/common)
+
 if(DMCP_BUILD_ADAPTER_ZDOOM)
   add_subdirectory(adapters/zdoom)
 endif()

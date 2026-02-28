@@ -1,42 +1,25 @@
 #include "dmcp_integration.h"
+#include "dmcp_hooks.h"
 #include "i_system.h"
 #include "m_argv.h"
+#include <stdint.h>
 #include <stdlib.h>
 
 dmcp_crispy_t* g_dmcp_ctx = NULL;
-
-static int DMCP_PortOverride(void) {
-  int   p;
-  char* end;
-  long  port;
-
-  p = M_CheckParmWithArgs("-dmcp_port", 1);
-  if (!p) {
-    p = M_CheckParmWithArgs("-dmcp-port", 1);
-  }
-
-  if (!p) {
-    return 0;
-  }
-
-  end  = NULL;
-  port = strtol(myargv[p + 1], &end, 10);
-  if (end == myargv[p + 1] || *end != '\0' || port < 1 || port > 65535) {
-    I_Error("Invalid DMCP port '%s' (expected 1-65535)", myargv[p + 1]);
-  }
-
-  return (int)port;
-}
 
 void DMCP_Init(void) {
   dmcp_crispy_config_t dmcp_cfg;
   int                  dmcp_port;
 
   dmcp_cfg  = dmcp_crispy_config_default();
-  dmcp_port = DMCP_PortOverride();
+  dmcp_port = dmcp_engine_port_from_argv(myargc, myargv, "dmcp_port");
+
+  if (dmcp_port < 0) {
+    I_Error("Invalid DMCP port (expected 1-65535)");
+  }
 
   if (dmcp_port > 0) {
-    dmcp_cfg.base.port = dmcp_port;
+    dmcp_cfg.base.port = (uint16_t)dmcp_port;
   }
 
   I_AtExit(DMCP_Shutdown, true);

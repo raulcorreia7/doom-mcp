@@ -34,11 +34,14 @@ target_include_directories(crispy
         ${DMCP_CRISPY_SRC_DIR}
         ${DMCP_CRISPY_DOOM_DIR}
         ${DMCP_CRISPY_GEN_INCLUDE_DIR}
+        ${CMAKE_SOURCE_DIR}/adapters/common/include
 )
 
 target_link_libraries(crispy
     PUBLIC
         dmcp::core
+    PRIVATE
+        dmcp_adapter_common
 )
 
 target_compile_definitions(crispy
