@@ -7,23 +7,23 @@
 
 dmcp_crispy_t* g_dmcp_ctx = NULL;
 
-void DMCP_Init(void) {
-  dmcp_crispy_config_t dmcp_cfg;
-  int                  dmcp_port;
+static dmcp_crispy_config_t dmcp_build_config(void) {
+  dmcp_crispy_config_t cfg  = dmcp_crispy_config_default();
+  int                  port = dmcp_engine_port_from_argv(myargc, myargv, "dmcp_port");
 
-  dmcp_cfg  = dmcp_crispy_config_default();
-  dmcp_port = dmcp_engine_port_from_argv(myargc, myargv, "dmcp_port");
-
-  if (dmcp_port < 0) {
+  if (port < 0) {
     I_Error("Invalid DMCP port (expected 1-65535)");
   }
-
-  if (dmcp_port > 0) {
-    dmcp_cfg.base.port = (uint16_t)dmcp_port;
+  if (port > 0) {
+    cfg.base.port = (uint16_t)port;
   }
+  return cfg;
+}
 
+void DMCP_Init(void) {
+  dmcp_crispy_config_t cfg = dmcp_build_config();
   I_AtExit(DMCP_Shutdown, true);
-  g_dmcp_ctx = dmcp_crispy_create(&dmcp_cfg);
+  g_dmcp_ctx = dmcp_crispy_create(&cfg);
 }
 
 void DMCP_Shutdown(void) {
