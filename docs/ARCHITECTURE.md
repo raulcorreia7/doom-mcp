@@ -365,8 +365,9 @@ doom-mcp/
 |--------|------|--------------|---------|
 | `dmcp::generic` | STATIC/SHARED | yyjson, uWebSockets | Generic MCP protocol |
 | `dmcp::core` | STATIC/SHARED | dmcp::generic | Doom-specific MCP |
-| `dmcp::chocolate` | STATIC | dmcp::core | Chocolate Doom adapter |
+| `dmcp::crispy` | STATIC/SHARED | dmcp::core | Crispy Doom adapter |
 | `dmcp::zdoom` | STATIC | dmcp::core | ZDoom adapter |
+| `dmcp::fake` | STATIC/SHARED | dmcp::core | Deterministic fake adapter for smoke/integration tests |
 
 ## Build Configuration
 
@@ -382,8 +383,9 @@ target_link_libraries(myengine PRIVATE dmcp::core)
 # Options
 option(DMCP_BUILD_TESTS "Build tests" OFF)
 option(DMCP_BUILD_EXAMPLES "Build examples" ON)
+option(DMCP_BUILD_ADAPTER_FAKE "Build fake adapter" ON)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
-option(DMCP_BUILD_ADAPTER_CHOCOLATE "Build Chocolate Doom adapter" OFF)
+option(DMCP_BUILD_ADAPTER_CRISPY "Build Crispy Doom adapter" OFF)
 option(DMCP_BUILD_SHARED "Build shared libraries" OFF)
 option(DMCP_ENABLE_SANITIZERS "Enable sanitizers" OFF)
 
