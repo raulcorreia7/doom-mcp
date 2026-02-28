@@ -1,10 +1,8 @@
-#include <cstring>
+#include <array>
 #include <new>
 
-#include "dmcp/doom/api.h"
+#include "dmcp/doom/layer.h"
 #include "dmcp/doom/protocol.h"
-#include "doom/handlers/tools/tools.hpp"
-#include "doom/internal.hpp"
 #include "doom/internal/mcp_handlers.hpp"
 #include "doom/layers/orchestrator/orchestrator.hpp"
 #include "mcp/generic/server.h"
@@ -13,38 +11,71 @@ namespace dmcp {
 
 namespace {
 
-const char* ORCHESTRATOR_TOOLS[] = {
-    DMCP_TOOL_SPAWN_ENTITY,      DMCP_TOOL_CHANGE_LEVEL,    DMCP_TOOL_GIVE_ITEM,
-    DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_TOOL_TELEPORT_PLAYER, DMCP_TOOL_EXECUTE_CONSOLE,
-    DMCP_TOOL_PAUSE_GAME,        DMCP_TOOL_DAMAGE_ENTITY,   DMCP_TOOL_KILL_ENTITY,
-    DMCP_TOOL_GET_STATE,         DMCP_TOOL_GET_SCREENSHOT,
+constexpr std::array<const char*, 26> k_orchestrator_tools = {
+    DMCP_TOOL_GET_PLAYER,         DMCP_TOOL_GET_ENEMIES,
+    DMCP_TOOL_GET_ENTITIES,       DMCP_TOOL_GET_MAP,
+    DMCP_TOOL_GET_LEVEL,          DMCP_TOOL_GET_INVENTORY,
+    DMCP_TOOL_GET_GAME_INFO,      DMCP_TOOL_GET_GAME,
+    DMCP_TOOL_GET_STATE,          DMCP_TOOL_GET_STATE_BATCH,
+    DMCP_TOOL_GET_SCREENSHOT,     DMCP_TOOL_EXECUTE_COMMAND,
+    DMCP_TOOL_GET_COMMAND_RESULT, DMCP_TOOL_GET_AVAILABLE_CONTENT,
+    DMCP_TOOL_EXECUTE_BATCH,      DMCP_TOOL_GET_COMMAND_EXAMPLES,
+    DMCP_TOOL_SPAWN_ENTITY,       DMCP_TOOL_CHANGE_LEVEL,
+    DMCP_TOOL_GIVE_ITEM,          DMCP_TOOL_SET_PLAYER_HEALTH,
+    DMCP_TOOL_TELEPORT_PLAYER,    DMCP_TOOL_SET_PLAYER_POSITION,
+    DMCP_TOOL_EXECUTE_CONSOLE,    DMCP_TOOL_PAUSE_GAME,
+    DMCP_TOOL_DAMAGE_ENTITY,      DMCP_TOOL_KILL_ENTITY,
 };
 
-struct orchestrator_layer_state {
-  orchestrator_layer* layer = nullptr;
-};
+constexpr std::array<mcp_method_registration_t, 22> k_method_registrations = {{
+    {DMCP_TOOL_GET_PLAYER, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_ENEMIES, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_ENTITIES, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_MAP, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_LEVEL, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_INVENTORY, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_GAME_INFO, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_GAME, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_STATE, dmcp::handle_method_get_state_section, nullptr},
+    {DMCP_TOOL_GET_SCREENSHOT, dmcp::handle_method_get_screenshot, nullptr},
+    {DMCP_TOOL_EXECUTE_COMMAND, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_GET_COMMAND_RESULT, dmcp::handle_method_get_command_result, nullptr},
+    {DMCP_TOOL_SPAWN_ENTITY, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_CHANGE_LEVEL, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_GIVE_ITEM, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_SET_PLAYER_HEALTH, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_TELEPORT_PLAYER, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_SET_PLAYER_POSITION, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_EXECUTE_CONSOLE, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_PAUSE_GAME, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_DAMAGE_ENTITY, dmcp::handle_method_execute_command, nullptr},
+    {DMCP_TOOL_KILL_ENTITY, dmcp::handle_method_execute_command, nullptr},
+}};
 
-const char* layer_name(void) { return "orchestrator"; }
+const char* layer_name(void) { return DMCP_LAYER_ORCHESTRATOR; }
 
 const char* layer_description(void) {
-  return "Game orchestration tools: spawn entities, change levels, give items, manage player state";
+  return "Game orchestration tools for state reads and command execution";
 }
 
-size_t tool_count(void) { return sizeof(ORCHESTRATOR_TOOLS) / sizeof(ORCHESTRATOR_TOOLS[0]); }
+size_t tool_count(void) { return k_orchestrator_tools.size(); }
 
-const char** tools(void) { return ORCHESTRATOR_TOOLS; }
+const char* const* tools(void) { return k_orchestrator_tools.data(); }
 
 bool register_methods(dmcp_layer_t* layer, mcp_server_t* server, void* user_data) {
   if (!layer || !server || !user_data) {
     return false;
   }
 
-  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
-  if (!state || !state->layer) {
-    return false;
+  std::array<mcp_method_registration_t, k_method_registrations.size()> registrations =
+      k_method_registrations;
+  for (auto& registration : registrations) {
+    registration.user_data = user_data;
   }
 
-  return state->layer->register_methods(server, user_data);
+  const mcp_result_t result =
+      mcp_server_methods_register(server, registrations.data(), registrations.size());
+  return result.code == MCP_RESULT_CODE_OK;
 }
 
 bool register_routes(dmcp_layer_t* layer, mcp_server_t* server, void* user_data) {
@@ -52,116 +83,45 @@ bool register_routes(dmcp_layer_t* layer, mcp_server_t* server, void* user_data)
     return false;
   }
 
-  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
-  if (!state || !state->layer) {
+  const mcp_result_t state_route = mcp_server_route_register(
+      server, "GET", "/game/state", dmcp::handle_route_game_state, user_data);
+  if (state_route.code != MCP_RESULT_CODE_OK) {
     return false;
   }
 
-  return state->layer->register_routes(server, user_data);
+  const mcp_result_t screenshot_route = mcp_server_route_register(
+      server, "GET", "/game/screenshot", dmcp::handle_route_game_screenshot, user_data);
+  return screenshot_route.code == MCP_RESULT_CODE_OK;
 }
 
 void tick(dmcp_layer_t* layer, dmcp_context_t* ctx) {
-  if (!layer || !ctx) {
+  (void)layer;
+  (void)ctx;
+}
+
+void destroy(dmcp_layer_t* layer) {
+  if (!layer) {
     return;
   }
 
-  auto* state = static_cast<orchestrator_layer_state*>(layer->state);
-  if (state && state->layer) {
-    state->layer->tick(ctx);
-  }
+  delete layer;
 }
 
 static const dmcp_layer_vtable_t ORCHESTRATOR_LAYER_VTABLE = {
-    .name             = layer_name,
-    .description      = layer_description,
-    .tool_count       = tool_count,
-    .tools            = tools,
-    .register_methods = register_methods,
-    .register_routes  = register_routes,
-    .tick             = tick,
+    layer_name,       layer_description, tool_count, tools,
+    register_methods, register_routes,   tick,       destroy,
 };
 
 }  // namespace
 
-orchestrator_layer::orchestrator_layer() = default;
-
-orchestrator_layer::~orchestrator_layer() = default;
-
-const char* orchestrator_layer::layer_name() { return "orchestrator"; }
-
-const char* orchestrator_layer::layer_description() {
-  return "Game orchestration tools: spawn entities, change levels, give items, manage player state";
-}
-
-size_t orchestrator_layer::tool_count() {
-  return sizeof(ORCHESTRATOR_TOOLS) / sizeof(ORCHESTRATOR_TOOLS[0]);
-}
-
-const char** orchestrator_layer::tools() { return ORCHESTRATOR_TOOLS; }
-
-bool orchestrator_layer::register_methods(mcp_server_t* server, void* user_data) {
-  if (!server || !user_data) {
-    return false;
-  }
-
-  m_ctx = static_cast<context*>(user_data);
-
-  auto register_method = [&](const char* method_name, mcp_method_handler_t handler) {
-    mcp_result_t result = mcp_server_method_register(server, method_name, handler, m_ctx);
-    if (result.code != MCP_RESULT_CODE_OK) {
-      dmcp_log(m_ctx, MCP_LOG_ERROR, "Failed to register method %s: %s", method_name,
-               result.message ? result.message : "unknown error");
-      return false;
-    }
-    return true;
-  };
-
-  register_method(DMCP_TOOL_GET_STATE, dmcp::handle_method_get_state_section);
-  register_method(DMCP_TOOL_GET_SCREENSHOT, dmcp::handle_method_get_screenshot);
-
-  const char* command_tools[] = {
-      DMCP_TOOL_SPAWN_ENTITY,      DMCP_TOOL_CHANGE_LEVEL,    DMCP_TOOL_GIVE_ITEM,
-      DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_TOOL_TELEPORT_PLAYER, DMCP_TOOL_EXECUTE_CONSOLE,
-      DMCP_TOOL_PAUSE_GAME,        DMCP_TOOL_DAMAGE_ENTITY,   DMCP_TOOL_KILL_ENTITY,
-  };
-
-  for (const char* method_name : command_tools) {
-    register_method(method_name, dmcp::handle_method_execute_command);
-  }
-
-  return true;
-}
-
-bool orchestrator_layer::register_routes(mcp_server_t* server, void* user_data) {
-  (void)server;
-  (void)user_data;
-  return true;
-}
-
-void orchestrator_layer::tick(dmcp_context_t* ctx) { (void)ctx; }
-
 dmcp_layer_t* create_orchestrator_layer() {
-  auto* cpp_layer = new (std::nothrow) orchestrator_layer();
-  if (!cpp_layer) {
-    return nullptr;
-  }
-
   dmcp_layer_t* layer = new (std::nothrow) dmcp_layer_t;
   if (!layer) {
-    delete cpp_layer;
     return nullptr;
   }
 
-  auto* state = new (std::nothrow) orchestrator_layer_state;
-  if (!state) {
-    delete cpp_layer;
-    delete layer;
-    return nullptr;
-  }
-
-  state->layer  = cpp_layer;
   layer->vtable = &ORCHESTRATOR_LAYER_VTABLE;
-  layer->state  = state;
+  layer->state  = nullptr;
 
   return layer;
 }
@@ -172,20 +132,6 @@ extern "C" {
 
 dmcp_layer_t* dmcp_orchestrator_layer_create(void) { return dmcp::create_orchestrator_layer(); }
 
-void dmcp_orchestrator_layer_destroy(dmcp_layer_t* layer) {
-  if (!layer) {
-    return;
-  }
-
-  if (layer->state) {
-    auto* state = static_cast<dmcp::orchestrator_layer_state*>(layer->state);
-    if (state->layer) {
-      delete state->layer;
-    }
-    delete state;
-  }
-
-  delete layer;
-}
+void dmcp_orchestrator_layer_destroy(dmcp_layer_t* layer) { dmcp::destroy(layer); }
 
 }  // extern "C"

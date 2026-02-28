@@ -18,6 +18,78 @@
 // Bring dmcp_log into scope for use inside extern "C" block
 using dmcp::dmcp_log;
 
+namespace {
+
+void destroy_layer_handle(dmcp_layer_t* layer) {
+  if (!layer) {
+    return;
+  }
+
+  if (layer->vtable && layer->vtable->destroy) {
+    layer->vtable->destroy(layer);
+    return;
+  }
+
+  delete layer;
+}
+
+using layer_ptr = std::unique_ptr<dmcp_layer_t, decltype(&destroy_layer_handle)>;
+
+bool register_layer(dmcp::context* ctx, layer_ptr layer, const char* expected_layer_name,
+                    bool enable_layer) {
+  if (!ctx || !ctx->layers) {
+    return false;
+  }
+
+  if (!layer) {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to create layer '%s'",
+             expected_layer_name ? expected_layer_name : "unknown");
+    return false;
+  }
+
+  const char* const layer_name =
+      (layer->vtable && layer->vtable->name) ? layer->vtable->name() : nullptr;
+  if (!layer_name || layer_name[0] == '\0') {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register unnamed layer");
+    return false;
+  }
+
+  if (!ctx->layers->register_layer(layer.get())) {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register layer '%s'", layer_name);
+    return false;
+  }
+
+  dmcp_layer_t* raw_layer = layer.release();
+  if (!enable_layer) {
+    dmcp_log(ctx, MCP_LOG_INFO, "Layer '%s' disabled by configuration", layer_name);
+    return true;
+  }
+
+  if (!ctx->layers->enable(layer_name)) {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to enable layer '%s'", layer_name);
+    return false;
+  }
+
+  if (raw_layer->vtable && raw_layer->vtable->register_methods &&
+      !raw_layer->vtable->register_methods(raw_layer, ctx->server, ctx)) {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register methods for layer '%s'", layer_name);
+    ctx->layers->disable(layer_name);
+    return false;
+  }
+
+  if (raw_layer->vtable && raw_layer->vtable->register_routes &&
+      !raw_layer->vtable->register_routes(raw_layer, ctx->server, ctx)) {
+    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register routes for layer '%s'", layer_name);
+    ctx->layers->disable(layer_name);
+    return false;
+  }
+
+  dmcp_log(ctx, MCP_LOG_INFO, "Layer '%s' enabled", layer_name);
+  return true;
+}
+
+}  // namespace
+
 extern "C" {
 
 dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
@@ -63,51 +135,10 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   ctx->layers = std::make_unique<dmcp::layer_registry>();
 
-  dmcp_layer_t* orchestrator_layer = dmcp_orchestrator_layer_create();
-  if (orchestrator_layer) {
-    ctx->layers->register_layer(orchestrator_layer);
-    if (ctx->config.layers.orchestrator) {
-      ctx->layers->enable("orchestrator");
-      if (!orchestrator_layer->vtable->register_methods(orchestrator_layer, ctx->server,
-                                                        ctx.get())) {
-        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register orchestrator layer methods");
-      }
-      if (!orchestrator_layer->vtable->register_routes(orchestrator_layer, ctx->server,
-                                                       ctx.get())) {
-        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register orchestrator layer routes");
-      }
-      dmcp_log(ctx.get(), MCP_LOG_INFO, "Orchestrator layer enabled");
-    }
-  }
-
-  dmcp_layer_t* input_layer = dmcp_input_layer_create();
-  if (input_layer) {
-    ctx->layers->register_layer(input_layer);
-    if (ctx->config.layers.input) {
-      ctx->layers->enable("input");
-      if (!input_layer->vtable->register_methods(input_layer, ctx->server, ctx.get())) {
-        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register input layer methods");
-      }
-      if (!input_layer->vtable->register_routes(input_layer, ctx->server, ctx.get())) {
-        dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register input layer routes");
-      }
-      dmcp_log(ctx.get(), MCP_LOG_INFO, "Input layer enabled");
-    }
-  }
-
-  mcp_result_t route_state_result = mcp_server_route_register(
-      ctx->server, "GET", "/game/state", dmcp::handle_route_game_state, ctx.get());
-  if (route_state_result.code != MCP_RESULT_CODE_OK) {
-    dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register route GET /game/state: %s",
-             route_state_result.message);
-  }
-
-  mcp_result_t route_screenshot_result = mcp_server_route_register(
-      ctx->server, "GET", "/game/screenshot", dmcp::handle_route_game_screenshot, ctx.get());
-  if (route_screenshot_result.code != MCP_RESULT_CODE_OK) {
-    dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register route GET /game/screenshot: %s",
-             route_screenshot_result.message);
-  }
+  register_layer(ctx.get(), layer_ptr(dmcp_orchestrator_layer_create(), &destroy_layer_handle),
+                 DMCP_LAYER_ORCHESTRATOR, ctx->config.layers.orchestrator);
+  register_layer(ctx.get(), layer_ptr(dmcp_input_layer_create(), &destroy_layer_handle),
+                 DMCP_LAYER_INPUT, ctx->config.layers.input);
 
   dmcp_log(ctx.get(), MCP_LOG_INFO, "DMCP context created (port=%u target_hz=%u screenshot=%s)",
            ctx->config.port, ctx->config.target_hz,
@@ -123,12 +154,9 @@ void dmcp_context_destroy(dmcp_context_t* ctx_handle) {
 
   dmcp_log(ctx, MCP_LOG_INFO, "DMCP context destroying");
 
-  if (ctx->layers) {
-    ctx->layers->destroy_all_layers();
-  }
-
   if (ctx->server) {
     mcp_server_destroy(ctx->server);
+    ctx->server = nullptr;
   }
 
   delete ctx;
