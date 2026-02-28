@@ -33,6 +33,11 @@ typedef struct {
     uint32_t height;
   } screenshot;
 
+  struct {
+    bool orchestrator;
+    bool input;
+  } layers;
+
   dmcp_snapshot_callback_t on_snapshot;
   dmcp_log_callback_t      on_log;
   void*                    user_data;
@@ -49,6 +54,8 @@ static inline dmcp_config_t dmcp_config_default(void) {
   cfg.screenshot.enable     = true;
   cfg.screenshot.width      = MCP_DEFAULT_SCREENSHOT_WIDTH;
   cfg.screenshot.height     = MCP_DEFAULT_SCREENSHOT_HEIGHT;
+  cfg.layers.orchestrator   = true;
+  cfg.layers.input          = true;
   cfg.on_snapshot           = NULL;
   cfg.on_log                = NULL;
   cfg.user_data             = NULL;
