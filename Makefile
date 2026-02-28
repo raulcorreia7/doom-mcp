@@ -251,7 +251,7 @@ CRISPY_SOURCE_DIR ?= crispy-doom
 CRISPY_KEEP_PATCH ?= 0
 
 .PHONY: crispy-doom crispy-doom-clean
-crispy-doom: dmcp submodules
+crispy-doom: submodules
 	@if [ ! -d "$(CRISPY_SOURCE_DIR)" ]; then \
 		echo "error: Crispy Doom source dir not found: $(CRISPY_SOURCE_DIR)"; \
 		exit 1; \

@@ -137,6 +137,7 @@ class DoomInstance:
         self._mcp_url = f"http://localhost:{self.config.port}/mcp"
         self._health_url = f"http://localhost:{self.config.port}/health"
         self._started = False
+        self._session_id: Optional[str] = None
 
     def stop(self) -> None:
         """Stop the Doom instance gracefully."""
@@ -154,6 +155,7 @@ class DoomInstance:
         finally:
             self._proc = None
             self._started = False
+            self._session_id = None
 
     def start(self) -> "DoomInstance":
         """Start the Doom instance and wait for it to be ready."""
@@ -229,13 +231,54 @@ class DoomInstance:
             return False
         return self._proc.poll() is None
 
+    def _init_mcp_session(self) -> None:
+        """Initialize MCP session with handshake."""
+        init_payload = {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {"name": "dmcp-e2e-test", "version": "0.6.0"},
+            },
+        }
+
+        resp = requests.post(
+            self._mcp_url,
+            json=init_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        if "error" in result:
+            raise RuntimeError(f"MCP initialize failed: {result['error']}")
+
+        self._session_id = result.get("result", {}).get("sessionId")
+        if not self._session_id:
+            raise RuntimeError("No sessionId in initialize response")
+
+        initialized_payload = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {"_sessionId": self._session_id},
+        }
+
+        requests.post(
+            self._mcp_url,
+            json=initialized_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+
     def _wait_for_ready(self, timeout: float) -> None:
         """Wait for server to be healthy and in-level."""
         time.sleep(1.0)
 
         deadline = time.time() + timeout
         last_error = "unknown startup error"
-        method_not_found_since: Optional[float] = None
 
         while time.time() < deadline:
             if not self._is_process_running():
@@ -244,34 +287,32 @@ class DoomInstance:
             try:
                 health = requests.get(self._health_url, timeout=2)
                 if health.status_code == 200:
+                    if not self._session_id:
+                        try:
+                            self._init_mcp_session()
+                        except (
+                            requests.RequestException,
+                            ValueError,
+                            RuntimeError,
+                        ) as exc:
+                            last_error = f"session init failed: {exc}"
+                            time.sleep(0.25)
+                            continue
+
                     try:
                         state = self._get_state_raw()
                     except RuntimeError as exc:
                         last_error = str(exc)
-
-                        if "Method not found" in last_error:
-                            if method_not_found_since is None:
-                                method_not_found_since = time.time()
-                            elif time.time() - method_not_found_since >= 5.0:
-                                raise RuntimeError(
-                                    "MCP methods were not registered after 5s"
-                                )
-                        else:
-                            method_not_found_since = None
-
                         time.sleep(0.25)
                         continue
 
                     if state.get("level", {}).get("gamestate") == "in_level":
                         return
 
-                    method_not_found_since = None
                     last_error = "server healthy but not yet in_level"
                 else:
-                    method_not_found_since = None
                     last_error = f"health returned {health.status_code}"
             except requests.RequestException as exc:
-                method_not_found_since = None
                 last_error = str(exc)
 
             time.sleep(0.25)
@@ -315,11 +356,14 @@ class DoomInstance:
             return {}
 
         def _call_tool(name: str, request_id: int) -> dict[str, Any]:
+            params: dict[str, Any] = {"name": name}
+            if self._session_id:
+                params["_sessionId"] = self._session_id
             payload = {
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "method": "tools/call",
-                "params": {"name": name},
+                "params": params,
             }
 
             resp = requests.post(

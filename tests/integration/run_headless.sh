@@ -257,12 +257,18 @@ else
 	fail "Initialize failed"
 fi
 
+SESSION_ID=$(echo "$INIT" | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4)
+if [ -z "$SESSION_ID" ]; then
+	fail "Failed to extract sessionId from initialize response"
+fi
+echo "Session ID: $SESSION_ID"
+
 # Test 4: Client initialized notification
 echo ""
 echo "Test 4: notifications/initialized"
 INIT_DONE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}')
+	-d "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
 pass "Initialized notification sent"
 if [ -n "$INIT_DONE" ]; then
 	printf '%s\n' "$INIT_DONE" | pretty_json
@@ -273,7 +279,7 @@ echo ""
 echo "Test 5: Tools list"
 TOOLS=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":3,"method":"tools/list"}')
+	-d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
 if echo "$TOOLS" | grep -q 'get_player'; then
 	pass "Tools list contains get_player"
 	printf '%s\n' "$TOOLS" | pretty_json
@@ -296,7 +302,7 @@ echo ""
 echo "Test 6: Get player state"
 STATE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_player"}}')
+	-d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_player\",\"_sessionId\":\"$SESSION_ID\"}}")
 if printf '%s\n' "$STATE" | game_state_has_player; then
 	pass "Player state contains player data"
 	printf '%s\n' "$STATE" | print_game_state_pretty
@@ -311,7 +317,7 @@ echo ""
 echo "Test 7: Direct JSON-RPC get_player"
 STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":5,"method":"get_player","params":{}}')
+	-d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"get_player\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
 if echo "$STATE_NATIVE" | grep -q '"result"'; then
 	pass "Direct method get_player is available"
 else
@@ -325,7 +331,7 @@ echo ""
 echo "Test 8: Direct JSON-RPC execute_command"
 COMMAND_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":6,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}')
+	-d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"execute_command\",\"params\":{\"type\":\"pause_game\",\"params\":{\"paused\":false},\"_sessionId\":\"$SESSION_ID\"}}")
 if echo "$COMMAND_NATIVE" | grep -q '"queued"'; then
 	pass "Direct method execute_command is available"
 else
