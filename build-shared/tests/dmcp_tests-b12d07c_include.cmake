@@ -1,5 +1,0 @@
-if(EXISTS "/home/rcorreia/projects/doom-mcp/build-shared/tests/dmcp_tests-b12d07c_tests.cmake")
-  include("/home/rcorreia/projects/doom-mcp/build-shared/tests/dmcp_tests-b12d07c_tests.cmake")
-else()
-  add_test(dmcp_tests_NOT_BUILT-b12d07c dmcp_tests_NOT_BUILT-b12d07c)
-endif()

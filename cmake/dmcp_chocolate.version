@@ -1,0 +1,7 @@
+{
+    global:
+        dmcp_chocolate_*;
+        dmcp_adapter_*;
+    local:
+        *;
+};

@@ -1,0 +1,6 @@
+{
+    global:
+        dmcp_zdoom_*;
+    local:
+        *;
+};
