@@ -197,7 +197,7 @@ target_include_directories(dmcp_core_objs
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
-target_link_libraries(dmcp_core_objs PUBLIC dmcp_generic_objs)
+target_link_libraries(dmcp_core_objs PUBLIC dmcp_generic_objs PRIVATE yyjson)
 
 target_compile_definitions(dmcp_core_objs
   PUBLIC
