@@ -16,17 +16,14 @@ jobs:
           - os: ubuntu-latest
             artifact_name: crispy-doom-linux
             asset_name: crispy-doom-linux.tar.gz
-            archive_cmd: tar -czf
             bin_path: crispy-doom/build/src/crispy-doom
           - os: macos-latest
             artifact_name: crispy-doom-macos
             asset_name: crispy-doom-macos.tar.gz
-            archive_cmd: tar -czf
             bin_path: crispy-doom/build/src/crispy-doom
           - os: windows-latest
             artifact_name: crispy-doom-windows
             asset_name: crispy-doom-windows.zip
-            archive_cmd: 7z a
             bin_path: crispy-doom/build/src/Release/crispy-doom.exe
 
     steps:
@@ -57,6 +54,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           vcpkg install sdl2 sdl2-net sdl2-mixer libpng libsamplerate --triplet x64-windows
+
+      - name: Download WAD
+        shell: bash
+        run: |
+          mkdir -p assets/wads
+          ./scripts/download_wad.sh assets/wads
 
       - name: Apply Patch
         shell: bash
@@ -108,19 +111,27 @@ jobs:
         shell: bash
         run: |
           mkdir -p release_package
+          
+          # Binary and libraries
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp crispy-doom/build/src/Release/crispy-doom.exe release_package/
             cp build/Release/dmcp_core.dll release_package/ 2>/dev/null || cp build/dmcp_core.dll release_package/ 2>/dev/null || true
             cp build/Release/dmcp_generic.dll release_package/ 2>/dev/null || cp build/dmcp_generic.dll release_package/ 2>/dev/null || true
             cp crispy-doom/build/src/Release/*.dll release_package/ || true
-            cp scripts/download_wad.bat release_package/
+            cp scripts/go.bat release_package/
           else
             cp crispy-doom/build/src/crispy-doom release_package/
             cp build/libdmcp_core.so release_package/ || true
             cp build/libdmcp_generic.so release_package/ || true
-            cp scripts/download_wad.sh release_package/
-            chmod +x release_package/download_wad.sh
+            cp scripts/go.sh release_package/
+            chmod +x release_package/go.sh
           fi
+          
+          # Bundled WAD
+          cp assets/wads/doom1.wad release_package/
+          
+          # README
+          cp scripts/RELEASE_README.md release_package/README.md
           
           cd ..
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
