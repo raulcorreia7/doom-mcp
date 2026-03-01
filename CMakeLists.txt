@@ -153,7 +153,7 @@ if(DMCP_BUILD_SHARED)
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME dmcp_generic
   )
-  if(NOT WIN32)
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_options(generic PRIVATE
       "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_generic.version"
     )
@@ -239,7 +239,7 @@ if(DMCP_BUILD_SHARED)
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME dmcp_core
   )
-  if(NOT WIN32)
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_options(core PRIVATE
       "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_core.version"
     )
