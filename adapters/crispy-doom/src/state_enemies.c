@@ -2,8 +2,8 @@
 // Enumerates and populates enemies from Crispy Doom's thinker list
 
 #include "dmcp_crispy.h"
-#include "enemy_types.h"
-#include "dmcp_mappings.h"
+#include "entity_kinds.h"
+#include "crispy_types.h"
 
 #include "doomdef.h"
 #include "doomstat.h"

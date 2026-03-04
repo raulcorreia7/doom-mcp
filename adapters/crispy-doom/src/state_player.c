@@ -2,8 +2,8 @@
 // Populates dmcp_player_t from Crispy Doom's player_t
 
 #include "dmcp_crispy.h"
-#include "enemy_types.h"
-#include "dmcp_mappings.h"
+#include "entity_kinds.h"
+#include "crispy_types.h"
 
 #include "d_player.h"
 #include "doomdef.h"

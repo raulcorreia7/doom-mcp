@@ -1,7 +1,7 @@
 // Command execution for Crispy Doom.
 
 #include "dmcp_crispy.h"
-#include "dmcp_mappings.h"
+#include "crispy_types.h"
 
 #include <limits.h>
 #include <math.h>

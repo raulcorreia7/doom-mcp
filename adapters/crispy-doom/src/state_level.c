@@ -2,7 +2,7 @@
 // Populates dmcp_level_t and dmcp_game_t from Crispy Doom globals
 
 #include "dmcp_crispy.h"
-#include "dmcp_mappings.h"
+#include "crispy_types.h"
 
 #include "d_player.h"
 #include "doomdef.h"
