@@ -217,7 +217,9 @@ set_target_properties(dmcp_core_objs PROPERTIES
 )
 
 if(DMCP_BUILD_SHARED)
-  target_compile_definitions(dmcp_core_objs PRIVATE DMCP_BUILDING)
+  # Core links generic_static into the same shared object; force direct
+  # symbol references instead of importing mcp symbols from dmcp_generic.dll.
+  target_compile_definitions(dmcp_core_objs PRIVATE DMCP_BUILDING MCP_STATIC)
 endif()
 
 dmcp_enable_warnings(dmcp_core_objs)
