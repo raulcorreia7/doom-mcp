@@ -22,8 +22,6 @@ extern fixed_t angleturn[3];
 #define DMCP_SHORT_MAX 32767
 #define DMCP_SHORT_MIN (-32768)
 
-static float dmcp_angle_to_degrees(angle_t angle) { return (float)angle * (360.0f / 65536.0f); }
-
 static signed char dmcp_clamp_to_schar(fixed_t value) {
   if (value > DMCP_SCHAR_MAX) return DMCP_SCHAR_MAX;
   if (value < DMCP_SCHAR_MIN) return DMCP_SCHAR_MIN;
@@ -156,6 +154,6 @@ void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx) {
   }
 
   // Process one input per tick to preserve current Crispy control semantics.
-  dmcp_adapter_process_input_queue(dmcp_crispy_get_context(ctx), ctx, crispy_execute_input_for_queue,
-                                   1);
+  dmcp_adapter_process_input_queue(dmcp_crispy_get_context(ctx), ctx,
+                                   crispy_execute_input_for_queue, 1);
 }
