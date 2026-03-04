@@ -28,7 +28,7 @@ endif
 # Help
 # ==============================================================================
 
-ENGINES := crispy chocolate
+ENGINES := crispy
 
 .PHONY: help
 help:
@@ -43,13 +43,14 @@ help:
 	@echo "  make clean        - Remove build directory"
 	@echo "  make distclean    - Remove build + cache"
 	@echo ""
-	@echo "Engine targets (ENGINE=crispy|chocolate):"
+	@echo "Engine targets (ENGINE=crispy):"
+	@echo "  make crispy-doom  - Build Crispy Doom adapter build"
 	@echo "  make engine       - Build engine with DMCP"
 	@echo "  make engine-test  - Run headless tests on engine"
 	@echo "  make engine-clean - Clean engine build"
 	@echo "  make engine-all   - Build all engines"
 	@echo ""
-	@echo "  Engines: $(ENGINES)"
+	@echo "  Engine: $(ENGINES)"
 	@echo "  Example: make engine ENGINE=crispy"
 	@echo ""
 	@echo "Test targets:"
@@ -257,11 +258,11 @@ compdb: configure
 CRISPY_BUILD_DIR ?= crispy-doom/build
 CRISPY_SOURCE_DIR ?= crispy-doom
 CRISPY_KEEP_PATCH ?= 0
-
 .PHONY: crispy-doom crispy-doom-clean
-crispy-doom: submodules
+crispy-doom:
 	@if [ ! -d "$(CRISPY_SOURCE_DIR)" ]; then \
 		echo "error: Crispy Doom source dir not found: $(CRISPY_SOURCE_DIR)"; \
+		echo "hint: run 'make submodules' first"; \
 		exit 1; \
 	fi
 	@JOBS=$(JOBS) DMCP_BUILD_DIR=$$(pwd)/$(BUILD_DIR) CRISPY_BUILD_DIR=$$(pwd)/$(CRISPY_BUILD_DIR) \
@@ -279,13 +280,11 @@ ENGINE ?= crispy
 .PHONY: engine engine-test engine-clean engine-all engine-update
 engine:
 ifndef ENGINE
-	$(error ENGINE is required. Use: make engine ENGINE=crispy|chocolate)
+	$(error ENGINE is required. Use: make engine ENGINE=crispy)
 endif
 	@case "$(ENGINE)" in \
 		crispy) \
 			$(MAKE) crispy-doom ;; \
-		chocolate) \
-			$(MAKE) chocolate-doom ;; \
 		*) \
 			echo "error: Unknown engine '$(ENGINE)'. Supported: $(ENGINES)"; \
 			exit 1 ;; \
@@ -293,19 +292,17 @@ endif
 
 engine-test:
 ifndef ENGINE
-	$(error ENGINE is required. Use: make engine-test ENGINE=crispy|chocolate)
+	$(error ENGINE is required. Use: make engine-test ENGINE=crispy)
 endif
 	@DOOM_ENGINE=$(ENGINE) $(MAKE) headless
 
 engine-clean:
 ifndef ENGINE
-	$(error ENGINE is required. Use: make engine-clean ENGINE=crispy|chocolate)
+	$(error ENGINE is required. Use: make engine-clean ENGINE=crispy)
 endif
 	@case "$(ENGINE)" in \
 		crispy) \
 			$(MAKE) crispy-doom-clean ;; \
-		chocolate) \
-			rm -rf chocolate-doom/build ;; \
 		*) \
 			echo "error: Unknown engine '$(ENGINE)'. Supported: $(ENGINES)"; \
 			exit 1 ;; \
@@ -319,13 +316,12 @@ engine-all:
 
 engine-update:
 ifndef ENGINE
-	$(error ENGINE is required. Use: make engine-update ENGINE=crispy VERSION=7.1.0)
+	$(error ENGINE is required. Use: make engine-update ENGINE=crispy VERSION=<tag-or-commit>)
 endif
 	@echo "Updating $(ENGINE) submodule..."
-	@cd $(ENGINE)-doom && git fetch origin && \
-		git checkout $${VERSION:-main} && \
-		git submodule update --init --recursive
-	@echo "Done. Don't forget to commit the submodule update."
+	@cd $(ENGINE)-doom && git fetch --tags origin && \
+		git switch --detach $${VERSION:-origin/main}
+	@echo "Done. Submodule is now detached at $${VERSION:-origin/main}."
 
 # ==============================================================================
 # Shortcuts

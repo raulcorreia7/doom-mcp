@@ -27,7 +27,7 @@ DMCP bridges Doom-family engines and AI assistants, enabling:
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   AI Agent      │────▶│  DMCP Server    │────▶│   Doom Engine   │
-│ (Claude/Cline)  │◀────│ (HTTP/SSE/MCP)  │◀────│ (Chocolate/etc) │
+│ (Claude/Cline)  │◀────│ (HTTP/SSE/MCP)  │◀────│  (Crispy/etc)   │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
@@ -66,7 +66,7 @@ curl http://localhost:6060/health
 - **Modular Architecture**: Separate layers for protocol, game logic, and engine integration
 - **Object Pooling**: Reuses snapshot objects to minimize allocations
 - **Thread-Safe**: Proper synchronization for concurrent access
-- **HTTP/SSE Transport**: Built-in server using uWebSockets
+- **HTTP/SSE Transport**: Built-in server using cpp-httplib
 - **JSON-RPC 2.0**: Full MCP protocol support (2025-11-25)
 
 ## Quick Start
@@ -92,9 +92,8 @@ cmake --build build-shared -j$(nproc)
 ```bash
 make help          # Show all targets
 make dmcp          # Build DMCP core (default)
-make submodules    # Init/update Chocolate + Crispy submodules
-make all           # Build DMCP + Chocolate + Crispy
-make chocolate-doom # Build Chocolate Doom with DMCP
+make submodules    # Init/update Crispy submodule
+make all           # Build DMCP + Crispy
 make crispy-doom   # Build Crispy Doom with DMCP
 make debug         # Build with sanitizers
 make test          # Run unit tests
@@ -114,7 +113,7 @@ make clean         # Remove build directory
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration test targets |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
-| `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
+| `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries (`.so`/`.dll`) |
 | `DMCP_INSTALL` | ON | Enable install rules for headers/libs |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
@@ -156,11 +155,8 @@ int main() {
 ### ZDoom Adapter (`adapters/zdoom/`)
 For GZDoom/ZDoom-based source ports.
 
-### Chocolate Doom Adapter (`adapters/chocolate-doom/`)
-For vanilla-accurate Chocolate Doom. Includes headless testing support.
-
-### Crispy Doom Support
-Crispy Doom can be built with the same DMCP adapter integration flow as Chocolate Doom.
+### Crispy Doom Adapter (`adapters/crispy-doom/`)
+For enhanced vanilla-accurate gameplay with headless testing support.
 Use `make crispy-doom` and `DOOM_ENGINE=crispy tests/integration/run_headless.sh`.
 
 If this is a fresh clone, run `make submodules` first.

@@ -8,6 +8,7 @@ option(DMCP_BUILD_ADAPTER_FAKE "Build fake adapter (smoke/tests)" ON)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 option(DMCP_BUILD_ADAPTER_CRISPY "Build Crispy Doom adapter" OFF)
 option(DMCP_BUILD_SHARED "Build shared libraries (.so/.dll)" OFF)
+option(DMCP_BUILD_SINGLE_DLL "Build single libdmcp artifact in addition to split libraries" ON)
 option(DMCP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 option(DMCP_USE_CCACHE "Use ccache for faster rebuilds" ON)
 option(DMCP_INSTALL "Install headers and CMake package" ON)
@@ -50,6 +51,7 @@ include(Sanitizers)
 
 set(MCP_GENERIC_SOURCES
   src/mcp/http_sse_transport.cpp
+  src/mcp/request_context.cpp
   src/mcp/server.cpp
 )
 
@@ -126,7 +128,7 @@ if(DMCP_BUILD_SHARED)
 endif()
 
 target_link_libraries(dmcp_generic_objs
-  PRIVATE yyjson uWebSockets
+  PRIVATE yyjson httplib::httplib
 )
 
 dmcp_enable_warnings(dmcp_generic_objs)
@@ -134,7 +136,7 @@ dmcp_enable_warnings(dmcp_generic_objs)
 if(DMCP_BUILD_SHARED)
   add_library(generic SHARED $<TARGET_OBJECTS:dmcp_generic_objs>)
   add_library(dmcp::generic ALIAS generic)
-  target_link_libraries(generic PRIVATE yyjson uWebSockets)
+  target_link_libraries(generic PRIVATE yyjson httplib::httplib)
   target_include_directories(generic
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -166,7 +168,7 @@ if(DMCP_BUILD_SHARED)
 endif()
 
 add_library(generic_static STATIC $<TARGET_OBJECTS:dmcp_generic_objs>)
-target_link_libraries(generic_static PRIVATE yyjson uWebSockets)
+target_link_libraries(generic_static PRIVATE yyjson httplib::httplib)
 target_include_directories(generic_static
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -283,6 +285,79 @@ if(NOT DMCP_BUILD_SHARED)
   add_library(dmcp::core ALIAS core_static)
 endif()
 
+if(DMCP_BUILD_SINGLE_DLL)
+  if(DMCP_BUILD_SHARED)
+    add_library(dmcp SHARED
+      $<TARGET_OBJECTS:dmcp_generic_objs>
+      $<TARGET_OBJECTS:dmcp_core_objs>
+    )
+    add_library(dmcp::single ALIAS dmcp)
+    target_link_libraries(dmcp PRIVATE yyjson httplib::httplib)
+    target_include_directories(dmcp
+      PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+      PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_compile_definitions(dmcp
+      PUBLIC
+        DMCP_USE_YYJSON
+        MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+      PRIVATE
+        MCP_BUILDING
+        DMCP_BUILDING
+    )
+    set_target_properties(dmcp PROPERTIES
+      CXX_VISIBILITY_PRESET hidden
+      VISIBILITY_INLINES_HIDDEN ON
+      POSITION_INDEPENDENT_CODE ON
+      OUTPUT_NAME dmcp
+    )
+    dmcp_enable_warnings(dmcp)
+  endif()
+
+  if(NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS)
+    add_library(dmcp_static STATIC
+      $<TARGET_OBJECTS:dmcp_generic_objs>
+      $<TARGET_OBJECTS:dmcp_core_objs>
+    )
+    if(NOT TARGET dmcp::single)
+      add_library(dmcp::single ALIAS dmcp_static)
+    endif()
+    target_link_libraries(dmcp_static PRIVATE yyjson httplib::httplib)
+    target_include_directories(dmcp_static
+      PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+      PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_compile_definitions(dmcp_static
+      PUBLIC
+        DMCP_USE_YYJSON
+        MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        MCP_STATIC
+        DMCP_STATIC
+    )
+    set_target_properties(dmcp_static PROPERTIES
+      OUTPUT_NAME dmcp
+      POSITION_INDEPENDENT_CODE ON
+    )
+    dmcp_enable_warnings(dmcp_static)
+  endif()
+endif()
+
 add_subdirectory(adapters/common)
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
@@ -314,9 +389,15 @@ endif()
 if(DMCP_BUILD_SHARED)
   dmcp_enable_sanitizers(generic)
   dmcp_enable_sanitizers(core)
+  if(TARGET dmcp)
+    dmcp_enable_sanitizers(dmcp)
+  endif()
 else()
   dmcp_enable_sanitizers(generic_static)
   dmcp_enable_sanitizers(core_static)
+  if(TARGET dmcp_static)
+    dmcp_enable_sanitizers(dmcp_static)
+  endif()
 endif()
 
 if(DMCP_ENABLE_SANITIZERS AND DMCP_BUILD_EXAMPLES AND NOT MSVC)
@@ -340,11 +421,25 @@ if(DMCP_INSTALL)
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
+    if(TARGET dmcp)
+      install(
+        TARGETS dmcp
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      )
+    endif()
   else()
     install(
       TARGETS generic_static core_static
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
+    if(TARGET dmcp_static)
+      install(
+        TARGETS dmcp_static
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      )
+    endif()
   endif()
 
   if(TARGET crispy)
@@ -380,6 +475,13 @@ if(DMCP_INSTALL)
       EXPORT dmcp-targets
       INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
+    if(TARGET dmcp)
+      install(
+        TARGETS dmcp
+        EXPORT dmcp-targets
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+      )
+    endif()
 
     if(TARGET zdoom)
       install(
@@ -436,6 +538,9 @@ endif()
 # For static builds, also export targets to build tree for consumers using find_package
 if(NOT DMCP_BUILD_SHARED)
   export(TARGETS generic_static core_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
+  if(TARGET dmcp_static)
+    export(TARGETS dmcp_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
+  endif()
   if(TARGET zdoom)
     export(TARGETS zdoom FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
   endif()
@@ -456,6 +561,7 @@ message(STATUS "  Fake Adapter: ${DMCP_BUILD_ADAPTER_FAKE}")
 message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
 message(STATUS "  Crispy Adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
 message(STATUS "  Shared libs: ${DMCP_BUILD_SHARED}")
+message(STATUS "  Single libdmcp: ${DMCP_BUILD_SINGLE_DLL}")
 message(STATUS "  Install package: ${DMCP_INSTALL}")
 message(STATUS "  Sanitizers: ${DMCP_ENABLE_SANITIZERS}")
 message(STATUS "")

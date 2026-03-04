@@ -71,14 +71,14 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 | Lifecycle state MUST be per-session | ✅ | `Session` struct with `initialize_completed`, `initialized_notification_received` | `test_mcp_protocol.cpp:Multiple sessions` |
 | Multiple clients can initialize independently | ✅ | Each `initialize` creates new `Session` with unique `sessionId` | `test_mcp_protocol.cpp:Multiple sessions` |
 | Session ID returned in initialize response | ✅ | `result.sessionId` in `src/mcp/server.cpp` | `test_mcp_protocol.cpp:Valid initialize` |
-| Session ID required for subsequent requests | ✅ | `_sessionId` param required in request params | `test_mcp_protocol.cpp:Lifecycle gating` |
+| Session ID required for subsequent requests | ✅ | `MCP-Session-Id` request header required | `test_mcp_protocol.cpp:Lifecycle gating` |
 | Invalid/expired session returns ServerNotInitialized | ✅ | `GetOrCreateSession` returns nullptr for unknown session | `test_mcp_protocol.cpp:Request with invalid session` |
 
 **Implementation (2026-02-24)**: Per-session lifecycle implemented via:
 - `Session` struct tracks `id`, `created_at`, `initialize_completed`, `initialized_notification_received`
 - `initialize` creates session, returns `sessionId` in response
-- Clients must include `_sessionId` in request `params` for authenticated methods
-- `notifications/initialized` requires `_sessionId` to mark correct session as initialized
+- Clients must include `MCP-Session-Id` header for authenticated methods
+- `notifications/initialized` requires `MCP-Session-Id` to mark correct session as initialized
 - Ping and all registered methods require valid, initialized session
 
 ---
@@ -141,7 +141,7 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
 | Unknown endpoint → generic error | ✅ | `src/mcp/http_sse_transport.cpp:35-36` | `run_headless.sh:360-372` |
-| No implementation details in errors | ✅ | No `uWebSockets` in responses | `run_headless.sh:364-366` |
+| No implementation details in errors | ✅ | No transport internals in responses | `run_headless.sh:364-366` |
 
 ---
 

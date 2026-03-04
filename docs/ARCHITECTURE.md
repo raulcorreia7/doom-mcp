@@ -42,7 +42,7 @@ Each layer only depends on layers below it. No circular dependencies.
 - Method registration and dispatch
 - Session management
 
-**Dependencies**: yyjson, uWebSockets (no DMCP dependencies)
+**Dependencies**: yyjson, cpp-httplib (no DMCP dependencies)
 
 #### Doom MCP Layer
 
@@ -138,7 +138,7 @@ Each layer only depends on layers below it. No circular dependencies.
 │  include/mcp/generic/server.h    - Generic server interface                  │
 │  include/mcp/generic/transport.h - Abstract transport (SSE)                 │
 │  src/mcp/server.cpp              - JSON-RPC + method dispatch               │
-│  src/mcp/http_sse_transport.cpp  - HTTP + SSE transport (uWebSockets)       │
+│  src/mcp/http_sse_transport.cpp  - HTTP + SSE transport (cpp-httplib)       │
 │  - No game-specific knowledge                                                │
 │  - Pure MCP protocol implementation                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -206,10 +206,10 @@ dmcp_zdoom_t*        dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
 mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 void                 dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 
-// adapters/chocolate-doom/dmcp_adapter.h
-dmcp_chocolate_t* dmcp_chocolate_create(const dmcp_chocolate_config_t* cfg);
-void              dmcp_chocolate_tick(dmcp_chocolate_t* ctx);
-void              dmcp_chocolate_destroy(dmcp_chocolate_t* ctx);
+// adapters/crispy-doom/include/dmcp_adapter.h
+dmcp_engine_t* dmcp_engine_create(const dmcp_engine_config_t* cfg);
+void           dmcp_engine_tick(dmcp_engine_t* ctx);
+void           dmcp_engine_destroy(dmcp_engine_t* ctx);
 ```
 
 ## File Structure
@@ -324,17 +324,15 @@ doom-mcp/
 │   │   ├── adapter.cpp         # ZDoom integration
 │   │   └── commands.cpp        # ZDoom command handlers
 │   │
-│   └── chocolate-doom/
-│       ├── dmcp_adapter.h      # Public adapter header
-│       ├── dmcp_adapter.c      # Lifecycle: create/destroy/tick
-│       ├── dmcp_ascii.h        # ASCII screenshot API
-│       ├── dmcp_ascii.c        # ASCII capture implementation
-│       ├── dmcp_mappings.h     # Type conversion utilities
-│       ├── enemy_types.h       # Enemy lookup table
-│       ├── state_player.c      # Player state extraction
-│       ├── state_level.c       # Level/game state extraction
-│       ├── state_enemies.c     # Enemy + interactive entity enumeration
-│       └── commands.c          # Command execution
+│   └── crispy-doom/
+│       ├── include/dmcp_adapter.h  # Public adapter header
+│       ├── src/dmcp_adapter.c      # Lifecycle: create/destroy/tick
+│       ├── src/dmcp_ascii.c        # ASCII capture implementation
+│       ├── src/state_player.c      # Player state extraction
+│       ├── src/state_level.c       # Level/game state extraction
+│       ├── src/state_enemies.c     # Enemy + interactive entity enumeration
+│       ├── src/input.c             # Tick-level input bridge
+│       └── src/commands.c          # Command execution
 │
 ├── examples/
 │   ├── README.md
@@ -351,7 +349,6 @@ doom-mcp/
 │   ├── integration/            # Integration tests
 │   └── e2e/                    # E2E tests (pytest)
 │
-├── chocolate-doom/             # Chocolate Doom submodule
 ├── crispy-doom/                # Crispy Doom submodule
 ├── CMakeLists.txt
 ├── Makefile
@@ -363,7 +360,7 @@ doom-mcp/
 
 | Target | Type | Dependencies | Purpose |
 |--------|------|--------------|---------|
-| `dmcp::generic` | STATIC/SHARED | yyjson, uWebSockets | Generic MCP protocol |
+| `dmcp::generic` | STATIC/SHARED | yyjson, cpp-httplib | Generic MCP protocol |
 | `dmcp::core` | STATIC/SHARED | dmcp::generic | Doom-specific MCP |
 | `dmcp::crispy` | STATIC/SHARED | dmcp::core | Crispy Doom adapter |
 | `dmcp::zdoom` | STATIC | dmcp::core | ZDoom adapter |

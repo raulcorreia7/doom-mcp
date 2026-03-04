@@ -74,7 +74,6 @@ dmcp_context_destroy(ctx);
 
 | Adapter | Engine | Status |
 |---------|--------|--------|
-| Chocolate Doom | Vanilla-accurate port | Stable |
 | Crispy Doom | Enhanced vanilla port | Stable |
 | ZDoom | GZDoom/ZDoom family | Beta |
 
@@ -135,7 +134,7 @@ dmcp_context_destroy(ctx);
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
-| `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate adapter |
+| `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy adapter |
 
 ## Security & Safety
 

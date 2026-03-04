@@ -1,7 +1,8 @@
 """E2E tests for enemy state validation."""
 
 import pytest
-import requests
+
+from .mcp_rpc import call_rpc
 
 ENEMY_REQUIRED_FIELDS = [
     "id",
@@ -16,14 +17,7 @@ ENEMY_REQUIRED_FIELDS = [
 
 
 def _call_rpc(port: int, method: str, params: dict, request_id: int) -> dict:
-    response = requests.post(
-        f"http://localhost:{port}/mcp",
-        json={"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-    )
-    response.raise_for_status()
-    return response.json()
+    return call_rpc(port, method, params, request_id=request_id)
 
 
 def _get_enemy_section(port: int, status: str, request_id: int) -> dict:

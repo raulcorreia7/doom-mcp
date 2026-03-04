@@ -1,5 +1,6 @@
 #include "mcp/generic/server.h"
 
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -18,6 +19,7 @@
 #include "json/json.hpp"
 #include "mcp/generic/constants.h"
 #include "mcp/generic/transport.h"
+#include "mcp/request_context.hpp"
 
 namespace mcp {
 
@@ -46,8 +48,10 @@ struct RouteHandler {
 
 struct Session {
   std::string                           id;
+  std::string                           protocol_version;
   std::chrono::steady_clock::time_point created_at;
   bool                                  initialize_completed{false};
+  bool                                  requires_initialized_notification{true};
   bool                                  initialized_notification_received{false};
 };
 
@@ -113,8 +117,13 @@ static Session* CreateSession(Server* server, std::string& out_session_id) {
 }
 
 static std::string ExtractSessionId(const Value& params) {
-  if (params && params.is_object() && params.has_member("_sessionId")) {
-    Value sid = params["_sessionId"];
+  const auto& request_meta = request_context::current();
+  if (!request_meta.session_id.empty()) {
+    return request_meta.session_id;
+  }
+
+  if (params && params.is_object() && params.has_member("sessionId")) {
+    Value sid = params["sessionId"];
     if (sid.is_string()) {
       return std::string(sid.get_string(""));
     }
@@ -358,8 +367,20 @@ static std::string BuildJsonRpcNotification(std::string_view method, std::string
   return notif_doc.dump(false);
 }
 
+static constexpr std::array<std::string_view, 4> kSupportedProtocolVersions = {
+    MCP_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05"};
+
 static bool IsSupportedProtocolVersion(std::string_view requested_version) {
-  return requested_version == MCP_PROTOCOL_VERSION;
+  for (std::string_view version : kSupportedProtocolVersions) {
+    if (requested_version == version) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool RequiresInitializedNotification(std::string_view protocol_version) {
+  return protocol_version == MCP_PROTOCOL_VERSION;
 }
 
 static std::string BuildUnsupportedProtocolData(std::string_view requested_version) {
@@ -368,7 +389,9 @@ static std::string BuildUnsupportedProtocolData(std::string_view requested_versi
 
   Builder supported;
   supported.start_array();
-  supported.push(MCP_PROTOCOL_VERSION);
+  for (std::string_view version : kSupportedProtocolVersions) {
+    supported.push(version);
+  }
   data.add("supported", std::move(supported));
   data.add("requested", requested_version);
   return data.finish();
@@ -382,6 +405,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
                              size_t response_size, int* http_status) {
   *http_status = 200;
   ServerLog(server, MCP_LOG_DEBUG, "HTTP POST %s", MCP_ENDPOINT_MCP);
+  request_context::set_response_protocol_version(MCP_PROTOCOL_VERSION);
 
   Document doc;
   if (!doc.parse(body ? body : "")) {
@@ -499,7 +523,14 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     }
 
     Value protocol_version = params["protocolVersion"];
-    if (!protocol_version.is_string()) {
+    std::string requested_version;
+    if (protocol_version.is_string()) {
+      requested_version = std::string(protocol_version.get_string(""));
+    } else {
+      requested_version = request_context::current().protocol_version;
+    }
+
+    if (requested_version.empty()) {
       std::string resp =
           BuildJsonRpcError(id_json, -32602, "initialize.params.protocolVersion is required");
       if (resp.size() >= response_size) {
@@ -511,7 +542,6 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return true;
     }
 
-    const std::string requested_version = std::string(protocol_version.get_string(""));
     if (!IsSupportedProtocolVersion(requested_version)) {
       std::string resp = BuildJsonRpcError(id_json, -32602, "Unsupported protocol version",
                                            BuildUnsupportedProtocolData(requested_version));
@@ -549,12 +579,19 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     }
 
     std::string session_id;
-    Session*    session           = CreateSession(server, session_id);
-    session->initialize_completed = true;
+    Session*    session                                 = CreateSession(server, session_id);
+    session->initialize_completed                       = true;
+    session->protocol_version                           = requested_version;
+    session->requires_initialized_notification          =
+        RequiresInitializedNotification(session->protocol_version);
+    session->initialized_notification_received = !session->requires_initialized_notification;
+
+    request_context::set_response_protocol_version(session->protocol_version);
+    request_context::set_response_session_id(session_id);
 
     Builder b;
     b.start_object();
-    b.add("protocolVersion", MCP_PROTOCOL_VERSION);
+    b.add("protocolVersion", session->protocol_version);
 
     Builder caps;
     caps.start_object();
@@ -608,6 +645,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return true;
     }
 
+    request_context::set_response_protocol_version(session->protocol_version);
     session->initialized_notification_received = true;
 
     if (is_notification) {
@@ -628,7 +666,9 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   std::string session_id = ExtractSessionId(req["params"]);
   Session*    session    = session_id.empty() ? nullptr : GetOrCreateSession(server, session_id);
 
-  if (!session || !session->initialize_completed || !session->initialized_notification_received) {
+  if (!session || !session->initialize_completed ||
+      (session->requires_initialized_notification &&
+       !session->initialized_notification_received)) {
     ServerLog(server, MCP_LOG_WARN, "Request before initialization complete: method=%s session=%s",
               method.c_str(), session_id.c_str());
 
@@ -651,6 +691,8 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     server->requests_failed++;
     return true;
   }
+
+  request_context::set_response_protocol_version(session->protocol_version);
 
   if (method == "ping") {
     ServerLog(server, MCP_LOG_DEBUG, "MCP ping request received");

@@ -55,7 +55,7 @@ Refactor DMCP into a clean breaking-change release with full MCP spec compliance
   - Objective: Move initialize/initialized state tracking from server-global to per-client/session scope to avoid cross-client state leakage.
   - Files: `src/mcp/server.cpp`, `src/mcp/http_sse_transport.cpp`, `include/mcp/generic/transport.h`, related tests.
   - Done when: Multiple clients can initialize independently without affecting each other, covered by regression tests.
-  - Notes: Implemented per-session lifecycle via `Session` struct. `initialize` returns `sessionId` which must be included in subsequent requests via `_sessionId` param. Added `test_mcp_protocol.cpp:Multiple sessions` test. Removed magic values, used `PRIx64` for portable printf.
+  - Notes: Implemented per-session lifecycle via `Session` struct. `initialize` returns `sessionId` which must be included in subsequent requests via `MCP-Session-Id` header. Added `test_mcp_protocol.cpp:Multiple sessions` test. Removed magic values, used `PRIx64` for portable printf.
 
 - [x] Task 4: Complete stream transport compliance behavior (2026-02-24)
   - Objective: Align SSE/stream behavior to spec expectations (accept headers, message framing, event naming, and explicit behavior for unsupported flows).

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Target names changed: `dmcp::dmcp_generic` → `dmcp::generic`, `dmcp::dmcp_core` → `dmcp::core`
 - Library output names: `libdmcp_generic.so`/`libdmcp_core.so` (previously `libdmcp_dmcp_generic.so`)
 - Protocol constants consolidated: raw string literals replaced with centralized constants in `include/dmcp/doom/protocol.h`
-- MCP lifecycle is now per-session (not server-global) - `initialize` returns `sessionId` which must be included in subsequent requests via `_sessionId` param
+- MCP lifecycle is now per-session (not server-global) - `initialize` returns `sessionId` which must be included in subsequent requests via `MCP-Session-Id` HTTP header
 - Removed backwards-compatibility aliases and deprecated constant names
 
 ### Added
@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - SSE implementation aligned with MCP spec (Accept header, Content-Type, Cache-Control headers)
-- Unknown endpoint responses no longer leak uWebSockets implementation details
+- Unknown endpoint responses no longer leak transport implementation details
 
 ### Changed
 - Object library pattern for shared/static builds

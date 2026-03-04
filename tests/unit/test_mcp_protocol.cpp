@@ -1,11 +1,12 @@
 #include <arpa/inet.h>
-#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 
 #include "mcp/generic/constants.h"
 #include "mcp/generic/protocol.h"
@@ -13,11 +14,31 @@
 #include "mcp/json/json.hpp"
 #include "test_utils.hpp"
 
-namespace {
-std::atomic<uint16_t> g_base_port{9000};
-}
+static uint16_t GetUniquePort() {
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock < 0) {
+    return 0;
+  }
 
-static uint16_t GetUniquePort() { return g_base_port.fetch_add(1); }
+  sockaddr_in addr{};
+  addr.sin_family      = AF_INET;
+  addr.sin_port        = htons(0);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+  if (bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+    close(sock);
+    return 0;
+  }
+
+  socklen_t len = sizeof(addr);
+  if (getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len) < 0) {
+    close(sock);
+    return 0;
+  }
+
+  close(sock);
+  return ntohs(addr.sin_port);
+}
 
 static bool WaitForServer(mcp_server_t* server, uint16_t, int timeout_ms = 2000) {
   auto start = std::chrono::steady_clock::now();
@@ -37,7 +58,10 @@ struct HttpResponse {
   std::string body;
 };
 
-static HttpResponse HttpPost(uint16_t port, const char* path, const char* body) {
+using HttpHeaders = std::vector<std::pair<std::string, std::string>>;
+
+static HttpResponse HttpPost(uint16_t port, const char* path, const char* body,
+                             const HttpHeaders& headers = {}) {
   HttpResponse resp;
 
   int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -60,6 +84,13 @@ static HttpResponse HttpPost(uint16_t port, const char* path, const char* body) 
   request += std::to_string(port);
   request += "\r\n";
   request += "Content-Type: application/json\r\n";
+  request += "Accept: application/json\r\n";
+  for (const auto& header : headers) {
+    request += header.first;
+    request += ": ";
+    request += header.second;
+    request += "\r\n";
+  }
   request += "Content-Length: ";
   request += std::to_string(std::strlen(body));
   request += "\r\n";
@@ -91,6 +122,10 @@ static HttpResponse HttpPost(uint16_t port, const char* path, const char* body) 
   return resp;
 }
 
+static HttpHeaders SessionHeaders(const std::string& session_id) {
+  return {{"MCP-Session-Id", session_id}, {"MCP-Protocol-Version", MCP_PROTOCOL_VERSION}};
+}
+
 static std::string ExtractSessionId(const std::string& json_body) {
   mcp::json::Document doc;
   if (!doc.parse(json_body)) return "";
@@ -119,10 +154,8 @@ static SessionContext PerformFullLifecycle(uint16_t port) {
 
   ctx.session_id = ExtractSessionId(init.body);
 
-  std::string init_done =
-      R"({"jsonrpc":"2.0","method":"notifications/initialized","params":{"_sessionId":")" +
-      ctx.session_id + R"("}})";
-  HttpPost(port, MCP_ENDPOINT_MCP, init_done.c_str());
+  const std::string init_done = R"({"jsonrpc":"2.0","method":"notifications/initialized"})";
+  HttpPost(port, MCP_ENDPOINT_MCP, init_done.c_str(), SessionHeaders(ctx.session_id));
 
   return ctx;
 }
@@ -339,9 +372,9 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   }
 
   SECTION("Request with invalid session returns ServerNotInitialized") {
-    HttpResponse resp = HttpPost(
-        port, MCP_ENDPOINT_MCP,
-        R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_sessionId":"invalid123"}})");
+    HttpResponse resp =
+        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})",
+                 SessionHeaders("invalid123"));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -359,9 +392,8 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
     std::string sid = ExtractSessionId(init.body);
     REQUIRE_FALSE(sid.empty());
 
-    std::string req =
-        R"({"jsonrpc":"2.0","id":2,"method":"ping","params":{"_sessionId":")" + sid + R"("}})";
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str());
+    std::string req = R"({"jsonrpc":"2.0","id":2,"method":"ping"})";
+    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(sid));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -374,9 +406,8 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   SECTION("Full lifecycle allows requests") {
     SessionContext ctx = PerformFullLifecycle(port);
 
-    std::string req = R"({"jsonrpc":"2.0","id":3,"method":"ping","params":{"_sessionId":")" +
-                      ctx.session_id + R"("}})";
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str());
+    std::string req  = R"({"jsonrpc":"2.0","id":3,"method":"ping"})";
+    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -411,10 +442,8 @@ TEST_CASE("MCP Protocol: Method not found", "[protocol][method]") {
   SessionContext ctx = PerformFullLifecycle(port);
 
   SECTION("Unknown method returns Method not found") {
-    std::string req =
-        R"({"jsonrpc":"2.0","id":2,"method":"unknown_method","params":{"_sessionId":")" +
-        ctx.session_id + R"("}})";
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str());
+    std::string req = R"({"jsonrpc":"2.0","id":2,"method":"unknown_method"})";
+    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -438,9 +467,8 @@ TEST_CASE("MCP Protocol: Ping method", "[protocol][ping]") {
   SessionContext ctx = PerformFullLifecycle(port);
 
   SECTION("Ping returns empty result") {
-    std::string req = R"({"jsonrpc":"2.0","id":2,"method":"ping","params":{"_sessionId":")" +
-                      ctx.session_id + R"("}})";
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str());
+    std::string req  = R"({"jsonrpc":"2.0","id":2,"method":"ping"})";
+    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -474,13 +502,11 @@ TEST_CASE("MCP Protocol: Multiple sessions", "[protocol][session]") {
     REQUIRE_FALSE(ctx2.session_id.empty());
     REQUIRE(ctx1.session_id != ctx2.session_id);
 
-    std::string req1 = R"({"jsonrpc":"2.0","id":10,"method":"ping","params":{"_sessionId":")" +
-                       ctx1.session_id + R"("}})";
-    std::string req2 = R"({"jsonrpc":"2.0","id":11,"method":"ping","params":{"_sessionId":")" +
-                       ctx2.session_id + R"("}})";
+    std::string req1 = R"({"jsonrpc":"2.0","id":10,"method":"ping"})";
+    std::string req2 = R"({"jsonrpc":"2.0","id":11,"method":"ping"})";
 
-    HttpResponse resp1 = HttpPost(port, MCP_ENDPOINT_MCP, req1.c_str());
-    HttpResponse resp2 = HttpPost(port, MCP_ENDPOINT_MCP, req2.c_str());
+    HttpResponse resp1 = HttpPost(port, MCP_ENDPOINT_MCP, req1.c_str(), SessionHeaders(ctx1.session_id));
+    HttpResponse resp2 = HttpPost(port, MCP_ENDPOINT_MCP, req2.c_str(), SessionHeaders(ctx2.session_id));
 
     mcp::json::Document doc1, doc2;
     REQUIRE(doc1.parse(resp1.body));

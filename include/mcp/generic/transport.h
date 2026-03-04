@@ -10,8 +10,8 @@ extern "C" {
 // ============================================================================
 // Transport Abstraction
 //
-// The transport layer handles the low-level HTTP/WebSocket communication.
-// This allows swapping between different implementations (uWebSockets, libuv,
+// The transport layer handles low-level HTTP/SSE communication.
+// This allows swapping between different implementations (cpp-httplib, libuv,
 // etc.)
 // ============================================================================
 
@@ -99,7 +99,7 @@ typedef struct {
  *
  * Defines the interface that all transport implementations must provide.
  * This allows swapping between different HTTP/SSE implementations
- * (uWebSockets, libuv, ASIO, etc.) without changing server code.
+ * (cpp-httplib, libuv, ASIO, etc.) without changing server code.
  *
  * @note This is a function pointer table (vtable pattern)
  * @note All implementations must provide all functions
@@ -110,7 +110,7 @@ typedef struct {
   /**
    * @brief Transport name
    *
-   * Human-readable name for logging and debugging (e.g., "sse-uws").
+   * Human-readable name for logging and debugging (e.g., "sse-httplib").
    */
   const char* name;
 
@@ -193,11 +193,11 @@ typedef struct {
 
 } mcp_transport_interface_t;
 
-// SSE transport over HTTP (uWebSockets implementation)
+// SSE transport over HTTP (built-in implementation)
 /**
- * @brief SSE transport over HTTP (uWebSockets implementation)
+ * @brief SSE transport over HTTP (built-in implementation)
  *
- * Default transport implementation using uWebSockets library for
+ * Default transport implementation using cpp-httplib for
  * HTTP and Server-Sent Events (SSE). This is the built-in
  * transport used by default server configuration.
  *

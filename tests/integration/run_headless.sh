@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run headless Doom engine with DMCP for e2e testing
-# Supports: chocolate-doom, crispy-doom
+# Supports: crispy-doom
 
 set -e
 
@@ -13,8 +13,8 @@ DOOM_BIN=""
 LOG_FILE="$SCRIPT_DIR/headless.log"
 DMCP_PORT="${DMCP_PORT:-6060}"
 MAX_START_ATTEMPTS="${DMCP_START_ATTEMPTS:-5}"
-DOOM_ENGINE="${DOOM_ENGINE:-chocolate}"
-ENGINE_NAME=""
+DOOM_ENGINE="${DOOM_ENGINE:-crispy}"
+ENGINE_NAME="Crispy Doom"
 DOOM_PID=""
 
 # Colors
@@ -39,21 +39,12 @@ cleanup() {
 
 trap cleanup EXIT
 
-case "$DOOM_ENGINE" in
-chocolate)
-	ENGINE_NAME="Chocolate Doom"
-	BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/chocolate-doom/build}"
-	DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/chocolate-doom}"
-	;;
-crispy)
-	ENGINE_NAME="Crispy Doom"
-	BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
-	DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/crispy-doom}"
-	;;
-*)
-	fail "Unsupported DOOM_ENGINE '$DOOM_ENGINE' (use 'chocolate' or 'crispy')"
-	;;
-esac
+if [ "$DOOM_ENGINE" != "crispy" ]; then
+	fail "Unsupported DOOM_ENGINE '$DOOM_ENGINE' (use 'crispy')"
+fi
+
+BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
+DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/crispy-doom}"
 
 pretty_json() {
 	if command -v python3 >/dev/null 2>&1; then
@@ -144,13 +135,8 @@ if [ ! -f "$DOOM_BIN" ]; then
 	warn "$ENGINE_NAME not built yet"
 	echo ""
 	echo "To build $ENGINE_NAME with DMCP:"
-	if [ "$DOOM_ENGINE" = "crispy" ]; then
-		echo "  1. make submodules"
-		echo "  2. ./tests/integration/build_crispy_doom.sh"
-	else
-		echo "  1. make submodules"
-		echo "  2. make chocolate-doom"
-	fi
+	echo "  1. make submodules"
+	echo "  2. ./tests/integration/build_crispy_doom.sh"
 	exit 1
 fi
 
@@ -233,7 +219,8 @@ echo ""
 echo "Test 2: MCP Initialize rejects unsupported protocol"
 INIT_UNSUPPORTED=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
+	-H "MCP-Protocol-Version: 2024-01-01" \
+	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-01-01","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
 if echo "$INIT_UNSUPPORTED" | grep -q 'Unsupported protocol version'; then
 	pass "Unsupported protocol version is rejected"
 else
@@ -247,6 +234,7 @@ echo ""
 echo "Test 3: MCP Initialize"
 INIT=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
 	-d '{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
 if echo "$INIT" | grep -q '"result"'; then
 	pass "Initialize succeeded"
@@ -268,7 +256,9 @@ echo ""
 echo "Test 4: notifications/initialized"
 INIT_DONE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
+	-H "MCP-Session-Id: $SESSION_ID" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
+	-d "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}")
 pass "Initialized notification sent"
 if [ -n "$INIT_DONE" ]; then
 	printf '%s\n' "$INIT_DONE" | pretty_json
@@ -279,7 +269,9 @@ echo ""
 echo "Test 5: Tools list"
 TOOLS=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
+	-H "MCP-Session-Id: $SESSION_ID" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
+	-d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\"}")
 if echo "$TOOLS" | grep -q 'get_player'; then
 	pass "Tools list contains get_player"
 	printf '%s\n' "$TOOLS" | pretty_json
@@ -302,7 +294,9 @@ echo ""
 echo "Test 6: Get player state"
 STATE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_player\",\"_sessionId\":\"$SESSION_ID\"}}")
+	-H "MCP-Session-Id: $SESSION_ID" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
+	-d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_player\"}}")
 if printf '%s\n' "$STATE" | game_state_has_player; then
 	pass "Player state contains player data"
 	printf '%s\n' "$STATE" | print_game_state_pretty
@@ -317,7 +311,9 @@ echo ""
 echo "Test 7: Direct JSON-RPC get_player"
 STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"get_player\",\"params\":{\"_sessionId\":\"$SESSION_ID\"}}")
+	-H "MCP-Session-Id: $SESSION_ID" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
+	-d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"get_player\"}")
 if echo "$STATE_NATIVE" | grep -q '"result"'; then
 	pass "Direct method get_player is available"
 else
@@ -331,7 +327,9 @@ echo ""
 echo "Test 8: Direct JSON-RPC execute_command"
 COMMAND_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
 	-H "Content-Type: application/json" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"execute_command\",\"params\":{\"type\":\"pause_game\",\"params\":{\"paused\":false},\"_sessionId\":\"$SESSION_ID\"}}")
+	-H "MCP-Session-Id: $SESSION_ID" \
+	-H "MCP-Protocol-Version: 2025-11-25" \
+	-d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"execute_command\",\"params\":{\"type\":\"pause_game\",\"params\":{\"paused\":false}}}")
 if echo "$COMMAND_NATIVE" | grep -q '"queued"'; then
 	pass "Direct method execute_command is available"
 else
@@ -367,7 +365,7 @@ echo ""
 echo "Test 11: Unknown endpoint returns generic error"
 UNKNOWN_RESPONSE=$(curl -s -i -m 2 "http://localhost:$DMCP_PORT/does-not-exist" || true)
 if echo "$UNKNOWN_RESPONSE" | grep -q '"code":"not_found"'; then
-	if echo "$UNKNOWN_RESPONSE" | grep -qi 'uWebSockets'; then
+	if echo "$UNKNOWN_RESPONSE" | grep -Eqi 'uWebSockets|cpp-httplib|sse-httplib'; then
 		fail "Unknown endpoint response leaks transport implementation details"
 	fi
 	pass "Unknown endpoint response is generic"

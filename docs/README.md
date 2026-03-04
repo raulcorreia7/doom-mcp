@@ -29,7 +29,7 @@ Complete API documentation for the Doom Model Context Protocol SDK.
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                      ADAPTER INTERFACE LAYER (C API)                         │
-│                 adapters/chocolate-doom/, adapters/zdoom/                   │
+│                 adapters/crispy-doom/, adapters/zdoom/                     │
 └─────────────────────────────────────────────────────────────────────────────────────┘
                                         │
                                         ▼
@@ -89,13 +89,12 @@ Examples:
 
 ```bash
 make help      # Show all targets
-make submodules # Init/update Chocolate + Crispy submodules
-make all       # Build DMCP + Chocolate + Crispy
+make submodules # Init/update Crispy submodule
+make all       # Build DMCP + Crispy
 make check     # Build + test
 make run       # Run example server
 make debug     # Debug build with sanitizers
 make headless  # Run headless e2e tests
-make headless-crispy # Run headless e2e tests (Crispy)
 ```
 
 ### Using CMake Directly
@@ -121,7 +120,7 @@ ctest --test-dir build -j1
 | `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
-| `DMCP_BUILD_ADAPTER_CHOCOLATE` | OFF | Build Chocolate Doom adapter |
+| `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
@@ -139,7 +138,7 @@ target_link_libraries(myengine PRIVATE dmcp::core)
 This provides:
 - `dmcp::generic` - Generic MCP protocol layer
 - `dmcp::core` - Doom-specific MCP layer (depends on generic)
-- `dmcp::chocolate` - Chocolate Doom adapter (if enabled)
+- `dmcp::crispy` - Crispy Doom adapter (if enabled)
 - `dmcp::zdoom` - ZDoom adapter (if enabled)
 
 ### Generic MCP (for any game/tool)

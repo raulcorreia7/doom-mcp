@@ -10,56 +10,21 @@ if(DMCP_BUILD_SHARED AND TARGET yyjson)
   set_target_properties(yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-CPMFindPackage(
-  NAME uSockets
-  GITHUB_REPOSITORY uNetworking/uSockets
-  VERSION 0.8.8
-  GIT_SUBMODULES ""
+CPMAddPackage(
+  NAME cpp-httplib
+  GITHUB_REPOSITORY yhirose/cpp-httplib
+  VERSION 0.36.0
+  GIT_TAG v0.36.0
+  OPTIONS
+    "HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF"
+    "HTTPLIB_USE_WOLFSSL_IF_AVAILABLE OFF"
+    "HTTPLIB_USE_MBEDTLS_IF_AVAILABLE OFF"
+    "HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF"
+    "HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF"
+    "HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF"
+    "HTTPLIB_TEST OFF"
+    "HTTPLIB_INSTALL OFF"
 )
-
-if(uSockets_ADDED)
-  file(GLOB_RECURSE USOCKETS_SOURCES CONFIGURE_DEPENDS "${uSockets_SOURCE_DIR}/src/*.c")
-  add_library(uSockets STATIC ${USOCKETS_SOURCES})
-  target_include_directories(uSockets PUBLIC "${uSockets_SOURCE_DIR}/src")
-  target_compile_definitions(uSockets PRIVATE LIBUS_NO_SSL)
-
-  if(UNIX AND NOT APPLE)
-    find_package(Threads REQUIRED)
-    target_link_libraries(uSockets PUBLIC Threads::Threads)
-  elseif(WIN32)
-    find_package(libuv CONFIG REQUIRED)
-    target_link_libraries(uSockets PUBLIC
-      ws2_32
-      $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
-    )
-  endif()
-
-  if(NOT MSVC)
-    target_compile_options(uSockets PRIVATE -w)
-  endif()
-
-  if(DMCP_BUILD_SHARED)
-    set_target_properties(uSockets PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  endif()
-endif()
-
-CPMFindPackage(
-  NAME uWebSockets
-  GITHUB_REPOSITORY uNetworking/uWebSockets
-  VERSION 20.74.0
-  GIT_SUBMODULES ""
-)
-
-if(uWebSockets_ADDED)
-  find_package(ZLIB REQUIRED)
-  add_library(uWebSockets INTERFACE)
-  target_include_directories(uWebSockets SYSTEM INTERFACE "${uWebSockets_SOURCE_DIR}/src")
-  target_link_libraries(uWebSockets INTERFACE uSockets ZLIB::ZLIB)
-
-  if(NOT MSVC)
-    target_compile_options(uWebSockets INTERFACE -Wno-shadow -Wno-deprecated-declarations)
-  endif()
-endif()
 
 if(DMCP_BUILD_TESTS)
   CPMAddPackage(

@@ -6,8 +6,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
+#include "dmcp/adapter/utils.h"
 #include "dmcp/doom/api.h"
 
 #include "doomdef.h"
@@ -21,12 +23,45 @@ struct dmcp_crispy_s {
   bool                 last_paused;
 };
 
+static int dmcp_log_threshold(void) {
+  static int initialized = 0;
+  static int threshold   = MCP_LOG_INFO;
+  const char* env;
+
+  if (initialized) {
+    return threshold;
+  }
+
+  initialized = 1;
+  env         = getenv("DMCP_LOG_LEVEL");
+  if (!env || !env[0]) {
+    return threshold;
+  }
+
+  if (dmcp_str_equals_ci(env, "debug") || strcmp(env, "0") == 0) {
+    threshold = MCP_LOG_DEBUG;
+  } else if (dmcp_str_equals_ci(env, "info") || strcmp(env, "1") == 0) {
+    threshold = MCP_LOG_INFO;
+  } else if (dmcp_str_equals_ci(env, "warn") || dmcp_str_equals_ci(env, "warning") ||
+             strcmp(env, "2") == 0) {
+    threshold = MCP_LOG_WARN;
+  } else if (dmcp_str_equals_ci(env, "error") || strcmp(env, "3") == 0) {
+    threshold = MCP_LOG_ERROR;
+  }
+
+  return threshold;
+}
+
 void dmcp_adapter_log(int level, const char* fmt, ...) {
   va_list     args;
   time_t      now;
   struct tm   tm_info;
   char        timestamp[20];
   const char* level_str;
+
+  if (level < dmcp_log_threshold()) {
+    return;
+  }
 
   va_start(args, fmt);
 

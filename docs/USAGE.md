@@ -72,20 +72,19 @@ class DMCPClient:
                 "capabilities": {},
                 "clientInfo": {"name": "my-client", "version": "1.0.0"}
             }
-        })
+        }, headers={"MCP-Protocol-Version": "2025-11-25"})
         result = resp.json()
         self.session_id = result["result"]["sessionId"]
         
         # Send initialized notification
         requests.post(self.mcp_url, json={
             "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {"_sessionId": self.session_id}
-        })
+            "method": "notifications/initialized"
+        }, headers={"MCP-Session-Id": self.session_id, "MCP-Protocol-Version": "2025-11-25"})
         return result
     
     def call_tool(self, name, arguments=None):
-        params = {"name": name, "_sessionId": self.session_id}
+        params = {"name": name}
         if arguments:
             params["arguments"] = arguments
         return requests.post(self.mcp_url, json={
@@ -93,7 +92,7 @@ class DMCPClient:
             "id": 2,
             "method": "tools/call",
             "params": params
-        }).json()
+        }, headers={"MCP-Session-Id": self.session_id, "MCP-Protocol-Version": "2025-11-25"}).json()
 
 client = DMCPClient()
 client.initialize()

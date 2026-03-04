@@ -19,7 +19,7 @@ jobs:
             bin_path: crispy-doom/build/src/crispy-doom
           - os: macos-latest
             artifact_name: crispy-doom-macos
-            asset_name: crispy-doom-macos.tar.gz
+            asset_name: crispy-doom-macos.zip
             bin_path: crispy-doom/build/src/crispy-doom
           - os: windows-latest
             artifact_name: crispy-doom-windows
@@ -82,7 +82,12 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
              CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           fi
-          cmake -B build -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release $CMAKE_ARGS
+          cmake -B build \
+            -DDMCP_BUILD_SHARED=ON \
+            -DDMCP_BUILD_SINGLE_DLL=ON \
+            -DDMCP_BUILD_EXAMPLES=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            $CMAKE_ARGS
 
       - name: Build DMCP
         shell: bash
@@ -115,14 +120,17 @@ jobs:
           # Binary and libraries
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp crispy-doom/build/src/Release/crispy-doom.exe release_package/
+            cp build/Release/dmcp.dll release_package/ 2>/dev/null || cp build/dmcp.dll release_package/ 2>/dev/null || true
             cp build/Release/dmcp_core.dll release_package/ 2>/dev/null || cp build/dmcp_core.dll release_package/ 2>/dev/null || true
             cp build/Release/dmcp_generic.dll release_package/ 2>/dev/null || cp build/dmcp_generic.dll release_package/ 2>/dev/null || true
             cp crispy-doom/build/src/Release/*.dll release_package/ || true
             cp scripts/go.bat release_package/
           else
             cp crispy-doom/build/src/crispy-doom release_package/
-            cp build/libdmcp_core.so release_package/ || true
-            cp build/libdmcp_generic.so release_package/ || true
+            cp build/libdmcp.so release_package/ 2>/dev/null || true
+            cp build/libdmcp.dylib release_package/ 2>/dev/null || true
+            cp build/libdmcp_core.so release_package/ 2>/dev/null || true
+            cp build/libdmcp_generic.so release_package/ 2>/dev/null || true
             cp scripts/go.sh release_package/
             chmod +x release_package/go.sh
           fi
@@ -132,12 +140,13 @@ jobs:
           
           # README
           cp scripts/RELEASE_README.md release_package/README.md
-          
-          cd ..
+
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            7z a ${{ matrix.asset_name }} release_package/*
+            7z a "${{ matrix.asset_name }}" ./release_package/*
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            ditto -c -k --sequesterRsrc --keepParent release_package "${{ matrix.asset_name }}"
           else
-            tar -czf ${{ matrix.asset_name }} release_package/*
+            tar -czf "${{ matrix.asset_name }}" release_package
           fi
 
       - name: Upload Build Artifact
@@ -145,6 +154,7 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.asset_name }}
+          compression-level: 0
 
   release:
     needs: build

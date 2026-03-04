@@ -3,18 +3,7 @@
 import json
 import time
 
-import requests
-
-
-def call_rpc(port: int, method: str, params: dict, request_id: int = 1) -> dict:
-    response = requests.post(
-        f"http://localhost:{port}/mcp",
-        json={"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-    )
-    response.raise_for_status()
-    return response.json()
+from .mcp_rpc import call_rpc
 
 
 def call_tool_json(

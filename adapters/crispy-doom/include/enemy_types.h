@@ -6,9 +6,7 @@
 
 #include <stddef.h>
 
-#ifdef CRISPY_DOOM_BUILD
 #include "info.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,14 +18,12 @@ typedef struct {
 } dmcp_enemy_type_entry_t;
 
 static const dmcp_enemy_type_entry_t dmcp_enemy_type_table[] = {
-#ifdef CRISPY_DOOM_BUILD
     {MT_POSSESSED, "Zombieman"}, {MT_SHOTGUY, "Shotgun Guy"},      {MT_VILE, "Archvile"},
     {MT_UNDEAD, "Revenant"},     {MT_FATSO, "Mancubus"},           {MT_CHAINGUY, "Chaingunner"},
     {MT_TROOP, "Imp"},           {MT_SERGEANT, "Demon"},           {MT_SHADOWS, "Spectre"},
     {MT_HEAD, "Cacodemon"},      {MT_BRUISER, "Baron of Hell"},    {MT_KNIGHT, "Hell Knight"},
     {MT_SKULL, "Lost Soul"},     {MT_SPIDER, "Spider Mastermind"}, {MT_BABY, "Arachnotron"},
     {MT_CYBORG, "Cyberdemon"},   {MT_PAIN, "Pain Elemental"},
-#endif
 };
 
 #define DMCP_ENEMY_TYPE_TABLE_SIZE (sizeof(dmcp_enemy_type_table) / sizeof(dmcp_enemy_type_entry_t))

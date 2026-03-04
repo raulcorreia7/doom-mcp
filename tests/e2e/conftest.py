@@ -1,13 +1,14 @@
 """E2E test fixtures for DOOM MCP.
 
 Requires:
-- chocolate-doom or crispy-doom built with DMCP adapter
+- crispy-doom built with DMCP adapter
 - doom1.wad in assets/wads/
 - pytest, requests packages
 """
 
 import json
 import os
+import signal
 import socket
 import subprocess
 import time
@@ -22,18 +23,22 @@ import requests
 # Constants
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WAD_FILE = PROJECT_ROOT / "assets/wads/doom1.wad"
-DOOM_ENGINE = os.environ.get("DOOM_ENGINE", "chocolate").strip().lower()
+DOOM_ENGINE = os.environ.get("DOOM_ENGINE", "crispy").strip().lower()
 DEFAULT_DOOM_BIN = {
-    "chocolate": PROJECT_ROOT / "chocolate-doom/build/src/chocolate-doom",
     "crispy": PROJECT_ROOT / "crispy-doom/build/src/crispy-doom",
-}.get(DOOM_ENGINE, PROJECT_ROOT / "chocolate-doom/build/src/chocolate-doom")
+}.get(DOOM_ENGINE, PROJECT_ROOT / "crispy-doom/build/src/crispy-doom")
 DOOM_BIN = Path(os.environ.get("DOOM_BIN", str(DEFAULT_DOOM_BIN)))
 
 # Timeouts (configurable via env vars)
-STARTUP_TIMEOUT = float(os.environ.get("DMCP_STARTUP_TIMEOUT", "30"))
-REQUEST_TIMEOUT = float(os.environ.get("DMCP_REQUEST_TIMEOUT", "10"))
+FAST_MODE = os.environ.get("DMCP_E2E_FAST", "1") == "1"
+STARTUP_TIMEOUT = float(
+    os.environ.get("DMCP_STARTUP_TIMEOUT", "20" if FAST_MODE else "30")
+)
+REQUEST_TIMEOUT = float(
+    os.environ.get("DMCP_REQUEST_TIMEOUT", "5" if FAST_MODE else "10")
+)
 SESSION_DEFAULT_PORT = int(os.environ.get("DMCP_SESSION_PORT", "0"))
-START_RETRIES = int(os.environ.get("DMCP_START_RETRIES", "5"))
+START_RETRIES = int(os.environ.get("DMCP_START_RETRIES", "3" if FAST_MODE else "5"))
 RUN_EXTENDED_SCENARIOS = os.environ.get("DMCP_E2E_EXTENDED_SCENARIOS", "0") == "1"
 
 
@@ -135,7 +140,9 @@ class DoomInstance:
         self.config = config
         self._proc: Optional[subprocess.Popen] = None
         self._mcp_url = f"http://localhost:{self.config.port}/mcp"
+        self._state_url = f"http://localhost:{self.config.port}/game/state"
         self._health_url = f"http://localhost:{self.config.port}/health"
+        self._http = requests.Session()
         self._started = False
         self._session_id: Optional[str] = None
 
@@ -144,18 +151,29 @@ class DoomInstance:
         if self._proc is None:
             return
 
+        proc = self._proc
         try:
-            if self._proc.poll() is None:
-                self._proc.terminate()
+            if proc.poll() is None:
                 try:
-                    self._proc.wait(timeout=5)
+                    # We always start a dedicated process group; stop the full group.
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    proc.terminate()
+
+                try:
+                    proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    self._proc.kill()
-                    self._proc.wait(timeout=2)
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except (ProcessLookupError, PermissionError):
+                        proc.kill()
+                    proc.wait(timeout=2)
         finally:
             self._proc = None
             self._started = False
             self._session_id = None
+            self._http.close()
+            self._http = requests.Session()
 
     def start(self) -> "DoomInstance":
         """Start the Doom instance and wait for it to be ready."""
@@ -176,6 +194,7 @@ class DoomInstance:
                 "SDL_VIDEODRIVER": "dummy",
                 "SDL_AUDIODRIVER": "dummy",
                 "SDL_NOMOUSE": "1",
+                "DMCP_LOG_LEVEL": os.environ.get("DMCP_LOG_LEVEL", "warn"),
             }
         )
 
@@ -244,10 +263,13 @@ class DoomInstance:
             },
         }
 
-        resp = requests.post(
+        resp = self._http.post(
             self._mcp_url,
             json=init_payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": "2025-11-25",
+            },
             timeout=REQUEST_TIMEOUT,
         )
         resp.raise_for_status()
@@ -263,13 +285,16 @@ class DoomInstance:
         initialized_payload = {
             "jsonrpc": "2.0",
             "method": "notifications/initialized",
-            "params": {"_sessionId": self._session_id},
         }
 
-        requests.post(
+        self._http.post(
             self._mcp_url,
             json=initialized_payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": "2025-11-25",
+                "MCP-Session-Id": self._session_id,
+            },
             timeout=REQUEST_TIMEOUT,
         )
 
@@ -285,7 +310,7 @@ class DoomInstance:
                 raise RuntimeError("Doom process crashed during startup")
 
             try:
-                health = requests.get(self._health_url, timeout=2)
+                health = self._http.get(self._health_url, timeout=2)
                 if health.status_code == 200:
                     if not self._session_id:
                         try:
@@ -323,7 +348,15 @@ class DoomInstance:
         )
 
     def _get_state_raw(self) -> dict[str, Any]:
-        """Get composed game state from granular MCP calls with retries."""
+        """Get game state with a fast route-first strategy."""
+
+        def _route_state() -> dict[str, Any]:
+            resp = self._http.get(self._state_url, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            payload = resp.json()
+            if isinstance(payload, dict):
+                return payload
+            return {}
 
         def _extract_json_result(data: dict[str, Any]) -> dict[str, Any]:
             if "error" in data:
@@ -357,8 +390,6 @@ class DoomInstance:
 
         def _call_tool(name: str, request_id: int) -> dict[str, Any]:
             params: dict[str, Any] = {"name": name}
-            if self._session_id:
-                params["_sessionId"] = self._session_id
             payload = {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -366,10 +397,17 @@ class DoomInstance:
                 "params": params,
             }
 
-            resp = requests.post(
+            headers = {
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": "2025-11-25",
+            }
+            if self._session_id:
+                headers["MCP-Session-Id"] = self._session_id
+
+            resp = self._http.post(
                 self._mcp_url,
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=REQUEST_TIMEOUT,
             )
             resp.raise_for_status()
@@ -377,6 +415,12 @@ class DoomInstance:
 
         for attempt in range(3):
             try:
+                # Fast path: direct route provides full snapshot in one request.
+                route_state = _route_state()
+                if isinstance(route_state, dict) and route_state:
+                    return route_state
+
+                # Fallback: granular tool calls for compatibility.
                 player_payload = _call_tool("get_player", request_id=1)
                 map_payload = _call_tool("get_map", request_id=2)
                 game_payload = _call_tool("get_game_info", request_id=3)
@@ -421,7 +465,7 @@ class DoomInstance:
         if not self._started or not self._is_process_running():
             return False
         try:
-            resp = requests.get(self._health_url, timeout=2)
+            resp = self._http.get(self._health_url, timeout=2)
             return resp.status_code == 200
         except requests.RequestException:
             return False
@@ -499,7 +543,10 @@ def doom_instance(doom_binary, wad_file):
 
     yield _create_instance
 
+    from .mcp_rpc import close_port_session
+
     for instance in instances:
+        close_port_session(instance.config.port)
         instance.stop()
 
 
@@ -515,7 +562,19 @@ def shared_default_game(doom_binary, wad_file):
         pytest.skip(f"Unable to start shared default Doom instance: {exc}")
 
     yield instance
+    from .mcp_rpc import close_port_session
+
+    close_port_session(instance.config.port)
     instance.stop()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_e2e_rpc_sessions():
+    """Close any cached e2e RPC sessions at the end of the test session."""
+    yield
+    from .mcp_rpc import close_all_sessions
+
+    close_all_sessions()
 
 
 @pytest.fixture(scope="function")

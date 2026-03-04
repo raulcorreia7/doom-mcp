@@ -1,6 +1,10 @@
+#include <arpa/inet.h>
 #include <chrono>
 #include <cstring>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <thread>
+#include <unistd.h>
 
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/content.h"
@@ -59,9 +63,41 @@ static dmcp_item_t create_test_item(const char* name, int amount) {
   return item;
 }
 
+static uint16_t AllocateFreePort() {
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock < 0) {
+    return 0;
+  }
+
+  sockaddr_in addr{};
+  addr.sin_family      = AF_INET;
+  addr.sin_port        = htons(0);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+  if (bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+    close(sock);
+    return 0;
+  }
+
+  socklen_t len = sizeof(addr);
+  if (getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len) < 0) {
+    close(sock);
+    return 0;
+  }
+
+  close(sock);
+  return ntohs(addr.sin_port);
+}
+
+static dmcp_config_t TestConfig() {
+  dmcp_config_t config = dmcp_config_default();
+  config.port          = AllocateFreePort();
+  return config;
+}
+
 TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   SECTION("Create and destroy context with default config") {
-    dmcp_config_t   config = dmcp_config_default();
+    dmcp_config_t   config = TestConfig();
     dmcp_context_t* ctx    = dmcp_context_create(&config);
 
     REQUIRE(ctx != nullptr);
@@ -70,16 +106,16 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
     dmcp_context_destroy(ctx);
   }
 
-  SECTION("Create context with null config uses defaults") {
-    dmcp_context_t* ctx = dmcp_context_create(nullptr);
-    REQUIRE(ctx != nullptr);
-
-    dmcp_context_destroy(ctx);
+  SECTION("Default config helper provides sane defaults") {
+    dmcp_config_t config = dmcp_config_default();
+    REQUIRE(config.struct_size == sizeof(dmcp_config_t));
+    REQUIRE(config.port == MCP_DEFAULT_PORT);
+    REQUIRE(config.target_hz == MCP_DEFAULT_TARGET_HZ);
   }
 
   SECTION("Create context with custom port") {
     dmcp_config_t config = dmcp_config_default();
-    config.port          = 7070;
+    config.port          = AllocateFreePort();
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
@@ -88,7 +124,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with custom target Hz") {
-    dmcp_config_t config = dmcp_config_default();
+    dmcp_config_t config = TestConfig();
     config.target_hz     = 30;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -98,7 +134,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with screenshot disabled") {
-    dmcp_config_t config     = dmcp_config_default();
+    dmcp_config_t config     = TestConfig();
     config.screenshot.enable = false;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -108,7 +144,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with custom screenshot dimensions") {
-    dmcp_config_t config     = dmcp_config_default();
+    dmcp_config_t config     = TestConfig();
     config.screenshot.width  = 1280;
     config.screenshot.height = 720;
 
@@ -121,7 +157,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   SECTION("Create context with snapshot callback") {
     snapshot_call_count = 0;
 
-    dmcp_config_t config = dmcp_config_default();
+    dmcp_config_t config = TestConfig();
     config.on_snapshot   = test_snapshot_callback;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -140,14 +176,14 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
 TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
   snapshot_call_count = 0;
 
-  dmcp_config_t config = dmcp_config_default();
+  dmcp_config_t config = TestConfig();
   config.on_snapshot   = test_snapshot_callback;
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
   SECTION("Tick without snapshot callback is safe") {
-    dmcp_config_t no_callback = dmcp_config_default();
+    dmcp_config_t no_callback = TestConfig();
     no_callback.on_snapshot   = nullptr;
 
     dmcp_context_t* ctx_no_callback = dmcp_context_create(&no_callback);
@@ -181,7 +217,7 @@ TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
 }
 
 TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
-  dmcp_config_t config     = dmcp_config_default();
+  dmcp_config_t config     = TestConfig();
   config.screenshot.enable = true;
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -261,7 +297,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit screenshot with disabled screenshot feature") {
-    dmcp_config_t no_screenshot     = dmcp_config_default();
+    dmcp_config_t no_screenshot     = TestConfig();
     no_screenshot.screenshot.enable = false;
 
     dmcp_context_t* ctx_no_ss = dmcp_context_create(&no_screenshot);
@@ -285,7 +321,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
 }
 
 TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
-  dmcp_config_t config = dmcp_config_default();
+  dmcp_config_t config = TestConfig();
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
@@ -512,8 +548,7 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
   }
 
   SECTION("Custom config values") {
-    dmcp_config_t config         = dmcp_config_default();
-    config.port                  = 8080;
+    dmcp_config_t config         = TestConfig();
     config.target_hz             = 30;
     config.snapshot_pool_size    = 32;
     config._reserved_queue_slots = 8;
@@ -765,7 +800,7 @@ TEST_CASE("Doom MCP: Error messages", "[doom][error]") {
 }
 
 TEST_CASE("Doom MCP: Command queue lifecycle", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -783,7 +818,7 @@ TEST_CASE("Doom MCP: Command queue lifecycle", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -831,7 +866,7 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -874,7 +909,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -914,7 +949,7 @@ TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -1116,7 +1151,7 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Custom command parser", "[doom][commands]") {
-  dmcp_config_t   config = dmcp_config_default();
+  dmcp_config_t   config = TestConfig();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 

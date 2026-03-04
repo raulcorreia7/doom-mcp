@@ -52,11 +52,11 @@ cmake --build build-shared -j"$(nproc)"
 **New CMake Integration (Recommended)**
 
 ```bash
-# Build Chocolate Doom with DMCP using find_package
-cmake -S chocolate-doom -B chocolate-doom/build \
+# Build Crispy Doom with DMCP using find_package
+cmake -S crispy-doom -B crispy-doom/build \
   -DCMAKE_PREFIX_PATH="$PWD/build" \
   -DDMCP_ENABLE=ON
-cmake --build chocolate-doom/build -j"$(nproc)"
+cmake --build crispy-doom/build -j"$(nproc)"
 ```
 
 In your engine's CMakeLists.txt, DMCP is automatically found via `find_package`:
@@ -71,25 +71,22 @@ target_link_libraries(myengine PRIVATE dmcp::core)
 For manual include/lib path wiring without CMake find_package:
 
 ```bash
-# Build Chocolate Doom with DMCP (legacy method)
-cmake -S chocolate-doom -B chocolate-doom/build \
+# Build Crispy Doom with DMCP (legacy method)
+cmake -S crispy-doom -B crispy-doom/build \
   -DDMCP_ENABLE=ON \
   -DDMCP_INCLUDE_DIR="$PWD/include" \
   -DDMCP_LIB_DIR="$PWD/build"
-cmake --build chocolate-doom/build -j"$(nproc)"
-
-# Alternative: Crispy Doom with tracked DMCP patch
-./tests/integration/build_crispy_doom.sh
+cmake --build crispy-doom/build -j"$(nproc)"
 ```
 
 ### Starting the Server
 
 ```bash
 # Run with default port 6060
-./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp
+./crispy-doom/build/src/crispy-doom -iwad assets/wads/doom1.wad -dmcp
 
 # Or specify a custom port
-./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
+./crispy-doom/build/src/crispy-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
 ```
 
 ### Verifying the Server
@@ -462,7 +459,7 @@ curl http://localhost:6060/health
 
 Start the server on a different port:
 ```bash
-./chocolate-doom/build/src/chocolate-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
+./crispy-doom/build/src/crispy-doom -iwad assets/wads/doom1.wad -dmcp -dmcp_port 6061
 ```
 
 Then update the URL in your MCP config:
