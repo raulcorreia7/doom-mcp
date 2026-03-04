@@ -3,7 +3,7 @@
 #include <cstdarg>
 #include <cstddef>
 
-#include "adapter.h"
+#include "dmcp_adapter.h"
 
 namespace dmcp::zdoom {
 

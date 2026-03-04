@@ -35,7 +35,7 @@ DMCP bridges Doom-family engines and AI assistants, enabling:
 2. **DMCP** translates to game commands
 3. **Engine** executes and returns state
 
-## Quick Start
+## Quick Verify
 
 ```bash
 # Build + test
@@ -58,6 +58,8 @@ curl http://localhost:6060/health
 | [docs/README.md](docs/README.md) | Full API reference |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Connect to MCP clients |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and layers |
+| [docs/MCP_COMPLIANCE.md](docs/MCP_COMPLIANCE.md) | Spec compliance status |
+| [docs/MCP_TOOL_AUDIT.md](docs/MCP_TOOL_AUDIT.md) | Tool relevance/risk audit |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Version history |
 
 ## Features
@@ -77,14 +79,14 @@ make check    # Build + test
 make run      # Run example server
 
 # Or using CMake directly
-cmake -B build -DDMCP_BUILD_TESTS=ON
-cmake --build build -j$(nproc)
-ctest --test-dir build
-./build/dummy_server
+cmake -B build/default -DDMCP_BUILD_TESTS=ON
+cmake --build build/default --parallel
+ctest --test-dir build/default
+./build/default/dummy_server
 
 # Build shared libraries (.so/.dll)
-cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
-cmake --build build-shared -j$(nproc)
+cmake -B build/shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
+cmake --build build/shared --parallel
 ```
 
 ## Makefile Targets
@@ -97,29 +99,43 @@ make all           # Build DMCP + Crispy
 make crispy-doom   # Build Crispy Doom with DMCP
 make debug         # Build with sanitizers
 make test          # Run unit tests
+make test-unit     # Run unit tests only
+make test-smoke    # Run fast headless integration smoke
+make test-integration # Run integration suite
+make test-e2e      # Run Python e2e suite
 make check         # Build + test (full verification)
+make validate      # Validate core defaults + opt-in paths
 make download-wad  # Download DOOM shareware
 make headless      # Run e2e headless tests
 make run           # Run dummy server
+make compdb        # Generate compile_commands.json for clangd/LSP
 make format        # Format source code
 make clean         # Remove build directory
 ```
+
+E2E tuning:
+- `DMCP_E2E_FAST=1` keeps fixture timeouts short (default).
+- `DMCP_STARTUP_INITIAL_DELAY` controls first readiness probe delay.
 
 ## CMake Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
+| `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration test targets |
+| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
+| `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter (smoke/tests) |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries (`.so`/`.dll`) |
+| `DMCP_BUILD_SINGLE_DLL` | ON | Build unified `dmcp` shared library (`dmcp.so`/`dmcp.dll`) instead of split shared libs |
 | `DMCP_INSTALL` | ON | Enable install rules for headers/libs |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
 Notes:
-- With `DMCP_BUILD_SHARED=OFF`, install copies headers only (no static archives).
+- Default CMake configure is core-only (`src/` + `include/` APIs), with adapters opt-in.
+- With `DMCP_BUILD_SHARED=OFF`, install exports static archives (`libdmcp_generic.a`, `libdmcp_core.a`).
 - Adapter targets need engine-specific include paths/generated headers.
 
 ## Basic Usage
@@ -243,16 +259,24 @@ Response:
     "serverInfo": {
       "name": "doom-mcp",
       "version": "0.6.0"
-    }
+    },
+    "sessionId": "abc123..."
   }
 }
 ```
+
+Save the returned `sessionId` and send it on every subsequent `/mcp` request with
+`MCP-Session-Id`.
+For compatibility with older clients that omit session headers, you can set
+`DMCP_ALLOW_IMPLICIT_SESSION=1` (only when exactly one session is active).
 
 #### 3. Send initialized Notification
 
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: <SESSION_ID>" \
   -d '{
     "jsonrpc": "2.0",
     "method": "notifications/initialized",
@@ -265,6 +289,8 @@ curl -X POST http://localhost:6060/mcp \
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: <SESSION_ID>" \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -282,7 +308,8 @@ Response:
       {
         "name": "get_player",
         "description": "Get current player state only",
-        "inputSchema": {"type": "object", "properties": {}}
+        "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"readOnlyHint": true, "idempotentHint": true}
       },
       {
         "name": "get_screenshot",
@@ -311,6 +338,8 @@ Response:
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: <SESSION_ID>" \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -338,6 +367,8 @@ Response (truncated):
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: <SESSION_ID>" \
   -d '{
     "jsonrpc": "2.0",
     "id": 4,
@@ -379,6 +410,8 @@ curl -X POST http://localhost:6060/mcp \
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: <SESSION_ID>" \
   -d '{
     "jsonrpc": "2.0",
     "id": 42,
@@ -426,6 +459,7 @@ class DMCPClient:
     def __init__(self, base_url="http://localhost:6060"):
         self.base_url = base_url
         self.mcp_url = f"{base_url}/mcp"
+        self.session_id = None
     
     def initialize(self):
         """Initialize MCP connection"""
@@ -442,17 +476,26 @@ class DMCPClient:
                 }
             }
         }
-        init_resp = requests.post(self.mcp_url, json=payload)
+        init_resp = requests.post(
+            self.mcp_url,
+            json=payload,
+            headers={"MCP-Protocol-Version": "2025-11-25"},
+        )
         init_resp.raise_for_status()
+        data = init_resp.json()
+        self.session_id = data["result"]["sessionId"]
 
         # Required lifecycle step after initialize success
-        requests.post(self.mcp_url, json={
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {}
-        }).raise_for_status()
+        requests.post(
+            self.mcp_url,
+            json={"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+            headers={
+                "MCP-Protocol-Version": "2025-11-25",
+                "MCP-Session-Id": self.session_id,
+            },
+        ).raise_for_status()
 
-        return init_resp.json()
+        return data
     
     def get_player(self):
         """Get current player state"""
@@ -462,7 +505,14 @@ class DMCPClient:
             "method": "tools/call",
             "params": {"name": "get_player"}
         }
-        resp = requests.post(self.mcp_url, json=payload)
+        resp = requests.post(
+            self.mcp_url,
+            json=payload,
+            headers={
+                "MCP-Protocol-Version": "2025-11-25",
+                "MCP-Session-Id": self.session_id,
+            },
+        )
         result = resp.json()
         
         # Parse the JSON content
@@ -515,7 +565,7 @@ For agent loops that need focused, low-overhead reads:
 - `get_state_batch` - Read-only batch query for multiple state sections (`requests: [{section,...}]`)
 - `get_command_result` - Poll queued command status by `sequence`
 - `get_command_examples` - Structured tool examples for all supported commands
-- `input` - Send player input (movement, aim, attack) - one action per tick
+- `player_input` - Send player input (movement, aim, attack) - one action per tick
 
 ### `get_screenshot`
 
@@ -527,7 +577,7 @@ Queue a command to be executed by the game:
 
 | Command Type | Description | Parameters |
 |--------------|-------------|------------|
-| `spawn_entity` | Spawn an enemy/item | `entity_class`, `position.x`, `position.y`, `angle`, `tid` |
+| `spawn_entity` | Spawn an enemy/item | `entity_class`, `x`, `y`, `angle`, `tid` |
 | `change_level` | Switch map | `map_name`, `skill_level`, `reset_inventory` |
 | `give_item` | Give player an item | `item_class`, `amount` |
 | `set_player_health` | Set health | `health` |
@@ -537,7 +587,7 @@ Queue a command to be executed by the game:
 | `damage_entity` | Damage specific target | `target_tid`, `damage`, `damage_type` |
 | `kill_entity` | Kill specific target | `target_tid` |
 
-### `input`
+### `player_input`
 
 Send a single player input to control movement and actions. Each input executes for one game tick (35Hz). Designed for agent loops that need human-like control.
 
@@ -556,9 +606,9 @@ Send a single player input to control movement and actions. Each input executes 
 
 Example:
 ```json
-{"name": "input", "arguments": {"a": "fwd"}}
-{"name": "input", "arguments": {"a": "aim", "v": 90}}
-{"name": "input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"a": "fwd"}}
+{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
+{"name": "player_input", "arguments": {"a": "atk"}}
 ```
 
 ### `execute_batch`

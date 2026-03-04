@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "dmcp_adapter_command_queue.h"
 #include "dmcp/adapter/utils.h"
 #include "dmcp/doom/api.h"
 
@@ -24,8 +25,8 @@ struct dmcp_crispy_s {
 };
 
 static int dmcp_log_threshold(void) {
-  static int initialized = 0;
-  static int threshold   = MCP_LOG_INFO;
+  static int  initialized = 0;
+  static int  threshold   = MCP_LOG_INFO;
   const char* env;
 
   if (initialized) {
@@ -189,44 +190,66 @@ void dmcp_crispy_destroy(dmcp_crispy_t* ctx) {
   free(ctx);
 }
 
-void dmcp_crispy_tick(dmcp_crispy_t* ctx) {
-  if (!ctx || !ctx->dmcp_ctx || !ctx->initialized) return;
+mcp_result_t dmcp_crispy_tick(dmcp_crispy_t* ctx) {
+  if (!ctx || !ctx->dmcp_ctx || !ctx->initialized) {
+    return MCP_ERROR_INVALID_ARGS;
+  }
+
+  if (!dmcp_context_is_running(ctx->dmcp_ctx)) {
+    return MCP_ERROR_DISABLED;
+  }
 
   if (gamestate != GS_LEVEL) {
-    return;
+    return MCP_OK;
   }
 
   dmcp_context_tick(ctx->dmcp_ctx);
+  return MCP_OK;
+}
+
+static const char* crispy_command_message(const dmcp_command_t* cmd, bool success) {
+  if (success) {
+    return "Command executed successfully";
+  }
+
+  if (cmd && (cmd->type == DMCP_CMD_GIVE_ITEM || cmd->type == DMCP_CMD_SPAWN_ENTITY)) {
+    if (gamemode == shareware) {
+      return "Content not available in shareware. Restricted: Plasma Rifle, BFG, Super "
+             "Shotgun, Cacodemon, Lost Soul, Cyberdemon, Spider Mastermind, and Doom II "
+             "monsters";
+    }
+    return "Command failed: invalid item/monster or unavailable in current mode";
+  }
+
+  return "Command failed in engine";
+}
+
+static bool crispy_execute_command_for_queue(void* adapter_ctx, const dmcp_command_t* cmd,
+                                             char* out_message, size_t out_message_size) {
+  dmcp_crispy_t* ctx;
+  bool           success;
+
+  if (!adapter_ctx || !cmd) {
+    return false;
+  }
+
+  ctx     = (dmcp_crispy_t*)adapter_ctx;
+  success = dmcp_crispy_command_execute(ctx, cmd);
+
+  dmcp_strcpy_safe(out_message, crispy_command_message(cmd, success), out_message_size);
+  dmcp_adapter_log(MCP_LOG_DEBUG, "command executed: type=%d result=%s", cmd->type,
+                   success ? "success" : "failed");
+  return success;
 }
 
 void dmcp_crispy_commands_process(dmcp_crispy_t* ctx) {
-  dmcp_command_t cmd;
-  int            cmd_count;
+  int cmd_count;
 
   if (!ctx || !ctx->dmcp_ctx) return;
 
-  cmd_count = 0;
-  while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
-    bool        result = dmcp_crispy_command_execute(ctx, &cmd);
-    const char* message;
-    if (result) {
-      message = "Command executed successfully";
-    } else if (cmd.type == DMCP_CMD_GIVE_ITEM || cmd.type == DMCP_CMD_SPAWN_ENTITY) {
-      if (gamemode == shareware) {
-        message =
-            "Content not available in shareware. Restricted: Plasma Rifle, BFG, Super Shotgun, "
-            "Cacodemon, Lost Soul, Cyberdemon, Spider Mastermind, and Doom II monsters";
-      } else {
-        message = "Command failed: invalid item/monster or unavailable in current mode";
-      }
-    } else {
-      message = "Command failed in engine";
-    }
-    dmcp_command_result_complete(ctx->dmcp_ctx, &cmd, result, message);
-    dmcp_adapter_log(MCP_LOG_DEBUG, "command executed: type=%d result=%s", cmd.type,
-                     result ? "success" : "failed");
-    cmd_count++;
-  }
+  cmd_count =
+      dmcp_adapter_process_command_queue(ctx->dmcp_ctx, ctx, crispy_execute_command_for_queue, 0);
+
   if (cmd_count > 0) {
     dmcp_adapter_log(MCP_LOG_INFO, "processed %d command(s)", cmd_count);
   }
@@ -242,7 +265,7 @@ void dmcp_crispy_get_stats(dmcp_crispy_t* ctx, dmcp_stats_t* stats) {
   dmcp_stats_get(ctx->dmcp_ctx, stats);
 }
 
-dmcp_context_t* dmcp_crispy_get_dmcp_context(dmcp_crispy_t* ctx) {
+dmcp_context_t* dmcp_crispy_get_context(dmcp_crispy_t* ctx) {
   if (!ctx) return NULL;
   return ctx->dmcp_ctx;
 }

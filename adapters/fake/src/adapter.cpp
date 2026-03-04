@@ -9,6 +9,8 @@
 #include <random>
 #include <string_view>
 
+#include "dmcp_adapter_command_queue.h"
+
 struct dmcp_fake_s {
   dmcp_context_t*    dmcp_ctx = nullptr;
   dmcp_fake_config_t config{};
@@ -518,6 +520,30 @@ bool apply_command(dmcp_fake_t* fake, const dmcp_command_t& cmd, char* message,
   }
 }
 
+bool ExecuteQueuedCommand(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
+                          size_t out_message_size) {
+  auto* fake = static_cast<dmcp_fake_t*>(adapter_ctx);
+  if (!fake || !cmd) {
+    set_text(out_message, out_message_size, "Invalid command");
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(fake->state_mutex);
+  return apply_command(fake, *cmd, out_message, out_message_size);
+}
+
+bool ExecuteQueuedInput(void* adapter_ctx, const dmcp_command_t* input_cmd, char* out_message,
+                        size_t out_message_size) {
+  auto* fake = static_cast<dmcp_fake_t*>(adapter_ctx);
+  if (!fake || !input_cmd || input_cmd->type != DMCP_CMD_PLAYER_INPUT) {
+    set_text(out_message, out_message_size, "Invalid player input");
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(fake->state_mutex);
+  return apply_input(fake, input_cmd->data.input, out_message, out_message_size);
+}
+
 void fake_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   if (!user_data || !snapshot) {
     return;
@@ -588,7 +614,7 @@ void dmcp_fake_destroy(dmcp_fake_t* fake) {
   delete fake;
 }
 
-mcp_result_generic_t dmcp_fake_tick(dmcp_fake_t* fake) {
+mcp_result_t dmcp_fake_tick(dmcp_fake_t* fake) {
   if (!fake || !fake->dmcp_ctx) {
     return MCP_ERROR_INVALID_ARGS;
   }
@@ -614,19 +640,7 @@ void dmcp_fake_commands_process(dmcp_fake_t* fake) {
     return;
   }
 
-  dmcp_command_t cmd{};
-  while (dmcp_pop_command(fake->dmcp_ctx, &cmd)) {
-    char command_message[kCommandResultMessageSize] = {0};
-
-    bool success = false;
-    {
-      std::lock_guard<std::mutex> lock(fake->state_mutex);
-      success = apply_command(fake, cmd, command_message, sizeof(command_message));
-    }
-
-    dmcp_command_result_complete(fake->dmcp_ctx, &cmd, success,
-                                 command_message[0] ? command_message : nullptr);
-  }
+  dmcp_adapter_process_command_queue(fake->dmcp_ctx, fake, ExecuteQueuedCommand, 0);
 }
 
 void dmcp_fake_inputs_process(dmcp_fake_t* fake) {
@@ -634,19 +648,12 @@ void dmcp_fake_inputs_process(dmcp_fake_t* fake) {
     return;
   }
 
-  dmcp_command_t input_cmd{};
-  while (dmcp_pop_input(fake->dmcp_ctx, &input_cmd)) {
-    char input_message[kCommandResultMessageSize] = {0};
+  dmcp_adapter_process_input_queue(fake->dmcp_ctx, fake, ExecuteQueuedInput, 0);
+}
 
-    bool success = false;
-    {
-      std::lock_guard<std::mutex> lock(fake->state_mutex);
-      success = apply_input(fake, input_cmd.data.input, input_message, sizeof(input_message));
-    }
-
-    dmcp_command_result_complete(fake->dmcp_ctx, &input_cmd, success,
-                                 input_message[0] ? input_message : nullptr);
-  }
+bool dmcp_fake_command_execute(dmcp_fake_t* fake, const dmcp_command_t* cmd) {
+  char command_message[kCommandResultMessageSize] = {0};
+  return ExecuteQueuedCommand(fake, cmd, command_message, sizeof(command_message));
 }
 
 bool dmcp_fake_is_running(const dmcp_fake_t* fake) {
@@ -656,7 +663,7 @@ bool dmcp_fake_is_running(const dmcp_fake_t* fake) {
   return dmcp_context_is_running(fake->dmcp_ctx);
 }
 
-dmcp_context_t* dmcp_fake_context(dmcp_fake_t* fake) {
+dmcp_context_t* dmcp_fake_get_context(dmcp_fake_t* fake) {
   if (!fake) {
     return nullptr;
   }

@@ -41,42 +41,33 @@ Before connecting any MCP client, you need to run the Doom engine with DMCP enab
 
 ```bash
 # Build DMCP (static library)
-cmake -B build -DDMCP_BUILD_TESTS=ON
-cmake --build build -j"$(nproc)"
+cmake -B build/default -DDMCP_BUILD_TESTS=ON
+cmake --build build/default --parallel
 
 # Or build shared libraries
-cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
-cmake --build build-shared -j"$(nproc)"
+cmake -B build/shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_SINGLE_DLL=ON -DDMCP_BUILD_TESTS=OFF
+cmake --build build/shared --parallel
 ```
 
-**New CMake Integration (Recommended)**
+**Engine integration (recommended)**
 
 ```bash
-# Build Crispy Doom with DMCP using find_package
+# Fast path (applies patch + builds DMCP + builds Crispy)
+make submodules
+make crispy-doom
+
+# Or manual configure/build
 cmake -S crispy-doom -B crispy-doom/build \
-  -DCMAKE_PREFIX_PATH="$PWD/build" \
+  -DDMCP_ROOT="$PWD" \
   -DDMCP_ENABLE=ON
-cmake --build crispy-doom/build -j"$(nproc)"
+cmake --build crispy-doom/build --parallel
 ```
 
-In your engine's CMakeLists.txt, DMCP is automatically found via `find_package`:
+For external engines consuming installed DMCP packages:
 
 ```cmake
 find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::core)
-```
-
-**Legacy Integration (Manual Paths)**
-
-For manual include/lib path wiring without CMake find_package:
-
-```bash
-# Build Crispy Doom with DMCP (legacy method)
-cmake -S crispy-doom -B crispy-doom/build \
-  -DDMCP_ENABLE=ON \
-  -DDMCP_INCLUDE_DIR="$PWD/include" \
-  -DDMCP_LIB_DIR="$PWD/build"
-cmake --build crispy-doom/build -j"$(nproc)"
+target_link_libraries(myengine PRIVATE dmcp::single)
 ```
 
 ### Starting the Server
@@ -95,13 +86,33 @@ cmake --build crispy-doom/build -j"$(nproc)"
 # Check health endpoint
 curl http://localhost:6060/health
 
+# Initialize session
+INIT=$(curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"verify","version":"1.0"}}}')
+
+SESSION_ID=$(printf '%s' "$INIT" | jq -r '.result.sessionId')
+
+# Complete lifecycle
+curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' >/dev/null
+
 # Test MCP endpoint
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
 The server runs as long as the game is active.
+
+Strict mode is the default: after `initialize`, include both
+`MCP-Protocol-Version` and `MCP-Session-Id` on every `/mcp` request.
 
 ---
 
@@ -324,6 +335,41 @@ class DMCPSimpleClient:
     def __init__(self, base_url="http://localhost:6060"):
         self.base_url = base_url
         self.mcp_url = f"{base_url}/mcp"
+        self.session_id = None
+
+    def initialize(self):
+        response = requests.post(
+            self.mcp_url,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "dmcp-simple-client", "version": "1.0.0"},
+                },
+            },
+            headers={"MCP-Protocol-Version": "2025-11-25"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        self.session_id = data["result"]["sessionId"]
+
+        requests.post(
+            self.mcp_url,
+            json={"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+            headers={
+                "MCP-Protocol-Version": "2025-11-25",
+                "MCP-Session-Id": self.session_id,
+            },
+        ).raise_for_status()
+
+    def _headers(self):
+        return {
+            "MCP-Protocol-Version": "2025-11-25",
+            "MCP-Session-Id": self.session_id,
+        }
     
     def get_state(self):
         """Get current game state"""
@@ -332,7 +378,7 @@ class DMCPSimpleClient:
             "id": 1,
             "method": "tools/call",
             "params": {"name": "get_state", "arguments": {"section": "player"}}
-        })
+        }, headers=self._headers())
         result = response.json()
         if "result" in result and "content" in result["result"]:
             return json.loads(result["result"]["content"][0]["text"])
@@ -351,7 +397,7 @@ class DMCPSimpleClient:
                     "params": params
                 }
             }
-        })
+        }, headers=self._headers())
         return response.json()
     
     def health_check(self):
@@ -361,6 +407,7 @@ class DMCPSimpleClient:
 
 # Usage
 client = DMCPSimpleClient()
+client.initialize()
 print(client.health_check())
 print(client.get_state())
 client.execute("spawn_entity", {
@@ -376,6 +423,7 @@ client.execute("spawn_entity", {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DMCP_PORT` | HTTP server port | 6060 |
+| `DMCP_ALLOW_IMPLICIT_SESSION` | Allow requests without `MCP-Session-Id` when exactly one session exists | `0` (strict) |
 
 `DMCP_TARGET_HZ` and `DMCP_LOG_LEVEL` are configured in code/config structs,
 not as runtime environment variables.
@@ -399,12 +447,13 @@ not as runtime environment variables.
 | `get_command_result` | Poll async command completion by `sequence` |
 | `execute_batch` | Queue mutating commands in order (rejects `change_level`) |
 | `get_command_examples` | Fetch structured command payload examples |
+| `player_input` | Queue one movement/aim/fire/use input action per tick |
 
 ### execute_command Types
 
 | Type | Parameters |
 |------|------------|
-| `spawn_entity` | `entity_class`, `position.x`, `position.y`, `angle` |
+| `spawn_entity` | `entity_class`, `x`, `y`, `angle` |
 | `change_level` | `map_name`, `skill_level` |
 | `give_item` | `item_class`, `amount` |
 | `set_player_health` | `health` |

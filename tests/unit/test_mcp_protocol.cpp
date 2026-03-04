@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -138,6 +139,23 @@ static std::string ExtractSessionId(const std::string& json_body) {
 
   return std::string(result["sessionId"].get_string(""));
 }
+
+static void SetImplicitSessionEnv(bool enabled) {
+#ifdef _WIN32
+  _putenv_s("DMCP_ALLOW_IMPLICIT_SESSION", enabled ? "1" : "");
+#else
+  if (enabled) {
+    setenv("DMCP_ALLOW_IMPLICIT_SESSION", "1", 1);
+  } else {
+    unsetenv("DMCP_ALLOW_IMPLICIT_SESSION");
+  }
+#endif
+}
+
+struct ImplicitSessionEnvGuard {
+  explicit ImplicitSessionEnvGuard(bool enabled) { SetImplicitSessionEnv(enabled); }
+  ~ImplicitSessionEnvGuard() { SetImplicitSessionEnv(false); }
+};
 
 struct SessionContext {
   uint16_t    port;
@@ -514,6 +532,52 @@ TEST_CASE("MCP Protocol: Multiple sessions", "[protocol][session]") {
 
     REQUIRE(doc1.root().has_member("result"));
     REQUIRE(doc2.root().has_member("result"));
+  }
+
+  mcp_server_destroy(server);
+}
+
+TEST_CASE("MCP Protocol: Optional implicit session compatibility mode",
+          "[protocol][session][compat]") {
+  ImplicitSessionEnvGuard env_guard(true);
+
+  uint16_t            port   = GetUniquePort();
+  mcp_server_config_t config = mcp_default_config();
+  config.port                = port;
+  mcp_server_t* server       = mcp_server_create(&config);
+  REQUIRE(server != nullptr);
+  REQUIRE(WaitForServer(server, port));
+
+  SECTION("Single active session can serve requests without MCP-Session-Id") {
+    SessionContext ctx = PerformFullLifecycle(port);
+    REQUIRE_FALSE(ctx.session_id.empty());
+
+    HttpResponse resp =
+        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"ping"})");
+    REQUIRE(resp.status == 200);
+
+    mcp::json::Document doc;
+    REQUIRE(doc.parse(resp.body));
+    auto root = doc.root();
+    REQUIRE(root.has_member("result"));
+  }
+
+  SECTION("Implicit session resolution is disabled when multiple sessions exist") {
+    SessionContext ctx1 = PerformFullLifecycle(port);
+    SessionContext ctx2 = PerformFullLifecycle(port);
+    REQUIRE_FALSE(ctx1.session_id.empty());
+    REQUIRE_FALSE(ctx2.session_id.empty());
+    REQUIRE(ctx1.session_id != ctx2.session_id);
+
+    HttpResponse resp =
+        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"ping"})");
+    REQUIRE(resp.status == 200);
+
+    mcp::json::Document doc;
+    REQUIRE(doc.parse(resp.body));
+    auto root = doc.root();
+    REQUIRE(root.has_member("error"));
+    REQUIRE(root["error"]["code"].get_int() == -32002);
   }
 
   mcp_server_destroy(server);

@@ -76,7 +76,7 @@ TEST_CASE("Fake adapter simple: lifecycle", "[adapter][fake][simple]") {
 
   dmcp_fake_t* fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
-  REQUIRE(dmcp_fake_context(fake) != nullptr);
+  REQUIRE(dmcp_fake_get_context(fake) != nullptr);
   REQUIRE(dmcp_fake_is_running(fake));
 
   dmcp_stats_t stats{};
@@ -111,7 +111,7 @@ TEST_CASE("Fake adapter medium: input queue processing", "[adapter][fake][medium
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
 
-  dmcp_context_t* ctx = dmcp_fake_context(fake);
+  dmcp_context_t* ctx = dmcp_fake_get_context(fake);
   REQUIRE(ctx != nullptr);
 
   const dmcp_snapshot_t before = require_snapshot(fake);
@@ -139,7 +139,7 @@ TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medi
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
 
-  dmcp_context_t* ctx = dmcp_fake_context(fake);
+  dmcp_context_t* ctx = dmcp_fake_get_context(fake);
   REQUIRE(ctx != nullptr);
 
   dmcp_snapshot_t before = require_snapshot(fake);
@@ -177,7 +177,7 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
 
-  dmcp_context_t* ctx = dmcp_fake_context(fake);
+  dmcp_context_t* ctx = dmcp_fake_get_context(fake);
   REQUIRE(ctx != nullptr);
 
   dmcp_command_t change_level{};

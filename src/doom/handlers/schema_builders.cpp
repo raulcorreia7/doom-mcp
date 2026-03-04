@@ -1,11 +1,50 @@
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include "dmcp/doom/protocol.h"
 #include "doom/internal/json_types.hpp"
 #include "doom/handlers/tools/tools.hpp"
 
 namespace dmcp {
+
+tool_annotation_hints infer_tool_annotation_hints(std::string_view tool_name) {
+  tool_annotation_hints hints{};
+
+  if (tool_name == DMCP_TOOL_GET_PLAYER || tool_name == DMCP_TOOL_GET_ENEMIES ||
+      tool_name == DMCP_TOOL_GET_ENTITIES || tool_name == DMCP_TOOL_GET_MAP ||
+      tool_name == DMCP_TOOL_GET_LEVEL || tool_name == DMCP_TOOL_GET_INVENTORY ||
+      tool_name == DMCP_TOOL_GET_GAME_INFO || tool_name == DMCP_TOOL_GET_GAME ||
+      tool_name == DMCP_TOOL_GET_STATE || tool_name == DMCP_TOOL_GET_STATE_BATCH ||
+      tool_name == DMCP_TOOL_GET_SCREENSHOT || tool_name == DMCP_TOOL_GET_COMMAND_RESULT ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_CONTENT ||
+      tool_name == DMCP_TOOL_GET_COMMAND_EXAMPLES) {
+    hints.read_only  = true;
+    hints.idempotent = true;
+    return hints;
+  }
+
+  if (tool_name == DMCP_TOOL_EXECUTE_COMMAND || tool_name == DMCP_TOOL_EXECUTE_BATCH ||
+      tool_name == DMCP_TOOL_SPAWN_ENTITY || tool_name == DMCP_TOOL_CHANGE_LEVEL ||
+      tool_name == DMCP_TOOL_GIVE_ITEM || tool_name == DMCP_TOOL_SET_PLAYER_HEALTH ||
+      tool_name == DMCP_TOOL_TELEPORT_PLAYER || tool_name == DMCP_TOOL_SET_PLAYER_POSITION ||
+      tool_name == DMCP_TOOL_EXECUTE_CONSOLE || tool_name == DMCP_TOOL_PAUSE_GAME ||
+      tool_name == DMCP_TOOL_DAMAGE_ENTITY || tool_name == DMCP_TOOL_KILL_ENTITY ||
+      tool_name == DMCP_TOOL_PLAYER_INPUT) {
+    hints.destructive = true;
+  }
+
+  if (tool_name == DMCP_TOOL_SET_PLAYER_HEALTH || tool_name == DMCP_TOOL_TELEPORT_PLAYER ||
+      tool_name == DMCP_TOOL_SET_PLAYER_POSITION || tool_name == DMCP_TOOL_PAUSE_GAME) {
+    hints.idempotent = true;
+  }
+
+  if (tool_name == DMCP_TOOL_EXECUTE_CONSOLE) {
+    hints.open_world = true;
+  }
+
+  return hints;
+}
 
 void add_empty_object_schema(json_builder* schema) {
   if (!schema) {
@@ -106,7 +145,7 @@ void add_command_tool_schema(const char* tool_name, json_builder* schema) {
 }
 
 void add_command_tool(json_builder* tools, const char* name, const char* description,
-                      json_builder schema) {
+                      json_builder schema, tool_annotation_hints hints) {
   if (!tools || !name || !description) {
     return;
   }
@@ -116,6 +155,23 @@ void add_command_tool(json_builder* tools, const char* name, const char* descrip
   tool.add("name", name);
   tool.add("description", description);
   tool.add("inputSchema", std::move(schema));
+  if (hints.read_only || hints.destructive || hints.idempotent || hints.open_world) {
+    json_builder annotations;
+    annotations.start_object();
+    if (hints.read_only) {
+      annotations.add("readOnlyHint", true);
+    }
+    if (hints.destructive) {
+      annotations.add("destructiveHint", true);
+    }
+    if (hints.idempotent) {
+      annotations.add("idempotentHint", true);
+    }
+    if (hints.open_world) {
+      annotations.add("openWorldHint", true);
+    }
+    tool.add("annotations", std::move(annotations));
+  }
   tools->push(std::move(tool));
 }
 

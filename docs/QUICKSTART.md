@@ -27,6 +27,7 @@ DMCP (Doom Model Context Protocol SDK) is a C/C++ library that exposes Doom game
 - C++17 compiler (GCC 9+, Clang 10+)
 - SDL2 (for engine adapters)
 - Python 3 + pytest (for e2e tests)
+- `jq` (for the quick MCP session verification command)
 
 ## Quick Install
 
@@ -49,10 +50,25 @@ make run
 curl http://localhost:6060/health
 # {"status": "ok", "clients": 0}
 
-# List MCP tools
+# Initialize MCP session
+INIT=$(curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"quickstart","version":"1.0"}}}')
+
+SESSION_ID=$(printf '%s' "$INIT" | jq -r '.result.sessionId')
+curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' >/dev/null
+
+# List MCP tools (strict lifecycle/session mode)
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
 ## Next Steps
@@ -66,6 +82,6 @@ curl -X POST http://localhost:6060/mcp \
 
 | Problem | Solution |
 |---------|----------|
-| Port 6060 in use | `./build/dummy_server` or change port in code |
+| Port 6060 in use | `./build/default/dummy_server` or change port in code |
 | Build fails | Check CMake version: `cmake --version` |
 | Tests fail | Run with verbose: `make test-verbose` |

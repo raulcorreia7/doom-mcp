@@ -201,9 +201,9 @@ bool dmcp_validate_timescale(float timescale);
 
 ### Adapter Layer (Engine-specific)
 ```c
-// adapters/zdoom/adapter.h
+// include/dmcp/adapters/zdoom.h
 dmcp_zdoom_t*        dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
-mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+mcp_result_t         dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 void                 dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 
 // adapters/crispy-doom/include/dmcp_adapter.h
@@ -319,10 +319,10 @@ doom-mcp/
 │
 ├── adapters/
 │   ├── zdoom/
-│   │   ├── adapter.h           # Public adapter header
-│   │   ├── internal.h          # Shared internal utilities
-│   │   ├── adapter.cpp         # ZDoom integration
-│   │   └── commands.cpp        # ZDoom command handlers
+│   │   ├── include/dmcp_adapter.h  # Adapter-local include
+│   │   ├── include/internal.h      # Shared internal utilities
+│   │   ├── src/adapter.cpp         # ZDoom integration
+│   │   └── src/commands.cpp        # ZDoom command handlers
 │   │
 │   └── crispy-doom/
 │       ├── include/dmcp_adapter.h  # Public adapter header
@@ -360,35 +360,34 @@ doom-mcp/
 
 | Target | Type | Dependencies | Purpose |
 |--------|------|--------------|---------|
-| `dmcp::generic` | STATIC/SHARED | yyjson, cpp-httplib | Generic MCP protocol |
-| `dmcp::core` | STATIC/SHARED | dmcp::generic | Doom-specific MCP |
-| `dmcp::crispy` | STATIC/SHARED | dmcp::core | Crispy Doom adapter |
-| `dmcp::zdoom` | STATIC | dmcp::core | ZDoom adapter |
-| `dmcp::fake` | STATIC/SHARED | dmcp::core | Deterministic fake adapter for smoke/integration tests |
+| `dmcp::single` | STATIC/SHARED | yyjson, cpp-httplib | Unified DMCP runtime surface (`libdmcp`) |
+| `dmcp::generic` | Alias | `dmcp::single` (shared) / `dmcp_generic` (static) | Generic MCP compatibility target |
+| `dmcp::core` | Alias | `dmcp::single` (shared) / `dmcp_core` (static) | Doom MCP compatibility target |
+| `dmcp::adapter_crispy` | STATIC/SHARED | dmcp::core | Crispy Doom adapter |
+| `dmcp::adapter_zdoom` | STATIC | dmcp::core | ZDoom adapter |
+| `dmcp::adapter_fake` | STATIC/SHARED | dmcp::core | Deterministic fake adapter for smoke/integration tests |
 
 ## Build Configuration
 
 ```cmake
 # Option 1: find_package integration (recommended for consumers)
 find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::core)
-
-# Option 2: Manual include/lib paths (legacy)
-# -DDMCP_INCLUDE_DIR="$PWD/include"
-# -DDMCP_LIB_DIR="$PWD/build"
+target_link_libraries(myengine PRIVATE dmcp::single)
 
 # Options
 option(DMCP_BUILD_TESTS "Build tests" OFF)
-option(DMCP_BUILD_EXAMPLES "Build examples" ON)
-option(DMCP_BUILD_ADAPTER_FAKE "Build fake adapter" ON)
+option(DMCP_BUILD_EXAMPLES "Build examples" OFF)
+option(DMCP_BUILD_ADAPTERS "Enable bundled adapter projects" OFF)
+option(DMCP_BUILD_ADAPTER_FAKE "Build fake adapter" OFF)
 option(DMCP_BUILD_ADAPTER_ZDOOM "Build ZDoom adapter" OFF)
 option(DMCP_BUILD_ADAPTER_CRISPY "Build Crispy Doom adapter" OFF)
 option(DMCP_BUILD_SHARED "Build shared libraries" OFF)
+option(DMCP_BUILD_SINGLE_DLL "Build single libdmcp artifact" ON)
 option(DMCP_ENABLE_SANITIZERS "Enable sanitizers" OFF)
 
 # Build shared libraries
-cmake -B build-shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
-cmake --build build-shared -j$(nproc)
+cmake -B build/shared -DDMCP_BUILD_SHARED=ON -DDMCP_BUILD_TESTS=OFF
+cmake --build build/shared --parallel
 ```
 
 ## Key Design Principles
@@ -434,8 +433,8 @@ Each layer implements a virtual table (vtable) with registration hooks and lifec
 
 | Layer | Tools | Purpose |
 |-------|-------|---------|
-| **Orchestrator** | `orchestrator.spawn_entity`, `orchestrator.change_level`, `orchestrator.give_item`, `orchestrator.set_player_health`, `orchestrator.teleport_player`, `orchestrator.execute_console`, `orchestrator.pause_game`, `orchestrator.damage_entity`, `orchestrator.kill_entity`, `orchestrator.get_state`, `orchestrator.get_screenshot` | Game state management and entity manipulation |
-| **Input** | `input.player_input` | Human-like input control for agents |
+| **Orchestrator** | `get_*` state tools, `execute_command`, `execute_batch`, command aliases, `get_screenshot` | Game state management and entity manipulation |
+| **Input** | `player_input` | Human-like input control for agents |
 
 ### Configuration
 
@@ -455,9 +454,9 @@ typedef struct {
 
 **Default behavior**: Both layers are enabled. Set `config.layers.orchestrator = false` or `config.layers.input = false` to disable specific layers.
 
-### Tool Namespacing
+### Tool Registration
 
-Tools are namespaced by layer name (e.g., `orchestrator.spawn_entity`). This prevents naming collisions and makes tool purpose explicit. Agents can discover available tools via the `tools/list` method.
+Tools are grouped internally by layer ownership (orchestrator/input) and exposed through the MCP `tools/list` surface as stable public names (for example `get_player`, `execute_command`, `player_input`).
 
 ### Layer Lifecycle
 

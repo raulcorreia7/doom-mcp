@@ -1,9 +1,9 @@
-file(GLOB DMCP_FAKE_SOURCES src/*.cpp)
+file(GLOB ADAPTER_FAKE_SOURCES src/*.cpp)
 
-add_library(fake ${DMCP_LIBRARY_TYPE} ${DMCP_FAKE_SOURCES})
-add_library(dmcp::fake ALIAS fake)
+add_library(adapter_fake ${DMCP_LIBRARY_TYPE} ${ADAPTER_FAKE_SOURCES})
+add_library(dmcp::adapter_fake ALIAS adapter_fake)
 
-set_target_properties(fake PROPERTIES
+set_target_properties(adapter_fake PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON
@@ -11,20 +11,22 @@ set_target_properties(fake PROPERTIES
 )
 
 if(NOT WIN32 AND DMCP_BUILD_SHARED)
-    target_link_options(fake PRIVATE
+    target_link_options(adapter_fake PRIVATE
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/dmcp_fake.version"
     )
 endif()
 
-target_include_directories(fake
+target_include_directories(adapter_fake
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/adapters/common/include
 )
 
-target_link_libraries(fake
+target_link_libraries(adapter_fake
     PUBLIC
         dmcp::core
 )
 
-dmcp_enable_warnings(fake)
+dmcp_enable_warnings(adapter_fake)

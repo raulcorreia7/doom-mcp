@@ -34,12 +34,16 @@ FAST_MODE = os.environ.get("DMCP_E2E_FAST", "1") == "1"
 STARTUP_TIMEOUT = float(
     os.environ.get("DMCP_STARTUP_TIMEOUT", "20" if FAST_MODE else "30")
 )
+STARTUP_INITIAL_DELAY = float(
+    os.environ.get("DMCP_STARTUP_INITIAL_DELAY", "0.25" if FAST_MODE else "0.75")
+)
 REQUEST_TIMEOUT = float(
     os.environ.get("DMCP_REQUEST_TIMEOUT", "5" if FAST_MODE else "10")
 )
 SESSION_DEFAULT_PORT = int(os.environ.get("DMCP_SESSION_PORT", "0"))
 START_RETRIES = int(os.environ.get("DMCP_START_RETRIES", "3" if FAST_MODE else "5"))
 RUN_EXTENDED_SCENARIOS = os.environ.get("DMCP_E2E_EXTENDED_SCENARIOS", "0") == "1"
+ALLOW_TOOL_FALLBACK = os.environ.get("DMCP_E2E_ALLOW_TOOL_FALLBACK", "0") == "1"
 
 
 class GameState(Enum):
@@ -300,7 +304,8 @@ class DoomInstance:
 
     def _wait_for_ready(self, timeout: float) -> None:
         """Wait for server to be healthy and in-level."""
-        time.sleep(1.0)
+        if STARTUP_INITIAL_DELAY > 0:
+            time.sleep(STARTUP_INITIAL_DELAY)
 
         deadline = time.time() + timeout
         last_error = "unknown startup error"
@@ -419,6 +424,9 @@ class DoomInstance:
                 route_state = _route_state()
                 if isinstance(route_state, dict) and route_state:
                     return route_state
+
+                if not ALLOW_TOOL_FALLBACK:
+                    return {}
 
                 # Fallback: granular tool calls for compatibility.
                 player_payload = _call_tool("get_player", request_id=1)

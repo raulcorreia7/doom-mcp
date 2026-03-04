@@ -1,0 +1,48 @@
+# DMCPBuildConfig.cmake
+# Derived build-mode flags and tiny shared helpers used by top-level CMakeLists.
+
+set(DMCP_LIBRARY_TYPE STATIC)
+if(DMCP_BUILD_SHARED)
+  set(DMCP_LIBRARY_TYPE SHARED)
+endif()
+
+if(DMCP_BUILD_SHARED AND DMCP_BUILD_TESTS)
+  set(DMCP_BUILD_STATIC_FOR_TESTS ON)
+else()
+  set(DMCP_BUILD_STATIC_FOR_TESTS OFF)
+endif()
+
+set(DMCP_BUILD_SHARED_SPLIT OFF)
+if(DMCP_BUILD_SHARED AND NOT DMCP_BUILD_SINGLE_DLL)
+  set(DMCP_BUILD_SHARED_SPLIT ON)
+endif()
+
+set(DMCP_BUILD_SHARED_SINGLE OFF)
+if(DMCP_BUILD_SHARED AND DMCP_BUILD_SINGLE_DLL)
+  set(DMCP_BUILD_SHARED_SINGLE ON)
+endif()
+
+set(DMCP_BUILD_GENERIC_STATIC OFF)
+if(NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS OR DMCP_BUILD_SHARED_SPLIT)
+  set(DMCP_BUILD_GENERIC_STATIC ON)
+endif()
+
+set(DMCP_BUILD_CORE_STATIC OFF)
+if(NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS)
+  set(DMCP_BUILD_CORE_STATIC ON)
+endif()
+
+set(DMCP_BUILD_SINGLE_STATIC OFF)
+if(DMCP_BUILD_SINGLE_DLL AND (NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS))
+  set(DMCP_BUILD_SINGLE_STATIC ON)
+endif()
+
+function(dmcp_append_existing_targets out_var)
+  set(result "${${out_var}}")
+  foreach(candidate IN ITEMS ${ARGN})
+    if(TARGET ${candidate})
+      list(APPEND result ${candidate})
+    endif()
+  endforeach()
+  set(${out_var} "${result}" PARENT_SCOPE)
+endfunction()

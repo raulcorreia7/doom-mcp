@@ -27,7 +27,7 @@ $env:DOOM_WAD="C:\path\to\doom2.wad"
 
 - `crispy-doom[.exe]` - Game binary
 - `doom1.wad` - Shareware episode (free)
-- `libdmcp_*.so` / `dmcp_*.dll` - MCP libraries
+- `libdmcp.so` / `libdmcp.dylib` / `dmcp.dll` - MCP runtime library
 - `go.sh` / `go.bat` - Launcher script
 
 ## MCP Server

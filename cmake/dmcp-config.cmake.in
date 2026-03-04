@@ -1,7 +1,53 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
+find_dependency(yyjson CONFIG REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/dmcp-targets.cmake")
+
+# Normalize static exported names to canonical consumer target names.
+if(TARGET dmcp::single_static AND NOT TARGET dmcp::single)
+  add_library(dmcp::single INTERFACE IMPORTED)
+  set_property(TARGET dmcp::single PROPERTY INTERFACE_LINK_LIBRARIES dmcp::single_static)
+endif()
+
+if(TARGET dmcp::core_static AND NOT TARGET dmcp::core)
+  add_library(dmcp::core INTERFACE IMPORTED)
+  set_property(TARGET dmcp::core PROPERTY INTERFACE_LINK_LIBRARIES dmcp::core_static)
+endif()
+
+if(TARGET dmcp::generic_static AND NOT TARGET dmcp::generic)
+  add_library(dmcp::generic INTERFACE IMPORTED)
+  set_property(TARGET dmcp::generic PROPERTY INTERFACE_LINK_LIBRARIES dmcp::generic_static)
+endif()
+
+# Compatibility imported targets:
+# - Preferred runtime surface: dmcp::single
+# - Keep dmcp::core and dmcp::generic available for existing consumers.
+if(TARGET dmcp::single)
+  if(NOT TARGET dmcp::core)
+    add_library(dmcp::core INTERFACE IMPORTED)
+    set_property(TARGET dmcp::core PROPERTY INTERFACE_LINK_LIBRARIES dmcp::single)
+  endif()
+  if(NOT TARGET dmcp::generic)
+    add_library(dmcp::generic INTERFACE IMPORTED)
+    set_property(TARGET dmcp::generic PROPERTY INTERFACE_LINK_LIBRARIES dmcp::single)
+  endif()
+endif()
+
+if(TARGET dmcp::core AND NOT TARGET dmcp::single)
+  add_library(dmcp::single INTERFACE IMPORTED)
+  set_property(TARGET dmcp::single PROPERTY INTERFACE_LINK_LIBRARIES dmcp::core)
+endif()
+
+if(TARGET dmcp::core AND NOT TARGET dmcp::generic)
+  add_library(dmcp::generic INTERFACE IMPORTED)
+  set_property(TARGET dmcp::generic PROPERTY INTERFACE_LINK_LIBRARIES dmcp::core)
+endif()
+
+if(TARGET dmcp::generic AND NOT TARGET dmcp::core)
+  add_library(dmcp::core INTERFACE IMPORTED)
+  set_property(TARGET dmcp::core PROPERTY INTERFACE_LINK_LIBRARIES dmcp::generic)
+endif()
 
 check_required_components(dmcp)

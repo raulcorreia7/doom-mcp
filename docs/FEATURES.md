@@ -119,7 +119,7 @@ dmcp_context_destroy(ctx);
 |------|-------------|-----------|
 | `execute_command` | Queue a command | `type`, command params |
 | `execute_batch` | Queue multiple commands | `commands[]` |
-| `input` | Player control | `a` (action), `v` (value) |
+| `player_input` | Player control | `a` (action), `v` (value) |
 | `get_command_result` | Poll command status | `sequence` |
 | `get_command_examples` | Structured examples | None |
 | `get_available_content` | Entity/item classes | None |
@@ -128,10 +128,13 @@ dmcp_context_destroy(ctx);
 
 | CMake Option | Default | Description |
 |--------------|---------|-------------|
-| `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
+| `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build unit test suite |
 | `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
+| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
+| `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter for smoke/integration |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
+| `DMCP_BUILD_SINGLE_DLL` | ON | Build single `libdmcp` runtime surface |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy adapter |

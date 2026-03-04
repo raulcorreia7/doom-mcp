@@ -1,34 +1,59 @@
-#!/bin/bash
-# Run headless Doom engine with DMCP for e2e testing
-# Supports: crispy-doom
+#!/usr/bin/env bash
+# Run headless Doom engine with DMCP for integration/e2e checks.
+# Supported engine: crispy-doom
 
-set -e
+set -euo pipefail
+
+# -----------------------------------------------------------------------------
+# Paths and runtime configuration
+# -----------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DMCP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 WAD_DIR="$DMCP_ROOT/assets/wads"
 WAD_FILE="$WAD_DIR/doom1.wad"
-BUILD_DIR=""
-DOOM_BIN=""
-LOG_FILE="$SCRIPT_DIR/headless.log"
-DMCP_PORT="${DMCP_PORT:-6060}"
-MAX_START_ATTEMPTS="${DMCP_START_ATTEMPTS:-5}"
 DOOM_ENGINE="${DOOM_ENGINE:-crispy}"
 ENGINE_NAME="Crispy Doom"
+
+BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
+DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/crispy-doom}"
+
+DMCP_PORT="${DMCP_PORT:-6060}"
+BASE_URL="http://localhost:$DMCP_PORT"
+MCP_URL="$BASE_URL/mcp"
+MCP_PROTOCOL_VERSION="${MCP_PROTOCOL_VERSION:-2025-11-25}"
+
+MAX_START_ATTEMPTS="${DMCP_START_ATTEMPTS:-5}"
+STARTUP_WAIT_SECONDS="${DMCP_STARTUP_WAIT_SECONDS:-30}"
+HTTP_TIMEOUT="${DMCP_HTTP_TIMEOUT:-5}"
+
 DOOM_PID=""
 
-# Colors
+# -----------------------------------------------------------------------------
+# Console output helpers
+# -----------------------------------------------------------------------------
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
 pass() { echo -e "${GREEN}✓ $1${NC}"; }
+warn() { echo -e "${YELLOW}! $1${NC}"; }
 fail() {
 	echo -e "${RED}✗ $1${NC}"
 	exit 1
 }
-warn() { echo -e "${YELLOW}! $1${NC}"; }
+
+test_title() {
+	echo ""
+	echo "$1"
+}
+
+# -----------------------------------------------------------------------------
+# Process lifecycle
+# -----------------------------------------------------------------------------
 
 cleanup() {
 	if [ -n "$DOOM_PID" ] && kill -0 "$DOOM_PID" 2>/dev/null; then
@@ -39,90 +64,184 @@ cleanup() {
 
 trap cleanup EXIT
 
-if [ "$DOOM_ENGINE" != "crispy" ]; then
-	fail "Unsupported DOOM_ENGINE '$DOOM_ENGINE' (use 'crispy')"
-fi
-
-BUILD_DIR="${DOOM_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
-DOOM_BIN="${DOOM_BIN:-$BUILD_DIR/src/crispy-doom}"
+# -----------------------------------------------------------------------------
+# HTTP / JSON-RPC helpers
+# -----------------------------------------------------------------------------
 
 pretty_json() {
-	if command -v python3 >/dev/null 2>&1; then
-		python3 -m json.tool 2>/dev/null || cat
+	if command -v jq >/dev/null 2>&1; then
+		jq . 2>/dev/null || cat
 	else
 		cat
 	fi
 }
 
 print_game_state_pretty() {
-	if ! command -v python3 >/dev/null 2>&1; then
+	if ! command -v jq >/dev/null 2>&1; then
 		cat
 		return 0
 	fi
 
-	python3 -c '
-import json
-import sys
+	local raw
+	raw="$(cat)"
 
-raw = sys.stdin.read()
-try:
-    data = json.loads(raw)
-except Exception:
-    print(raw)
-    raise SystemExit(0)
+	local nested
+	nested="$(printf '%s\n' "$raw" | jq -c '
+		((.content // .result.content // [])[]? | select(.type == "text") | .text | fromjson? // empty)
+		| select(type == "object")
+	' 2>/dev/null | head -n1 || true)"
 
-content = data.get("content")
-if isinstance(content, list):
-    for item in content:
-        if isinstance(item, dict) and item.get("type") == "text":
-            text = item.get("text", "")
-            try:
-                nested = json.loads(text)
-            except Exception:
-                continue
-            print(json.dumps(nested, indent=2))
-            raise SystemExit(0)
+	if [ -n "$nested" ]; then
+		printf '%s\n' "$nested" | jq .
+		return 0
+	fi
 
-print(json.dumps(data, indent=2))
-'
+	printf '%s\n' "$raw" | jq . 2>/dev/null || printf '%s\n' "$raw"
 }
 
 game_state_has_player() {
-	if ! command -v python3 >/dev/null 2>&1; then
+	if ! command -v jq >/dev/null 2>&1; then
 		return 1
 	fi
 
-	python3 -c '
-import json
-import sys
-
-raw = sys.stdin.read()
-try:
-    data = json.loads(raw)
-except Exception:
-    raise SystemExit(1)
-
-content = data.get("content")
-if not isinstance(content, list):
-    raise SystemExit(1)
-
-for item in content:
-    if not isinstance(item, dict) or item.get("type") != "text":
-        continue
-    text = item.get("text", "")
-    try:
-        nested = json.loads(text)
-    except Exception:
-        continue
-    if isinstance(nested, dict) and "player" in nested:
-        raise SystemExit(0)
-
-raise SystemExit(1)
-'
+	jq -e '
+		[((.content // .result.content // [])[]? | select(.type == "text") | .text | fromjson?)]
+		| any(type == "object" and has("player"))
+	' >/dev/null 2>&1
 }
+
+health_get() {
+	curl -sS -m "$HTTP_TIMEOUT" "$BASE_URL/health"
+}
+
+mcp_post() {
+	local payload="$1"
+	local session_id="${2:-}"
+	local protocol_version="${3:-$MCP_PROTOCOL_VERSION}"
+
+	local args=(
+		-sS
+		-m "$HTTP_TIMEOUT"
+		-X POST "$MCP_URL"
+		-H "Content-Type: application/json"
+		-H "MCP-Protocol-Version: $protocol_version"
+		-d "$payload"
+	)
+
+	if [ -n "$session_id" ]; then
+		args+=(-H "MCP-Session-Id: $session_id")
+	fi
+
+	curl "${args[@]}"
+}
+
+extract_session_id() {
+	local init_json="$1"
+	if command -v jq >/dev/null 2>&1; then
+		printf '%s\n' "$init_json" | jq -r '.result.sessionId // empty'
+		return 0
+	fi
+	printf '%s\n' "$init_json" | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4
+}
+
+assert_contains_json() {
+	local response="$1"
+	local needle="$2"
+	local ok_message="$3"
+	local fail_message="$4"
+
+	if printf '%s\n' "$response" | grep -q "$needle"; then
+		pass "$ok_message"
+		return 0
+	fi
+
+	echo "$fail_message:"
+	printf '%s\n' "$response" | pretty_json
+	fail "$fail_message"
+}
+
+assert_contains_text() {
+	local response="$1"
+	local needle="$2"
+	local ok_message="$3"
+	local fail_message="$4"
+
+	if printf '%s\n' "$response" | grep -q "$needle"; then
+		pass "$ok_message"
+		return 0
+	fi
+
+	echo "$fail_message:"
+	printf '%s\n' "$response"
+	fail "$fail_message"
+}
+
+wait_for_server_ready() {
+	local wait_secs=0
+	while [ "$wait_secs" -lt "$STARTUP_WAIT_SECONDS" ]; do
+		if health_get >/dev/null 2>&1; then
+			return 0
+		fi
+
+		if ! kill -0 "$DOOM_PID" 2>/dev/null; then
+			return 1
+		fi
+
+		sleep 1
+		wait_secs=$((wait_secs + 1))
+	done
+
+	return 1
+}
+
+start_doom_with_retry() {
+	for attempt in $(seq 1 "$MAX_START_ATTEMPTS"); do
+		SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$DOOM_BIN" \
+			-iwad "$WAD_FILE" \
+			-nodraw \
+			-nosound \
+			-nomusic \
+			-nosfx \
+			-nograb \
+			-warp 1 1 \
+			-skill 3 \
+			-dmcp_port "$DMCP_PORT" \
+			</dev/null &
+		DOOM_PID=$!
+
+		echo "PID: $DOOM_PID (attempt $attempt/$MAX_START_ATTEMPTS)"
+		echo "Waiting for DMCP server..."
+
+		if wait_for_server_ready; then
+			pass "DMCP server is running"
+			return 0
+		fi
+
+		warn "Startup attempt $attempt failed"
+		if kill -0 "$DOOM_PID" 2>/dev/null; then
+			kill "$DOOM_PID" 2>/dev/null || true
+			wait "$DOOM_PID" 2>/dev/null || true
+		fi
+		DOOM_PID=""
+
+		if [ "$attempt" -eq "$MAX_START_ATTEMPTS" ]; then
+			fail "DMCP server did not start within retry budget"
+		fi
+
+		sleep 1
+	done
+}
+
+# -----------------------------------------------------------------------------
+# Main flow
+# -----------------------------------------------------------------------------
 
 echo "=== DMCP Headless Test Runner ==="
 echo ""
+
+if [ "$DOOM_ENGINE" != "crispy" ]; then
+	fail "Unsupported DOOM_ENGINE '$DOOM_ENGINE' (use 'crispy')"
+fi
 
 # Step 1: Download WAD if needed
 if [ ! -f "$WAD_FILE" ]; then
@@ -140,163 +259,64 @@ if [ ! -f "$DOOM_BIN" ]; then
 	exit 1
 fi
 
-# Step 3: Run headless
+# Step 3: Start headless engine
 echo "Starting $ENGINE_NAME (headless)..."
 echo "  WAD: $WAD_FILE"
 echo "  DMCP Port: $DMCP_PORT"
 echo "  Log: output not redirected (stability)"
 echo ""
 
-for attempt in $(seq 1 "$MAX_START_ATTEMPTS"); do
-	SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy $DOOM_BIN \
-		-iwad "$WAD_FILE" \
-		-nodraw \
-		-nosound \
-		-nomusic \
-		-nosfx \
-		-nograb \
-		-warp 1 1 \
-		-skill 3 \
-		-dmcp_port "$DMCP_PORT" \
-		</dev/null &
-	DOOM_PID=$!
+start_doom_with_retry
 
-	echo "PID: $DOOM_PID (attempt $attempt/$MAX_START_ATTEMPTS)"
-	echo "Waiting for DMCP server..."
-
-	ready=false
-	for i in $(seq 1 30); do
-		if curl -s "http://localhost:$DMCP_PORT/health" >/dev/null 2>&1; then
-			ready=true
-			break
-		fi
-
-		if ! kill -0 "$DOOM_PID" 2>/dev/null; then
-			break
-		fi
-
-		sleep 1
-	done
-
-	if [ "$ready" = true ]; then
-		pass "DMCP server is running"
-		break
-	fi
-
-	warn "Startup attempt $attempt failed"
-	if kill -0 "$DOOM_PID" 2>/dev/null; then
-		kill "$DOOM_PID" 2>/dev/null || true
-		wait "$DOOM_PID" 2>/dev/null || true
-	fi
-	DOOM_PID=""
-
-	if [ "$attempt" -eq "$MAX_START_ATTEMPTS" ]; then
-		fail "DMCP server did not start within retry budget"
-	fi
-
-	sleep 1
-done
-
-# Step 5: Run tests
+# Step 4: Run protocol and route checks
 echo ""
 echo "Running MCP protocol tests..."
-echo ""
 
 # Test 1: Health check
-echo "Test 1: Health check"
-HEALTH=$(curl -s "http://localhost:$DMCP_PORT/health")
-if echo "$HEALTH" | grep -q '"status":"ok"'; then
-	pass "Health check succeeded"
-	printf '%s\n' "$HEALTH" | pretty_json
-else
-	echo "Health check failed response:"
-	printf '%s\n' "$HEALTH" | pretty_json
-	fail "Health check failed"
-fi
+test_title "Test 1: Health check"
+HEALTH="$(health_get)"
+assert_contains_json "$HEALTH" '"status":"ok"' "Health check succeeded" "Health check failed"
+printf '%s\n' "$HEALTH" | pretty_json
 
-# Test 2: MCP Initialize rejects unsupported protocol
-echo ""
-echo "Test 2: MCP Initialize rejects unsupported protocol"
-INIT_UNSUPPORTED=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Protocol-Version: 2024-01-01" \
-	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-01-01","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
-if echo "$INIT_UNSUPPORTED" | grep -q 'Unsupported protocol version'; then
-	pass "Unsupported protocol version is rejected"
-else
-	echo "Unsupported protocol initialize response:"
-	printf '%s\n' "$INIT_UNSUPPORTED" | pretty_json
-	fail "Unsupported protocol version was not rejected"
-fi
+# Test 2: Unsupported protocol rejection
+test_title "Test 2: MCP Initialize rejects unsupported protocol"
+INIT_UNSUPPORTED="$(mcp_post \
+	'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-01-01","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}' \
+	"" \
+	"2024-01-01")"
+assert_contains_json "$INIT_UNSUPPORTED" 'Unsupported protocol version' "Unsupported protocol version is rejected" "Unsupported protocol version was not rejected"
 
-# Test 3: MCP Initialize
-echo ""
-echo "Test 3: MCP Initialize"
-INIT=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d '{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')
-if echo "$INIT" | grep -q '"result"'; then
-	pass "Initialize succeeded"
-	printf '%s\n' "$INIT" | pretty_json
-else
-	echo "Initialize failed response:"
-	printf '%s\n' "$INIT" | pretty_json
-	fail "Initialize failed"
-fi
+# Test 3: Initialize
+test_title "Test 3: MCP Initialize"
+INIT="$(mcp_post \
+	'{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"dmcp-headless-test","version":"0.6.0"}}}')"
+assert_contains_json "$INIT" '"result"' "Initialize succeeded" "Initialize failed"
+printf '%s\n' "$INIT" | pretty_json
 
-SESSION_ID=$(echo "$INIT" | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4)
+SESSION_ID="$(extract_session_id "$INIT")"
 if [ -z "$SESSION_ID" ]; then
 	fail "Failed to extract sessionId from initialize response"
 fi
 echo "Session ID: $SESSION_ID"
 
-# Test 4: Client initialized notification
-echo ""
-echo "Test 4: notifications/initialized"
-INIT_DONE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Session-Id: $SESSION_ID" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}")
+# Test 4: notifications/initialized
+test_title "Test 4: notifications/initialized"
+INIT_DONE="$(mcp_post '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$SESSION_ID")"
 pass "Initialized notification sent"
 if [ -n "$INIT_DONE" ]; then
 	printf '%s\n' "$INIT_DONE" | pretty_json
 fi
 
-# Test 5: Tools list
-echo ""
-echo "Test 5: Tools list"
-TOOLS=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Session-Id: $SESSION_ID" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\"}")
-if echo "$TOOLS" | grep -q 'get_player'; then
-	pass "Tools list contains get_player"
-	printf '%s\n' "$TOOLS" | pretty_json
-else
-	echo "Tools list response:"
-	printf '%s\n' "$TOOLS" | pretty_json
-	fail "Tools list failed"
-fi
+# Test 5: tools/list
+test_title "Test 5: Tools list"
+TOOLS="$(mcp_post '{"jsonrpc":"2.0","id":3,"method":"tools/list"}' "$SESSION_ID")"
+assert_contains_json "$TOOLS" 'get_player' "Tools list contains get_player" "Tools list failed"
+assert_contains_json "$TOOLS" 'spawn_entity' "Tools list contains spawn_entity" "Tools list missing spawn_entity"
+printf '%s\n' "$TOOLS" | pretty_json
 
-if echo "$TOOLS" | grep -q 'spawn_entity'; then
-	pass "Tools list contains spawn_entity"
-else
-	echo "Tools list response:"
-	printf '%s\n' "$TOOLS" | pretty_json
-	fail "Tools list missing spawn_entity"
-fi
-
-# Test 6: Get player state
-echo ""
-echo "Test 6: Get player state"
-STATE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Session-Id: $SESSION_ID" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_player\"}}")
+# Test 6: tools/call get_player
+test_title "Test 6: Get player state"
+STATE="$(mcp_post '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_player"}}' "$SESSION_ID")"
 if printf '%s\n' "$STATE" | game_state_has_player; then
 	pass "Player state contains player data"
 	printf '%s\n' "$STATE" | print_game_state_pretty
@@ -306,82 +326,52 @@ else
 	warn "Player state may be empty (game not started)"
 fi
 
-# Test 7: Direct method alias (get_player)
-echo ""
-echo "Test 7: Direct JSON-RPC get_player"
-STATE_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Session-Id: $SESSION_ID" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"get_player\"}")
-if echo "$STATE_NATIVE" | grep -q '"result"'; then
-	pass "Direct method get_player is available"
-else
-	echo "Direct get_player response:"
-	printf '%s\n' "$STATE_NATIVE" | pretty_json
-	fail "Direct get_player method failed"
-fi
+# Test 7: direct get_player alias
+test_title "Test 7: Direct JSON-RPC get_player"
+STATE_NATIVE="$(mcp_post '{"jsonrpc":"2.0","id":5,"method":"get_player"}' "$SESSION_ID")"
+assert_contains_json "$STATE_NATIVE" '"result"' "Direct method get_player is available" "Direct get_player method failed"
 
-# Test 8: Direct method alias (execute_command)
-echo ""
-echo "Test 8: Direct JSON-RPC execute_command"
-COMMAND_NATIVE=$(curl -s -X POST "http://localhost:$DMCP_PORT/mcp" \
-	-H "Content-Type: application/json" \
-	-H "MCP-Session-Id: $SESSION_ID" \
-	-H "MCP-Protocol-Version: 2025-11-25" \
-	-d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"execute_command\",\"params\":{\"type\":\"pause_game\",\"params\":{\"paused\":false}}}")
-if echo "$COMMAND_NATIVE" | grep -q '"queued"'; then
-	pass "Direct method execute_command is available"
-else
-	echo "Direct execute_command response:"
-	printf '%s\n' "$COMMAND_NATIVE" | pretty_json
-	fail "Direct execute_command method failed"
-fi
+# Test 8: direct execute_command alias
+test_title "Test 8: Direct JSON-RPC execute_command"
+COMMAND_NATIVE="$(mcp_post '{"jsonrpc":"2.0","id":6,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}' "$SESSION_ID")"
+assert_contains_json "$COMMAND_NATIVE" '"queued"' "Direct method execute_command is available" "Direct execute_command method failed"
 
-# Test 9: Game state route
-echo ""
-echo "Test 9: GET /game/state"
-GAME_STATE_ROUTE=$(curl -s -m 2 "http://localhost:$DMCP_PORT/game/state" || true)
-if echo "$GAME_STATE_ROUTE" | grep -q '"player"'; then
-	pass "Game state route returns player data"
-else
-	echo "Game state route response:"
-	printf '%s\n' "$GAME_STATE_ROUTE" | pretty_json
-	fail "Game state route failed"
-fi
+# Test 9: /game/state route
+test_title "Test 9: GET /game/state"
+GAME_STATE_ROUTE="$(curl -sS -m "$HTTP_TIMEOUT" "$BASE_URL/game/state" || true)"
+assert_contains_json "$GAME_STATE_ROUTE" '"player"' "Game state route returns player data" "Game state route failed"
 
-# Test 10: SSE streaming (quick check)
-echo ""
-echo "Test 10: SSE endpoint"
-SSE_CHECK=$(curl -s -m 2 -H "Accept: text/event-stream" "http://localhost:$DMCP_PORT/mcp" 2>/dev/null | head -1 || true)
+# Test 10: SSE endpoint accessibility
+test_title "Test 10: SSE endpoint"
+SSE_CHECK="$(curl -sS -m 2 -H "Accept: text/event-stream" "$MCP_URL" 2>/dev/null | head -1 || true)"
 if [ -n "$SSE_CHECK" ]; then
 	pass "SSE stream on /mcp is accessible"
 else
 	warn "SSE stream on /mcp had no immediate data"
 fi
 
-# Test 11: Unknown endpoint error hygiene
-echo ""
-echo "Test 11: Unknown endpoint returns generic error"
-UNKNOWN_RESPONSE=$(curl -s -i -m 2 "http://localhost:$DMCP_PORT/does-not-exist" || true)
+# Test 11: Unknown endpoint hygiene
+test_title "Test 11: Unknown endpoint returns generic error"
+UNKNOWN_RESPONSE="$(curl -sS -i -m "$HTTP_TIMEOUT" "$BASE_URL/does-not-exist" || true)"
 if echo "$UNKNOWN_RESPONSE" | grep -q '"code":"not_found"'; then
 	if echo "$UNKNOWN_RESPONSE" | grep -Eqi 'uWebSockets|cpp-httplib|sse-httplib'; then
 		fail "Unknown endpoint response leaks transport implementation details"
 	fi
 	pass "Unknown endpoint response is generic"
 else
-	echo "Unknown endpoint response:"
-	printf '%s\n' "$UNKNOWN_RESPONSE"
-	fail "Unknown endpoint did not return generic not_found error"
+	assert_contains_text "$UNKNOWN_RESPONSE" '"code":"not_found"' \
+		"Unknown endpoint response is generic" \
+		"Unknown endpoint did not return generic not_found error"
 fi
 
-# Test 12: Multiple requests
-echo ""
-echo "Test 12: Multiple concurrent requests"
+# Test 12: Concurrent request handling
+test_title "Test 12: Multiple concurrent requests"
 REQUEST_PIDS=()
-for i in {1..5}; do
-	curl -s -m 2 "http://localhost:$DMCP_PORT/health" >/dev/null &
+request_count=0
+while [ "$request_count" -lt 5 ]; do
+	curl -sS -m "$HTTP_TIMEOUT" "$BASE_URL/health" >/dev/null &
 	REQUEST_PIDS+=("$!")
+	request_count=$((request_count + 1))
 done
 
 for pid in "${REQUEST_PIDS[@]}"; do
@@ -390,7 +380,7 @@ done
 
 pass "5 concurrent requests completed"
 
-# Cleanup
+# Final cleanup
 echo ""
 echo "Stopping $ENGINE_NAME..."
 cleanup

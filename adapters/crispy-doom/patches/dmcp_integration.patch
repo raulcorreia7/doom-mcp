@@ -84,10 +84,18 @@ index 4545738a..d487eeb2 100644
  endif()
 +
 +if(DMCP_ENABLE)
-+    list(APPEND SDL_LINK_LIBS
-+        "${DMCP_ROOT}/build/libdmcp_core.so"
-+        "${DMCP_ROOT}/build/libdmcp_generic.so"
++    find_library(DMCP_SINGLE_LIB
++        NAMES dmcp libdmcp
++        PATHS
++            "${DMCP_ROOT}/build"
++            "${DMCP_ROOT}/build/Release"
++            "${DMCP_ROOT}/build/Debug"
++        NO_DEFAULT_PATH
 +    )
++    if(NOT DMCP_SINGLE_LIB)
++        message(FATAL_ERROR "DMCP_ENABLE=ON but single libdmcp artifact was not found under ${DMCP_ROOT}/build")
++    endif()
++    list(APPEND SDL_LINK_LIBS "${DMCP_SINGLE_LIB}")
 +endif()
 +
  target_link_libraries(doom ${SDL_LINK_LIBS})

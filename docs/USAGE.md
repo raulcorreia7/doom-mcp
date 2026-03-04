@@ -104,20 +104,42 @@ client.initialize()
 
 ### Single Section Queries
 
+Initialize once and reuse session headers:
+
+```bash
+INIT=$(curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"usage-docs","version":"1.0"}}}')
+
+SESSION_ID=$(printf '%s' "$INIT" | jq -r '.result.sessionId')
+curl -s -X POST http://localhost:6060/mcp \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' >/dev/null
+```
+
 ```bash
 # Player only
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_player"}}'
 
 # Enemies (alive only)
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_enemies","arguments":{"status":"alive"}}}'
 
 # Map/level info
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_map"}}'
 ```
 
@@ -177,6 +199,8 @@ Read multiple sections in one request:
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -198,6 +222,8 @@ curl -X POST http://localhost:6060/mcp \
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -217,7 +243,7 @@ curl -X POST http://localhost:6060/mcp \
 
 ## Player Control
 
-The `input` tool provides tick-by-tick control (35Hz). Each call executes for one game tick.
+The `player_input` tool provides tick-by-tick control (35Hz). Each call executes for one game tick.
 
 ### Actions
 
@@ -238,14 +264,14 @@ The `input` tool provides tick-by-tick control (35Hz). Each call executes for on
 
 ```json
 // Move forward
-{"name": "input", "arguments": {"a": "fwd"}}
+{"name": "player_input", "arguments": {"a": "fwd"}}
 
 // Aim at 90 degrees and attack
-{"name": "input", "arguments": {"a": "aim", "v": 90}}
-{"name": "input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
+{"name": "player_input", "arguments": {"a": "atk"}}
 
 // Switch to shotgun (weapon 3)
-{"name": "input", "arguments": {"a": "wpn", "v": 3}}
+{"name": "player_input", "arguments": {"a": "wpn", "v": 3}}
 ```
 
 ---
@@ -257,6 +283,8 @@ The `input` tool provides tick-by-tick control (35Hz). Each call executes for on
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_screenshot"}}'
 ```
 
@@ -295,6 +323,8 @@ Poll async command status:
 ```bash
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Session-Id: $SESSION_ID" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,

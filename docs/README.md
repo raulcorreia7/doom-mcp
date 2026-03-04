@@ -14,6 +14,8 @@ Complete API documentation for the Doom Model Context Protocol SDK.
 | [INTEGRATION.md](INTEGRATION.md) | Connect to MCP clients |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design and layers |
 | [MCP_COMPLIANCE.md](MCP_COMPLIANCE.md) | Protocol compliance matrix |
+| [MCP_TOOL_AUDIT.md](MCP_TOOL_AUDIT.md) | MCP tool surface relevance and risk review |
+| [RUNBOOK.md](RUNBOOK.md) | Documentation freshness and maintenance workflow |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [../README.md](../README.md) | Project entry point |
 
@@ -92,6 +94,7 @@ make help      # Show all targets
 make submodules # Init/update Crispy submodule
 make all       # Build DMCP + Crispy
 make check     # Build + test
+make validate  # Validate core defaults + opt-in paths
 make run       # Run example server
 make debug     # Debug build with sanitizers
 make headless  # Run headless e2e tests
@@ -101,27 +104,30 @@ make headless  # Run headless e2e tests
 
 ```bash
 # Configure
-cmake -B build -S . -DDMCP_BUILD_TESTS=ON
+cmake -B build/default -S . -DDMCP_BUILD_TESTS=ON
 
 # Build
-cmake --build build -j$(nproc)
+cmake --build build/default --parallel
 
 # Test (run sequentially to avoid port race conditions)
-ctest --test-dir build -j1
+ctest --test-dir build/default -j1
 
 # Run
-./build/dummy_server
+./build/default/dummy_server
 ```
 
 ### CMake Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `DMCP_BUILD_EXAMPLES` | ON | Build example servers |
+| `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
+| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
+| `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
+| `DMCP_BUILD_SINGLE_DLL` | ON | Build unified `dmcp` runtime surface (`dmcp.so`/`dmcp.dll`) |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
 ## Integration
@@ -132,14 +138,15 @@ For consumers integrating DMCP into their own engine:
 
 ```cmake
 find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::core)
+target_link_libraries(myengine PRIVATE dmcp::single)
 ```
 
 This provides:
+- `dmcp::single` - Unified DMCP runtime surface
 - `dmcp::generic` - Generic MCP protocol layer
 - `dmcp::core` - Doom-specific MCP layer (depends on generic)
-- `dmcp::crispy` - Crispy Doom adapter (if enabled)
-- `dmcp::zdoom` - ZDoom adapter (if enabled)
+- `dmcp::adapter_crispy` - Crispy Doom adapter (if enabled)
+- `dmcp::adapter_zdoom` - ZDoom adapter (if enabled)
 
 ### Generic MCP (for any game/tool)
 
@@ -249,7 +256,7 @@ dmcp_context_destroy(ctx);
 ### ZDoom Adapter (zero-config integration)
 
 ```cpp
-#include "adapters/zdoom/adapter.h"
+#include "dmcp/adapters/zdoom.h"
 
 // Startup
 dmcp_zdoom_config_t cfg = dmcp_zdoom_config_default();
@@ -375,7 +382,7 @@ dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
 void          dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 
 // Game loop
-mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 
 // State
 bool          dmcp_zdoom_is_running(const dmcp_zdoom_t* ctx);
@@ -426,7 +433,7 @@ Direct JSON-RPC method aliases are also available for agent compatibility:
 - `get_state`
 - `get_screenshot`
 - `execute_command`
-- `input` - single-tick player control
+- `player_input` - single-tick player control
 
 These aliases map to the same underlying handlers used by `tools/call`.
 
@@ -436,9 +443,9 @@ Additional tool-only operations (via `tools/call`) include:
 - `get_state_batch` for read-only grouped state queries
 - `execute_batch` for queuing mutating commands in-order
 - `get_command_examples` for structured command/example discovery
-- `input` for single-tick player control (movement, aim, attack, use, weapon)
+- `player_input` for single-tick player control (movement, aim, attack, use, weapon)
 
-### `input` Tool
+### `player_input` Tool
 
 Send a single player input to control movement and actions. Each input executes for one game tick (35Hz).
 
@@ -457,9 +464,9 @@ Send a single player input to control movement and actions. Each input executes 
 
 Example:
 ```json
-{"name": "input", "arguments": {"a": "fwd"}}
-{"name": "input", "arguments": {"a": "aim", "v": 90}}
-{"name": "input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"a": "fwd"}}
+{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
+{"name": "player_input", "arguments": {"a": "atk"}}
 ```
 
 `execute_batch` rejects `change_level`; queue map changes separately with

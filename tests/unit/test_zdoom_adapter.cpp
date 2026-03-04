@@ -1,6 +1,6 @@
 #include <cstring>
 
-#include "adapters/zdoom/adapter.h"
+#include "dmcp/adapters/zdoom.h"
 #include "dmcp/doom/commands.h"
 #include "dmcp/doom/types.h"
 #include "test_utils.hpp"
@@ -26,7 +26,6 @@ TEST_CASE("Adapter: ZDoom configuration", "[adapter][config]") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
 
     REQUIRE(config.struct_size == sizeof(dmcp_zdoom_config_t));
-    REQUIRE(config.dmcp_config == nullptr);
     REQUIRE(config.log_fn == nullptr);
     REQUIRE(config.log_user == nullptr);
     REQUIRE(config.should_tick_fn == nullptr);
@@ -59,14 +58,11 @@ TEST_CASE("Adapter: ZDoom configuration", "[adapter][config]") {
     REQUIRE(config.should_tick_user == (void*)0xFEEDFACE);
   }
 
-  SECTION("Config with custom DMCP config") {
-    dmcp_config_t dmcp_cfg = dmcp_config_default();
-    dmcp_cfg.port          = 8080;
-
+  SECTION("Config with custom base config") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.dmcp_config         = &dmcp_cfg;
+    config.base.port           = 8080;
 
-    REQUIRE(config.dmcp_config == &dmcp_cfg);
+    REQUIRE(config.base.port == 8080);
   }
 }
 
@@ -75,7 +71,6 @@ TEST_CASE("Adapter: dmcp_zdoom_config_default", "[adapter][config]") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
 
     REQUIRE(config.struct_size > 0);
-    REQUIRE(config.dmcp_config == nullptr);
     REQUIRE(config.log_fn == nullptr);
     REQUIRE(config.should_tick_fn == nullptr);
     REQUIRE(config.port_override == 0);
@@ -144,10 +139,9 @@ TEST_CASE("Adapter: Lifecycle - dmcp_zdoom_create/destroy",
     dmcp_zdoom_destroy(mcp);
   }
 
-  SECTION("Create with custom DMCP config") {
-    dmcp_config_t       dmcp_cfg = dmcp_config_default();
-    dmcp_zdoom_config_t config   = dmcp_zdoom_config_default();
-    config.dmcp_config           = &dmcp_cfg;
+  SECTION("Create with custom base config") {
+    dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
+    config.base.port           = 8082;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
 
@@ -176,22 +170,22 @@ TEST_CASE("Adapter: Game loop - dmcp_zdoom_tick", "[adapter][tick]") {
   REQUIRE(mcp != nullptr);
 
   SECTION("Tick with valid context succeeds") {
-    int result = dmcp_zdoom_tick(mcp);
+    mcp_result_t result = dmcp_zdoom_tick(mcp);
 
-    REQUIRE(result == 0);
+    REQUIRE(result.code == MCP_RESULT_CODE_OK);
   }
 
   SECTION("Multiple ticks succeed") {
     for (int i = 0; i < 10; i++) {
-      int result = dmcp_zdoom_tick(mcp);
-      REQUIRE(result == 0);
+      mcp_result_t result = dmcp_zdoom_tick(mcp);
+      REQUIRE(result.code == MCP_RESULT_CODE_OK);
     }
   }
 
   SECTION("Tick with null context returns error") {
-    int result = dmcp_zdoom_tick(nullptr);
+    mcp_result_t result = dmcp_zdoom_tick(nullptr);
 
-    REQUIRE(result != 0);
+    REQUIRE(result.code != MCP_RESULT_CODE_OK);
   }
 
   SECTION("Tick after destroy is handled correctly") {
@@ -594,11 +588,8 @@ TEST_CASE("Adapter: Statistics tracking", "[adapter][stats]") {
 
 TEST_CASE("Adapter: Port override functionality", "[adapter][config][port]") {
   SECTION("Port override takes precedence") {
-    dmcp_config_t dmcp_cfg = dmcp_config_default();
-    dmcp_cfg.port          = 6060;
-
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.dmcp_config         = &dmcp_cfg;
+    config.base.port           = 6060;
     config.port_override       = 9090;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
@@ -608,12 +599,9 @@ TEST_CASE("Adapter: Port override functionality", "[adapter][config][port]") {
     dmcp_zdoom_destroy(mcp);
   }
 
-  SECTION("No port override uses DMCP config port") {
-    dmcp_config_t dmcp_cfg = dmcp_config_default();
-    dmcp_cfg.port          = 8080;
-
+  SECTION("No port override uses base config port") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.dmcp_config         = &dmcp_cfg;
+    config.base.port           = 8080;
     config.port_override       = 0;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
@@ -623,10 +611,9 @@ TEST_CASE("Adapter: Port override functionality", "[adapter][config][port]") {
     dmcp_zdoom_destroy(mcp);
   }
 
-  SECTION("No port override and no DMCP config uses default") {
+  SECTION("No port override uses default config port") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
     config.port_override       = 0;
-    config.dmcp_config         = nullptr;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
 
@@ -652,9 +639,9 @@ TEST_CASE("Adapter: Error handling", "[adapter][error]") {
     dmcp_zdoom_t*       mcp    = dmcp_zdoom_create(&config);
 
     if (mcp) {
-      int result = dmcp_zdoom_tick(mcp);
+      mcp_result_t result = dmcp_zdoom_tick(mcp);
 
-      if (result != 0) {
+      if (result.code != MCP_RESULT_CODE_OK) {
       }
 
       dmcp_zdoom_destroy(mcp);

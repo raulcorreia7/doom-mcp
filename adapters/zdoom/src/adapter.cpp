@@ -1,4 +1,4 @@
-#include "adapter.h"
+#include "dmcp_adapter.h"
 #include "internal.h"
 
 #include <cstdarg>
@@ -262,13 +262,11 @@ extern "C" {
 dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
   auto* ctx                    = new AdapterContext();
   ctx->user_cfg                = cfg ? *cfg : dmcp_zdoom_config_default();
-  ctx->dmcp_cfg                = dmcp_config_default();
+  ctx->dmcp_cfg                = ctx->user_cfg.base;
   ctx->log_not_running_emitted = false;
 
   // Apply user config
-  if (ctx->user_cfg.dmcp_config) {
-    ctx->dmcp_cfg = *ctx->user_cfg.dmcp_config;
-  } else if (uint16_t env_port = EnvPortOverride()) {
+  if (uint16_t env_port = EnvPortOverride()) {
     ctx->dmcp_cfg.port = env_port;
   }
 
@@ -308,10 +306,10 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
   delete ctx;
 }
 
-mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
+mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) {
-    mcp_result_generic_t result = {};
+    mcp_result_t result = {};
     result.code                 = MCP_RESULT_CODE_INVALID_ARGS;
     return result;
   }
@@ -328,7 +326,7 @@ mcp_result_generic_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
       Log(ctx, MCP_LOG_WARN, "DMCP server not running; skipping tick");
       ctx->log_not_running_emitted = true;
     }
-    mcp_result_generic_t result = {};
+    mcp_result_t result = {};
     result.code                 = MCP_RESULT_CODE_DISABLED;
     return result;
   }
@@ -351,6 +349,14 @@ void dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx_handle, dmcp_stats_t* out_stats) {
   if (!ctx || !ctx->dmcp_ctx || !out_stats) return;
 
   dmcp_stats_get(ctx->dmcp_ctx, out_stats);
+}
+
+dmcp_context_t* dmcp_zdoom_get_context(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx) {
+    return nullptr;
+  }
+  return ctx->dmcp_ctx;
 }
 
 }  // extern "C"

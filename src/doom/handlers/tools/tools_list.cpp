@@ -42,63 +42,76 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
 
   if (orchestrator_enabled) {
     add_command_tool(&tools, DMCP_TOOL_GET_PLAYER, "Get current player state only",
-                     build_get_player_schema());
+                     build_get_player_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_PLAYER));
 
     add_command_tool(&tools, DMCP_TOOL_GET_ENEMIES, "Get enemy list with pagination",
-                     build_get_enemies_schema());
+                     build_get_enemies_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_ENEMIES));
 
     add_command_tool(&tools, DMCP_TOOL_GET_ENTITIES,
                      "Get interactive world entities (pickups/barrels), paginated",
-                     build_get_entities_schema());
+                     build_get_entities_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_ENTITIES));
 
     add_command_tool(&tools, DMCP_TOOL_GET_MAP, "Get current map/level state only",
-                     build_get_map_schema());
+                     build_get_map_schema(), infer_tool_annotation_hints(DMCP_TOOL_GET_MAP));
 
-    add_command_tool(&tools, DMCP_TOOL_GET_LEVEL, "Alias for get_map", build_get_map_schema());
+    add_command_tool(&tools, DMCP_TOOL_GET_LEVEL, "Alias for get_map", build_get_map_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_LEVEL));
 
     add_command_tool(&tools, DMCP_TOOL_GET_INVENTORY, "Get inventory list with pagination",
-                     build_get_inventory_schema());
+                     build_get_inventory_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_INVENTORY));
 
     add_command_tool(&tools, DMCP_TOOL_GET_GAME_INFO, "Get game mode/version metadata",
-                     build_get_game_info_schema());
+                     build_get_game_info_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_GAME_INFO));
 
     add_command_tool(&tools, DMCP_TOOL_GET_GAME, "Alias for get_game_info",
-                     build_get_game_info_schema());
+                     build_get_game_info_schema(), infer_tool_annotation_hints(DMCP_TOOL_GET_GAME));
 
     add_command_tool(&tools, DMCP_TOOL_GET_STATE, "Get selected game state section for agents",
-                     build_get_state_schema());
+                     build_get_state_schema(), infer_tool_annotation_hints(DMCP_TOOL_GET_STATE));
 
     add_command_tool(&tools, DMCP_TOOL_GET_STATE_BATCH,
                      "Get multiple state sections in one read-only batch request",
-                     build_get_state_batch_schema());
+                     build_get_state_batch_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_STATE_BATCH));
 
     if (ctx->screenshot.enabled.load()) {
       json_builder screenshot_schema;
       add_empty_object_schema(&screenshot_schema);
       add_command_tool(&tools, DMCP_TOOL_GET_SCREENSHOT,
                        "Capture a screenshot of the current game state",
-                       std::move(screenshot_schema));
+                       std::move(screenshot_schema),
+                       infer_tool_annotation_hints(DMCP_TOOL_GET_SCREENSHOT));
     }
 
     add_command_tool(&tools, DMCP_TOOL_EXECUTE_COMMAND,
                      "Execute a game command (spawn enemy, change level, etc.)",
-                     build_execute_command_schema());
+                     build_execute_command_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_EXECUTE_COMMAND));
 
     add_command_tool(&tools, DMCP_TOOL_GET_COMMAND_RESULT,
                      "Get asynchronous execution status for a queued command sequence",
-                     build_get_command_result_schema());
+                     build_get_command_result_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_COMMAND_RESULT));
 
     add_command_tool(&tools, DMCP_TOOL_GET_AVAILABLE_CONTENT,
                      "Get available weapons, items, enemies, and maps for the game mode",
-                     build_get_available_content_schema());
+                     build_get_available_content_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_AVAILABLE_CONTENT));
 
     add_command_tool(&tools, DMCP_TOOL_EXECUTE_BATCH,
                      "Execute multiple mutating commands in a single request",
-                     build_execute_batch_schema());
+                     build_execute_batch_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_EXECUTE_BATCH));
 
     add_command_tool(&tools, DMCP_TOOL_GET_COMMAND_EXAMPLES,
                      "Get working examples of all commands including ammo, weapons, items",
-                     build_get_command_examples_schema());
+                     build_get_command_examples_schema(),
+                     infer_tool_annotation_hints(DMCP_TOOL_GET_COMMAND_EXAMPLES));
 
     const command_tool_definition* command_tools = get_command_tools_array();
     size_t                         count         = get_command_tools_count();
@@ -106,14 +119,15 @@ bool handle_tools_list(void* user_data, const char* /*method*/, const char* /*re
       json_builder schema;
       add_command_tool_schema(command_tools[i].tool_name, &schema);
       add_command_tool(&tools, command_tools[i].tool_name, command_tools[i].description,
-                       std::move(schema));
+                       std::move(schema),
+                       infer_tool_annotation_hints(command_tools[i].tool_name));
     }
   }
 
   if (input_enabled) {
     add_command_tool(&tools, DMCP_TOOL_PLAYER_INPUT,
                      "Send a single player input (movement, turn, attack, use) - one per tick",
-                     build_input_schema());
+                     build_input_schema(), infer_tool_annotation_hints(DMCP_TOOL_PLAYER_INPUT));
   }
 
   json_builder result;

@@ -1,11 +1,11 @@
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <string>
 
-#include "adapter.h"
+#include "dmcp_adapter.h"
 #include "internal.h"
 
+#include "dmcp_adapter_command_queue.h"
+#include "dmcp/adapter/utils.h"
 #include "dmcp/adapter/validation.h"
 #include "dmcp/doom/constants.h"
 
@@ -24,6 +24,10 @@
 using namespace dmcp::zdoom;
 
 namespace {
+
+static void CopyCommandMessage(char* out, size_t out_size, const char* message) {
+  dmcp_strcpy_safe(out, message ? message : "", out_size);
+}
 
 static player_t* GetConsolePlayer() {
   if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return nullptr;
@@ -89,23 +93,23 @@ static bool GiveItem(const dmcp_cmd_give_item_t* give) {
 }
 
 // Helper to set player health
-static bool SetPlayerHealth(const dmcp_cmd_set_health_t* health) {
+static bool SetPlayerHealth(AdapterContext* ctx, const dmcp_cmd_set_health_t* health) {
   if (!health) {
-    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: null command");
+    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: null command");
     return false;
   }
 
   // Validate health value using adapter helper
   int health_value = static_cast<int>(health->health);
   if (!dmcp_validate_health(health_value)) {
-    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-%d)", health_value,
+    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-%d)", health_value,
         DMCP_PLAYER_MAX_HEALTH);
     return false;
   }
 
   player_t* player = GetConsolePlayer();
   if (!player || !player->mo) {
-    Log(nullptr, MCP_LOG_WARN, "SetPlayerHealth: no player or mobj");
+    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: no player or mobj");
     return false;
   }
 
@@ -121,7 +125,7 @@ static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
   if (!pos) return false;
 
   player_t* player = GetConsolePlayer();
-  if (!player->mo) return false;
+  if (!player || !player->mo) return false;
 
   // Teleport player to new position
   player->mo->SetOrigin(DVector3(pos->position.x, pos->position.y, player->mo->Z()), false);
@@ -144,6 +148,10 @@ static bool PauseGame(const dmcp_cmd_pause_t* pause) {
 
 // Helper to set timescale
 static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
+  if (!timescale || !dmcp_validate_timescale(timescale->scale)) {
+    return false;
+  }
+
   char cmd[64];
   snprintf(cmd, sizeof(cmd), "timescale %f", timescale->scale);
   ExecuteConsoleCommand(cmd);
@@ -151,23 +159,23 @@ static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
 }
 
 // Helper to damage entity
-static bool DamageEntity(const dmcp_cmd_damage_t* damage) {
+static bool DamageEntity(AdapterContext* ctx, const dmcp_cmd_damage_t* damage) {
   if (!damage) {
-    Log(nullptr, MCP_LOG_WARN, "DamageEntity: null command");
+    Log(ctx, MCP_LOG_WARN, "DamageEntity: null command");
     return false;
   }
 
   // Validate damage amount using adapter helper
   int damage_value = static_cast<int>(damage->damage);
   if (!dmcp_validate_damage(damage_value)) {
-    Log(nullptr, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-%d)", damage_value,
+    Log(ctx, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-%d)", damage_value,
         DMCP_DAMAGE_MAX);
     return false;
   }
 
   AActor* actor = FindActorByTid(damage->target_tid);
   if (!actor) {
-    Log(nullptr, MCP_LOG_WARN, "DamageEntity: target tid %d not found", damage->target_tid);
+    Log(ctx, MCP_LOG_WARN, "DamageEntity: target tid %d not found", damage->target_tid);
     return false;
   }
 
@@ -190,6 +198,39 @@ static bool KillEntity(const dmcp_cmd_kill_t* kill) {
   return true;
 }
 
+static bool ExecuteQueuedCommand(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
+                                 size_t out_message_size) {
+  auto* ctx = static_cast<AdapterContext*>(adapter_ctx);
+  bool  success;
+
+  if (!ctx || !cmd) {
+    CopyCommandMessage(out_message, out_message_size, "Invalid command");
+    return false;
+  }
+
+  success = dmcp_zdoom_command_execute(reinterpret_cast<dmcp_zdoom_t*>(ctx), cmd);
+  if (success) {
+    CopyCommandMessage(out_message, out_message_size, "Command executed");
+  } else {
+    CopyCommandMessage(out_message, out_message_size, "Command failed in engine");
+    Log(ctx, MCP_LOG_WARN, "Command %d failed", cmd->type);
+  }
+  return success;
+}
+
+static bool ExecuteQueuedInput(void* adapter_ctx, const dmcp_command_t* input_cmd,
+                               char* out_message, size_t out_message_size) {
+  auto* ctx = static_cast<AdapterContext*>(adapter_ctx);
+  (void)input_cmd;
+
+  CopyCommandMessage(out_message, out_message_size,
+                     "player_input is not supported by zdoom adapter");
+  if (ctx) {
+    Log(ctx, MCP_LOG_DEBUG, "player_input not supported");
+  }
+  return false;
+}
+
 }  // namespace
 
 // ============================================================================
@@ -197,7 +238,8 @@ static bool KillEntity(const dmcp_cmd_kill_t* kill) {
 // ============================================================================
 
 bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* cmd) {
-  if (!cmd) return false;
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx || !cmd) return false;
 
   switch (cmd->type) {
     case DMCP_CMD_SPAWN_ENTITY:
@@ -210,7 +252,7 @@ bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* 
       return GiveItem(&cmd->data.give_item);
 
     case DMCP_CMD_SET_PLAYER_HEALTH:
-      return SetPlayerHealth(&cmd->data.set_health);
+      return SetPlayerHealth(ctx, &cmd->data.set_health);
 
     case DMCP_CMD_SET_PLAYER_POSITION:
       return SetPlayerPosition(&cmd->data.set_position);
@@ -226,7 +268,7 @@ bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* 
       return SetTimescale(&cmd->data.timescale);
 
     case DMCP_CMD_DAMAGE_ENTITY:
-      return DamageEntity(&cmd->data.damage);
+      return DamageEntity(ctx, &cmd->data.damage);
 
     case DMCP_CMD_KILL_ENTITY:
       return KillEntity(&cmd->data.kill);
@@ -244,16 +286,15 @@ void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) return;
 
-  dmcp_command_t cmd;
-  while (dmcp_pop_command(ctx->dmcp_ctx, &cmd)) {
-    bool success = dmcp_zdoom_command_execute(ctx_handle, &cmd);
-
-    dmcp_command_result_complete(ctx->dmcp_ctx, &cmd, success,
-                                 success ? "Command executed" : "Command failed in engine");
-
-    // Log result
-    if (!success) {
-      Log(ctx, MCP_LOG_WARN, "Command %d failed", cmd.type);
-    }
+  int processed = dmcp_adapter_process_command_queue(ctx->dmcp_ctx, ctx, ExecuteQueuedCommand, 0);
+  if (processed > 0) {
+    Log(ctx, MCP_LOG_INFO, "processed %d command(s)", processed);
   }
+}
+
+void dmcp_zdoom_inputs_process(dmcp_zdoom_t* ctx_handle) {
+  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  if (!ctx || !ctx->dmcp_ctx) return;
+
+  dmcp_adapter_process_input_queue(ctx->dmcp_ctx, ctx, ExecuteQueuedInput, 0);
 }

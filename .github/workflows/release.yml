@@ -121,16 +121,12 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp crispy-doom/build/src/Release/crispy-doom.exe release_package/
             cp build/Release/dmcp.dll release_package/ 2>/dev/null || cp build/dmcp.dll release_package/ 2>/dev/null || true
-            cp build/Release/dmcp_core.dll release_package/ 2>/dev/null || cp build/dmcp_core.dll release_package/ 2>/dev/null || true
-            cp build/Release/dmcp_generic.dll release_package/ 2>/dev/null || cp build/dmcp_generic.dll release_package/ 2>/dev/null || true
             cp crispy-doom/build/src/Release/*.dll release_package/ || true
             cp scripts/go.bat release_package/
           else
             cp crispy-doom/build/src/crispy-doom release_package/
             cp build/libdmcp.so release_package/ 2>/dev/null || true
             cp build/libdmcp.dylib release_package/ 2>/dev/null || true
-            cp build/libdmcp_core.so release_package/ 2>/dev/null || true
-            cp build/libdmcp_generic.so release_package/ 2>/dev/null || true
             cp scripts/go.sh release_package/
             chmod +x release_package/go.sh
           fi

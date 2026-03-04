@@ -8,11 +8,14 @@ set(UNIT_TEST_SOURCES
   unit/test_screenshot.cpp
   unit/test_layer_boundaries.cpp
   unit/test_layers.cpp
-  unit/test_fake_adapter.cpp
 )
 
 if(DMCP_BUILD_ADAPTER_ZDOOM)
   list(APPEND UNIT_TEST_SOURCES unit/test_zdoom_adapter.cpp)
+endif()
+
+if(TARGET adapter_fake OR TARGET dmcp::adapter_fake)
+  list(APPEND UNIT_TEST_SOURCES unit/test_fake_adapter.cpp)
 endif()
 
 add_executable(dmcp_tests ${UNIT_TEST_SOURCES})
@@ -32,8 +35,8 @@ else()
   )
 endif()
 
-if(TARGET dmcp::fake)
-  target_link_libraries(dmcp_tests PRIVATE dmcp::fake)
+if(TARGET dmcp::adapter_fake)
+  target_link_libraries(dmcp_tests PRIVATE dmcp::adapter_fake)
 endif()
 
 target_include_directories(dmcp_tests
@@ -53,7 +56,7 @@ endif()
 
 include(CTest)
 include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
-catch_discover_tests(dmcp_tests)
+catch_discover_tests(dmcp_tests PROPERTIES LABELS "unit")
 
 # Integration tests (optional, requires network and WAD)
 if(DMCP_BUILD_INTEGRATION_TESTS)

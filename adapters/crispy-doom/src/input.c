@@ -3,6 +3,8 @@
 #include <limits.h>
 #include <math.h>
 
+#include "dmcp_adapter_command_queue.h"
+#include "dmcp/adapter/utils.h"
 #include "dmcp/doom/commands.h"
 
 #include "d_player.h"
@@ -130,14 +132,30 @@ bool dmcp_crispy_input_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) {
   return true;
 }
 
-void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx) {
-  dmcp_command_t input_cmd;
+static bool crispy_execute_input_for_queue(void* adapter_ctx, const dmcp_command_t* cmd,
+                                           char* out_message, size_t out_message_size) {
+  dmcp_crispy_t* ctx;
+  bool           success;
 
-  if (!ctx) {
+  if (!adapter_ctx || !cmd || cmd->type != DMCP_CMD_PLAYER_INPUT) {
+    dmcp_strcpy_safe(out_message, "Invalid player input", out_message_size);
+    return false;
+  }
+
+  ctx     = (dmcp_crispy_t*)adapter_ctx;
+  success = dmcp_crispy_input_execute(ctx, cmd);
+  if (!success) {
+    dmcp_strcpy_safe(out_message, "Input failed in engine", out_message_size);
+  }
+  return success;
+}
+
+void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx) {
+  if (!ctx || !dmcp_crispy_get_context(ctx)) {
     return;
   }
 
-  if (dmcp_pop_input(dmcp_crispy_get_dmcp_context(ctx), &input_cmd)) {
-    dmcp_crispy_input_execute(ctx, &input_cmd);
-  }
+  // Process one input per tick to preserve current Crispy control semantics.
+  dmcp_adapter_process_input_queue(dmcp_crispy_get_context(ctx), ctx, crispy_execute_input_for_queue,
+                                   1);
 }

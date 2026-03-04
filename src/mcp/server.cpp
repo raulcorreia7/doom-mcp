@@ -6,9 +6,11 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdarg>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <string>
@@ -50,9 +52,9 @@ struct Session {
   std::string                           id;
   std::string                           protocol_version;
   std::chrono::steady_clock::time_point created_at;
-  bool                                  initialize_completed{false};
-  bool                                  requires_initialized_notification{true};
-  bool                                  initialized_notification_received{false};
+  std::atomic<bool>                     initialize_completed{false};
+  std::atomic<bool>                     requires_initialized_notification{true};
+  std::atomic<bool>                     initialized_notification_received{false};
 };
 
 struct Server {
@@ -70,10 +72,10 @@ struct Server {
   std::mutex                                    routes_mutex;
 
   // Sessions (per-client lifecycle state)
-  std::unordered_map<std::string, Session> sessions;
-  std::mutex                               sessions_mutex;
-  std::mt19937                             rng;
-  std::mutex                               rng_mutex;
+  std::unordered_map<std::string, std::shared_ptr<Session>> sessions;
+  std::mutex                                                  sessions_mutex;
+  std::mt19937                                                rng;
+  std::mutex                                                  rng_mutex;
 
   // Statistics
   std::atomic<uint64_t> connected_clients{0};
@@ -84,6 +86,7 @@ struct Server {
 
   // State
   std::atomic<bool> running{false};
+  bool              allow_implicit_session{false};
 };
 
 static constexpr int kJsonRpcServerNotInitialized = -32002;
@@ -97,23 +100,84 @@ static std::string GenerateSessionId(Server* server) {
   return std::string(buf);
 }
 
-static Session* GetOrCreateSession(Server* server, const std::string& session_id) {
+static std::shared_ptr<Session> FindSessionById(Server* server, std::string_view session_id) {
+  if (!server || session_id.empty()) {
+    return nullptr;
+  }
+
   std::lock_guard<std::mutex> lock(server->sessions_mutex);
-  auto                        it = server->sessions.find(session_id);
+  auto                        it = server->sessions.find(std::string(session_id));
   if (it != server->sessions.end()) {
-    return &it->second;
+    return it->second;
   }
   return nullptr;
 }
 
-static Session* CreateSession(Server* server, std::string& out_session_id) {
-  out_session_id = GenerateSessionId(server);
+static std::shared_ptr<Session> FindSingleSession(Server* server) {
+  if (!server) {
+    return nullptr;
+  }
+
   std::lock_guard<std::mutex> lock(server->sessions_mutex);
-  Session                     session;
-  session.id                       = out_session_id;
-  session.created_at               = std::chrono::steady_clock::now();
-  server->sessions[out_session_id] = std::move(session);
-  return &server->sessions[out_session_id];
+  if (server->sessions.size() != 1) {
+    return nullptr;
+  }
+  return server->sessions.begin()->second;
+}
+
+static std::shared_ptr<Session> CreateSession(Server* server, std::string& out_session_id) {
+  if (!server) {
+    return nullptr;
+  }
+
+  for (int attempt = 0; attempt < 8; ++attempt) {
+    const std::string candidate = GenerateSessionId(server);
+
+    std::lock_guard<std::mutex> lock(server->sessions_mutex);
+    if (server->sessions.find(candidate) != server->sessions.end()) {
+      continue;
+    }
+
+    auto session        = std::make_shared<Session>();
+    session->id         = candidate;
+    session->created_at = std::chrono::steady_clock::now();
+
+    out_session_id               = candidate;
+    server->sessions[candidate]  = session;
+    return session;
+  }
+
+  out_session_id.clear();
+  return nullptr;
+}
+
+static std::shared_ptr<Session> ResolveSessionForRequest(Server* server,
+                                                         std::string* inout_session_id,
+                                                         bool* out_used_implicit_lookup) {
+  if (out_used_implicit_lookup) {
+    *out_used_implicit_lookup = false;
+  }
+  if (!server || !inout_session_id) {
+    return nullptr;
+  }
+
+  if (!inout_session_id->empty()) {
+    return FindSessionById(server, *inout_session_id);
+  }
+
+  if (!server->allow_implicit_session) {
+    return nullptr;
+  }
+
+  auto session = FindSingleSession(server);
+  if (session && !session->id.empty()) {
+    *inout_session_id = session->id;
+    if (out_used_implicit_lookup) {
+      *out_used_implicit_lookup = true;
+    }
+  }
+
+  return session;
 }
 
 static std::string ExtractSessionId(const Value& params) {
@@ -578,13 +642,26 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return true;
     }
 
-    std::string session_id;
-    Session*    session                                 = CreateSession(server, session_id);
-    session->initialize_completed                       = true;
-    session->protocol_version                           = requested_version;
-    session->requires_initialized_notification          =
-        RequiresInitializedNotification(session->protocol_version);
-    session->initialized_notification_received = !session->requires_initialized_notification;
+    std::string            session_id;
+    std::shared_ptr<Session> session = CreateSession(server, session_id);
+    if (!session) {
+      const std::string resp = BuildJsonRpcError(id_json, -32603, "Failed to create session");
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+      std::strcpy(response_buffer, resp.c_str());
+      server->requests_failed++;
+      return true;
+    }
+
+    session->initialize_completed.store(true, std::memory_order_release);
+    session->protocol_version = requested_version;
+    session->requires_initialized_notification.store(
+        RequiresInitializedNotification(session->protocol_version), std::memory_order_release);
+    session->initialized_notification_received.store(
+        !session->requires_initialized_notification.load(std::memory_order_acquire),
+        std::memory_order_release);
 
     request_context::set_response_protocol_version(session->protocol_version);
     request_context::set_response_session_id(session_id);
@@ -624,9 +701,10 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     ServerLog(server, MCP_LOG_INFO, "MCP notifications/initialized received");
 
     std::string session_id = ExtractSessionId(req["params"]);
-    Session*    session    = session_id.empty() ? nullptr : GetOrCreateSession(server, session_id);
+    const std::shared_ptr<Session> session =
+        ResolveSessionForRequest(server, &session_id, nullptr);
 
-    if (!session || !session->initialize_completed) {
+    if (!session || !session->initialize_completed.load(std::memory_order_acquire)) {
       if (is_notification) {
         *http_status       = 202;
         response_buffer[0] = '\0';
@@ -646,7 +724,8 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     }
 
     request_context::set_response_protocol_version(session->protocol_version);
-    session->initialized_notification_received = true;
+    request_context::set_response_session_id(session->id);
+    session->initialized_notification_received.store(true, std::memory_order_release);
 
     if (is_notification) {
       *http_status       = 202;
@@ -663,12 +742,14 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     return true;
   }
 
-  std::string session_id = ExtractSessionId(req["params"]);
-  Session*    session    = session_id.empty() ? nullptr : GetOrCreateSession(server, session_id);
+  std::string session_id      = ExtractSessionId(req["params"]);
+  bool        used_implicit_session = false;
+  const std::shared_ptr<Session> session =
+      ResolveSessionForRequest(server, &session_id, &used_implicit_session);
 
-  if (!session || !session->initialize_completed ||
-      (session->requires_initialized_notification &&
-       !session->initialized_notification_received)) {
+  if (!session || !session->initialize_completed.load(std::memory_order_acquire) ||
+      (session->requires_initialized_notification.load(std::memory_order_acquire) &&
+       !session->initialized_notification_received.load(std::memory_order_acquire))) {
     ServerLog(server, MCP_LOG_WARN, "Request before initialization complete: method=%s session=%s",
               method.c_str(), session_id.c_str());
 
@@ -692,7 +773,13 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     return true;
   }
 
+  if (used_implicit_session) {
+    ServerLog(server, MCP_LOG_DEBUG, "Resolved request to sole active session=%s for method=%s",
+              session->id.c_str(), method.c_str());
+  }
+
   request_context::set_response_protocol_version(session->protocol_version);
+  request_context::set_response_session_id(session->id);
 
   if (method == "ping") {
     ServerLog(server, MCP_LOG_DEBUG, "MCP ping request received");
@@ -909,6 +996,10 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
   auto* server = new mcp::Server();
 
   server->config = config ? *config : mcp_default_config();
+  if (const char* env_allow_implicit = std::getenv("DMCP_ALLOW_IMPLICIT_SESSION");
+      env_allow_implicit && env_allow_implicit[0] == '1') {
+    server->allow_implicit_session = true;
+  }
 
   // Seed RNG for session ID generation
   {

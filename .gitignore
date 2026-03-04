@@ -1,164 +1,114 @@
-# CMake build directories
+# -----------------------------------------------------------------------------
+# Build system
+# -----------------------------------------------------------------------------
 build/
-build-shared/
 CMakeCache.txt
 CMakeFiles/
 CMakeScripts/
-CMakeUserPresets.json
 cmake_install.cmake
 install_manifest.txt
 compile_commands.json
+CMakeUserPresets.json
 
-# CPM dependency cache and builds
+# CPM/dependency caches
+.cache/
 CPM_modules/
 CPM_cache/
 _deps/
-.cache/
-# IDE and editor files
+
+# -----------------------------------------------------------------------------
+# Tooling / IDE
+# -----------------------------------------------------------------------------
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
+*.iml
+*.suo
+*.user
+*.opensdf
+*.sdf
 
-# Object files and libraries
+# -----------------------------------------------------------------------------
+# Objects / binaries / libraries
+# -----------------------------------------------------------------------------
 *.o
 *.obj
-*.lib
 *.a
+*.lib
 *.so
 *.dylib
 *.dll
 *.exe
 
-# Generated binaries
-dmcp
-dmcp-debug
-dmcp-release
+# Local runnable outputs
+dummy_server
 
-!include/dmcp/
+# -----------------------------------------------------------------------------
+# Logs / runtime artifacts
+# -----------------------------------------------------------------------------
+*.log
+*.out
+*.pid
+*.pid.lock
+*.seed
+sse_stream.txt
+screenshot*.png
+vgcore.*
+.gdb_history
+release_package/
 
-# Test binaries
-test_*
-*_test
-!test_mcp.sh
-!tests/unit/test_*.cpp
-!tests/e2e/test_*.py
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
 
-# Coverage reports
+# -----------------------------------------------------------------------------
+# Archives / temporary files
+# -----------------------------------------------------------------------------
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.gz
+*.xz
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# OS-specific junk
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------------------------------------------------------
+# Coverage / diagnostics
+# -----------------------------------------------------------------------------
 *.gcda
 *.gcno
 *.gcov
 coverage/
-
-# Static analysis reports
 cppcheck-report.xml
 clang-tidy-report.xml
 
-# Backup files
-*.bak
-*.backup
-*.old
-
-# Log files
-*.log
-*.out
-
-# Temporary files
-*.tmp
-*.temp
-
-# Python caches
-__pycache__/
-*.py[cod]
-.pytest_cache/
-
-# Package files
-*.tar.gz
-*.zip
-*.tar.bz2
-
-# Documentation builds
-docs/_build/
-docs/doxygen/
-
-# Dependency directories (old vcpkg style)
-vcpkg_installed/
-vcpkg.json.user
-
-# Compiler-specific files
-*.sdf
-*.opensdf
-*.suo
-*.user
-
-# Visual Studio Code
-.vscode/
-
-# CLion
-.idea/
-*.iml
-*.iws
-*.ipr
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
-*.vim
-.netrwhist
-
-# Emacs
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-auto-save-list
-tramp
-.\#*
-
-# Operating System
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Game-specific ignore patterns
+# -----------------------------------------------------------------------------
+# Game-specific local assets
+# -----------------------------------------------------------------------------
 *.sav
 *.save
 *.wad
 *.pk3
 *.pk7
 
-# Runtime files
-*.pid
-*.seed
-*.pid.lock
-
-# Sanitizer reports
-*.asan
-*.lsan
-*.msan
-*.tsan
-
-# Valgrind
-vgcore.*
-
-# GDB
-.gdb_history
-
-# CMake presets (user-specific)
-CMakeUserPresets.json
-
-# Local capture artifacts
-screenshot*.png
-sse_stream.txt
-dummy_server
-build-choc/
+# Keep repository test sources tracked
+!tests/unit/test_*.cpp
+!tests/e2e/test_*.py

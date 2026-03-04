@@ -9,15 +9,21 @@
 # Configuration
 # ==============================================================================
 
-BUILD_DIR ?= build
-BUILD_TYPE ?= Release
-PREFIX ?= /usr/local
-JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+BUILD_DIR             ?= build/default
+INTEGRATION_BUILD_DIR ?= build/integration
+BUILD_TYPE            ?= Release
+PREFIX                ?= /usr/local
 
 # CMake arguments
 CMAKE_ARGS = \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-	-DDMCP_BUILD_EXAMPLES=ON
+	-DDMCP_BUILD_TESTS=OFF \
+	-DDMCP_BUILD_EXAMPLES=OFF \
+	-DDMCP_BUILD_INTEGRATION_TESTS=OFF \
+	-DDMCP_BUILD_ADAPTERS=OFF \
+	-DDMCP_BUILD_ADAPTER_FAKE=OFF \
+	-DDMCP_BUILD_ADAPTER_ZDOOM=OFF \
+	-DDMCP_BUILD_ADAPTER_CRISPY=OFF
 
 # Sanitizers for debug builds
 ifeq ($(BUILD_TYPE),Debug)
@@ -29,6 +35,7 @@ endif
 # ==============================================================================
 
 ENGINES := crispy
+CRISPY_DMCP_BUILD_DIR ?= $(INTEGRATION_BUILD_DIR)
 
 .PHONY: help
 help:
@@ -36,12 +43,12 @@ help:
 	@echo ""
 	@echo "Build targets:"
 	@echo "  make              - Build DMCP (default)"
-	@echo "  make dmcp         - Build DMCP library + examples"
+	@echo "  make dmcp         - Build DMCP core library"
 	@echo "  make all          - Build DMCP + all engines"
 	@echo "  make debug        - Build with sanitizers"
 	@echo "  make release      - Build optimized"
-	@echo "  make clean        - Remove build directory"
-	@echo "  make distclean    - Remove build + cache"
+	@echo "  make clean        - Remove build + integration build directories"
+	@echo "  make distclean    - Remove all build dirs + cache"
 	@echo ""
 	@echo "Engine targets (ENGINE=crispy):"
 	@echo "  make crispy-doom  - Build Crispy Doom adapter build"
@@ -54,7 +61,11 @@ help:
 	@echo "  Example: make engine ENGINE=crispy"
 	@echo ""
 	@echo "Test targets:"
-	@echo "  make test         - Run unit tests"
+	@echo "  make test         - Run unit tests (default test target)"
+	@echo "  make test-unit    - Run unit tests only"
+	@echo "  make test-smoke   - Run fast headless integration smoke"
+	@echo "  make test-integration - Run integration test suite"
+	@echo "  make test-e2e     - Run Python e2e suite (fast fixture mode)"
 	@echo "  make test-verbose - Run tests with details"
 	@echo "  make download-wad - Download DOOM shareware"
 	@echo "  make headless     - Run e2e headless tests"
@@ -65,6 +76,7 @@ help:
 	@echo ""
 	@echo "Quality targets:"
 	@echo "  make check        - Build + test (full verification)"
+	@echo "  make validate     - Run validation matrix (core defaults + opt-in paths)"
 	@echo "  make format       - Format source code"
 	@echo "  make lint         - Run clang-tidy"
 	@echo ""
@@ -72,13 +84,14 @@ help:
 	@echo "  make install      - Install to $(PREFIX)"
 	@echo "  make submodules   - Init/update git submodules"
 	@echo "  make info         - Show configuration"
-	@echo "  make compdb       - Generate compile_commands.json"
+	@echo "  make compdb       - Generate merged compile_commands.json for LSP"
 
 # ==============================================================================
 # Build
 # ==============================================================================
 
-.PHONY: all dmcp build configure submodules
+.PHONY: all dmcp build configure submodules compdb-refresh
+.NOTPARALLEL: all
 
 # Default target builds just DMCP
 default: dmcp
@@ -91,7 +104,7 @@ submodules:
 
 # Build DMCP library and examples
 dmcp: configure
-	cmake --build $(BUILD_DIR) -j$(JOBS)
+	cmake --build $(BUILD_DIR) --parallel
 
 # Alias for backward compatibility
 build: dmcp
@@ -99,6 +112,7 @@ build: dmcp
 configure:
 	@mkdir -p $(BUILD_DIR)
 	cmake -B $(BUILD_DIR) $(CMAKE_ARGS)
+	@$(MAKE) --no-print-directory compdb-refresh
 
 debug:
 	@$(MAKE) BUILD_TYPE=Debug
@@ -112,9 +126,10 @@ release:
 
 .PHONY: clean distclean
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(INTEGRATION_BUILD_DIR) build/validate
 
 distclean: clean
+	rm -rf build
 	rm -rf .cache
 	rm -f compile_commands.json
 
@@ -127,19 +142,39 @@ configure-tests:
 	cmake -B $(BUILD_DIR) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DDMCP_BUILD_TESTS=ON \
-		-DDMCP_BUILD_EXAMPLES=ON
+		-DDMCP_BUILD_EXAMPLES=OFF
+	@$(MAKE) --no-print-directory compdb-refresh
 
-.PHONY: test test-verbose test-valgrind
+.PHONY: test test-unit test-smoke test-integration test-e2e test-verbose test-valgrind
 test: configure-tests
-	cmake --build $(BUILD_DIR) -j$(JOBS)
-	ctest --test-dir $(BUILD_DIR) -j1 --output-on-failure
+	cmake --build $(BUILD_DIR) --parallel
+	ctest --test-dir $(BUILD_DIR) -L unit -j1 --output-on-failure
+
+test-unit: test
+
+test-smoke: configure-integration download-wad crispy-doom
+	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
+	ctest --test-dir $(INTEGRATION_BUILD_DIR) -R "Integration: Headless Crispy" -j1 --output-on-failure
+
+test-integration: configure-integration download-wad crispy-doom
+	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
+	ctest --test-dir $(INTEGRATION_BUILD_DIR) -L integration -j1 --output-on-failure
+
+test-e2e: configure-integration download-wad crispy-doom
+	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
+	@if command -v pytest >/dev/null 2>&1; then \
+		DMCP_E2E_FAST=$${DMCP_E2E_FAST:-1} pytest -q tests/e2e; \
+	else \
+		echo "pytest not found"; \
+		exit 1; \
+	fi
 
 test-verbose: configure-tests
-	cmake --build $(BUILD_DIR) -j$(JOBS)
+	cmake --build $(BUILD_DIR) --parallel
 	ctest --test-dir $(BUILD_DIR) -j1 --verbose
 
 test-valgrind: configure-tests
-	cmake --build $(BUILD_DIR) -j$(JOBS)
+	cmake --build $(BUILD_DIR) --parallel
 	valgrind --leak-check=full --error-exitcode=1 \
 		$(BUILD_DIR)/tests/dmcp_tests
 
@@ -149,32 +184,39 @@ test-valgrind: configure-tests
 
 .PHONY: configure-integration download-wad headless headless-crispy
 configure-integration:
-	cmake -B $(BUILD_DIR) \
+	cmake -B $(INTEGRATION_BUILD_DIR) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DDMCP_BUILD_TESTS=ON \
 		-DDMCP_BUILD_INTEGRATION_TESTS=ON \
-		-DDMCP_BUILD_EXAMPLES=ON
+		-DDMCP_BUILD_EXAMPLES=OFF
+	@./scripts/refresh_compdb.sh "$(INTEGRATION_BUILD_DIR)" "$(CRISPY_BUILD_DIR)"
 
 download-wad:
 	@./tests/integration/download_wad.sh
 
 headless: configure-integration download-wad
-	cmake --build $(BUILD_DIR) -j$(JOBS)
+	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
 	@./tests/integration/run_headless.sh
 
 headless-crispy: configure-integration download-wad
-	cmake --build $(BUILD_DIR) -j$(JOBS)
+	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
 	@DOOM_ENGINE=crispy ./tests/integration/run_headless.sh
 
 # ==============================================================================
 # Run Server
 # ==============================================================================
 
-.PHONY: run run-bg
-run: build
+.PHONY: configure-run run run-bg
+configure-run:
+	cmake -B $(BUILD_DIR) $(CMAKE_ARGS) -DDMCP_BUILD_EXAMPLES=ON
+	@$(MAKE) --no-print-directory compdb-refresh
+
+run: configure-run
+	cmake --build $(BUILD_DIR) --parallel
 	./$(BUILD_DIR)/dummy_server
 
-run-bg: build
+run-bg: configure-run
+	cmake --build $(BUILD_DIR) --parallel
 	@./$(BUILD_DIR)/dummy_server &
 	@echo "Server running on http://localhost:6060 (PID: $$!)"
 
@@ -182,7 +224,7 @@ run-bg: build
 # Code Quality
 # ==============================================================================
 
-.PHONY: format lint check
+.PHONY: format lint check validate
 format:
 	@if command -v clang-format >/dev/null 2>&1; then \
 		find src include adapters -type f \( -name "*.cpp" -o -name "*.c" -o -name "*.h" -o -name "*.hpp" \) \
@@ -204,6 +246,9 @@ check: test
 	@echo ""
 	@echo "✓ Build: OK"
 	@echo "✓ Tests: OK"
+
+validate:
+	@./scripts/validate.sh
 
 # ==============================================================================
 # Installation
@@ -228,8 +273,9 @@ info:
 	@echo "Configuration:"
 	@echo "  Build type:    $(BUILD_TYPE)"
 	@echo "  Build dir:     $(BUILD_DIR)"
+	@echo "  Integration dir: $(INTEGRATION_BUILD_DIR)"
 	@echo "  Install prefix: $(PREFIX)"
-	@echo "  Parallel jobs: $(JOBS)"
+	@echo "  Parallel jobs: CMake default (--parallel)"
 	@echo ""
 	@echo "CMake: $(shell cmake --version | head -1)"
 	@echo "CXX:   $(shell c++ --version 2>&1 | head -1)"
@@ -248,14 +294,16 @@ size:
 
 .PHONY: compdb
 compdb: configure
-	@ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
-	@echo "compile_commands.json linked"
+	@$(MAKE) --no-print-directory compdb-refresh
+
+compdb-refresh:
+	@./scripts/refresh_compdb.sh "$(BUILD_DIR)" "$(CRISPY_BUILD_DIR)"
 
 # ==============================================================================
 # Crispy Doom
 # ==============================================================================
 
-CRISPY_BUILD_DIR ?= crispy-doom/build
+CRISPY_BUILD_DIR  ?= crispy-doom/build
 CRISPY_SOURCE_DIR ?= crispy-doom
 CRISPY_KEEP_PATCH ?= 0
 .PHONY: crispy-doom crispy-doom-clean
@@ -265,7 +313,7 @@ crispy-doom:
 		echo "hint: run 'make submodules' first"; \
 		exit 1; \
 	fi
-	@JOBS=$(JOBS) DMCP_BUILD_DIR=$$(pwd)/$(BUILD_DIR) CRISPY_BUILD_DIR=$$(pwd)/$(CRISPY_BUILD_DIR) \
+	@DMCP_BUILD_DIR=$$(pwd)/$(CRISPY_DMCP_BUILD_DIR) CRISPY_BUILD_DIR=$$(pwd)/$(CRISPY_BUILD_DIR) \
 		DMCP_KEEP_CRISPY_PATCH=$(CRISPY_KEEP_PATCH) ./tests/integration/build_crispy_doom.sh
 
 crispy-doom-clean:

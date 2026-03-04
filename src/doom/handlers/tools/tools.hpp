@@ -18,9 +18,17 @@ struct command_tool_definition {
   const char* description;
 };
 
+struct tool_annotation_hints {
+  bool read_only   = false;
+  bool destructive = false;
+  bool idempotent  = false;
+  bool open_world  = false;
+};
+
 const command_tool_definition* find_command_tool(std::string_view tool_name);
 const command_tool_definition* get_command_tools_array();
 size_t                         get_command_tools_count();
+tool_annotation_hints          infer_tool_annotation_hints(std::string_view tool_name);
 
 // ============================================================================
 // Shared Helper Functions
@@ -78,7 +86,7 @@ void add_empty_object_schema(json_builder* schema);
 void add_property(json_builder* props, const char* key, const char* type, const char* description);
 void add_command_tool_schema(const char* tool_name, json_builder* schema);
 void add_command_tool(json_builder* tools, const char* name, const char* description,
-                      json_builder schema);
+                      json_builder schema, tool_annotation_hints hints = {});
 
 // ============================================================================
 // Tool Handlers

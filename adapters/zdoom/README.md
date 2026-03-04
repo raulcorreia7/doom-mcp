@@ -6,10 +6,12 @@ This adapter integrates ZDoom/GZDoom-based source ports with the DMCP SDK, enabl
 
 ```
 adapters/zdoom/
-├── adapter.h         # Public API
-├── internal.h        # Shared internal utilities (AdapterContext, logging)
-├── adapter.cpp       # Lifecycle + state extraction
-├── commands.cpp      # Command execution
+├── include/
+│   ├── dmcp_adapter.h # Canonical local adapter include
+│   └── internal.h     # Shared internals (AdapterContext, logging)
+├── src/
+│   ├── adapter.cpp    # Lifecycle + state extraction
+│   └── commands.cpp   # Command execution
 ├── CMakeLists.txt
 └── README.md
 ```
@@ -20,9 +22,9 @@ The ZDoom adapter uses a streamlined C++ implementation:
 
 | File | Purpose |
 |------|---------|
-| `internal.h` | Shared utilities (AdapterContext, logging helpers) |
-| `adapter.cpp` | Lifecycle + state extraction (~300 lines) |
-| `commands.cpp` | Command execution (~200 lines) |
+| `include/internal.h` | Shared utilities (AdapterContext, logging helpers) |
+| `src/adapter.cpp` | Lifecycle + state extraction |
+| `src/commands.cpp` | Command execution |
 
 ## Requirements
 
@@ -34,15 +36,15 @@ The ZDoom adapter uses a streamlined C++ implementation:
 
 ```bash
 # From doom-mcp root
-cmake -B build -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_ADAPTER_ZDOOM=ON
-cmake --build build
+cmake -B build/default -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_ADAPTERS=ON -DDMCP_BUILD_ADAPTER_ZDOOM=ON
+cmake --build build/default --parallel
 ```
 
 In your ZDoom-based engine's CMakeLists.txt:
 
 ```cmake
 find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::zdoom)
+target_link_libraries(myengine PRIVATE dmcp::adapter_zdoom)
 ```
 
 ## Integration Points
@@ -56,7 +58,7 @@ Integrate the adapter into your ZDoom engine at:
 ## API
 
 ```cpp
-#include "adapters/zdoom/adapter.h"
+#include "dmcp/adapters/zdoom.h"
 
 // Configuration
 dmcp_zdoom_config_t cfg = dmcp_zdoom_config_default();
@@ -66,7 +68,7 @@ cfg.base.port = 6060;
 dmcp_zdoom_t* ctx = dmcp_zdoom_create(&cfg);
 
 // In G_Ticker (35 Hz)
-mcp_result_generic_t result = dmcp_zdoom_tick(ctx);
+mcp_result_t result = dmcp_zdoom_tick(ctx);
 if (result.code != MCP_RESULT_CODE_OK) {
     // Handle error
 }
