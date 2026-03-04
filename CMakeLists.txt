@@ -121,6 +121,10 @@ set_target_properties(dmcp_generic_objs PROPERTIES
   POSITION_INDEPENDENT_CODE ON
 )
 
+if(DMCP_BUILD_SHARED)
+  target_compile_definitions(dmcp_generic_objs PRIVATE MCP_BUILDING)
+endif()
+
 target_link_libraries(dmcp_generic_objs
   PRIVATE yyjson uWebSockets
 )
@@ -211,6 +215,10 @@ set_target_properties(dmcp_core_objs PROPERTIES
   VISIBILITY_INLINES_HIDDEN ON
   POSITION_INDEPENDENT_CODE ON
 )
+
+if(DMCP_BUILD_SHARED)
+  target_compile_definitions(dmcp_core_objs PRIVATE DMCP_BUILDING)
+endif()
 
 dmcp_enable_warnings(dmcp_core_objs)
 
