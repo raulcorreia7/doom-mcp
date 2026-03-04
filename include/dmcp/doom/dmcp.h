@@ -7,6 +7,10 @@
 #include "dmcp/doom/protocol.h"
 #include "dmcp/doom/types.h"
 
+// Unified Engine API (Phase 1 refactor)
+#include "dmcp/engines/config.h"
+#include "dmcp/engines/engine.h"
+
 #ifndef DMCP_VERSION_MAJOR
 #define DMCP_VERSION_MAJOR 0
 #endif
