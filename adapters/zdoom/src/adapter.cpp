@@ -1,4 +1,4 @@
-#include "dmcp_adapter.h"
+#include "dmcp_zdoom.h"
 #include "internal.h"
 
 #include <cstdarg>
@@ -310,7 +310,7 @@ mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) {
     mcp_result_t result = {};
-    result.code                 = MCP_RESULT_CODE_INVALID_ARGS;
+    result.code         = MCP_RESULT_CODE_INVALID_ARGS;
     return result;
   }
 
@@ -327,7 +327,7 @@ mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
       ctx->log_not_running_emitted = true;
     }
     mcp_result_t result = {};
-    result.code                 = MCP_RESULT_CODE_DISABLED;
+    result.code         = MCP_RESULT_CODE_DISABLED;
     return result;
   }
   ctx->log_not_running_emitted = false;

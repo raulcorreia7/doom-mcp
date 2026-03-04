@@ -1,7 +1,7 @@
 // Level and Game State Extraction
 // Populates dmcp_level_t and dmcp_game_t from Crispy Doom globals
 
-#include "dmcp_adapter.h"
+#include "dmcp_crispy.h"
 #include "dmcp_mappings.h"
 
 #include "d_player.h"

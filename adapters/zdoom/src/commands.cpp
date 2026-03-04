@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "dmcp_adapter.h"
+#include "dmcp_zdoom.h"
 #include "internal.h"
 
 #include "dmcp_adapter_command_queue.h"

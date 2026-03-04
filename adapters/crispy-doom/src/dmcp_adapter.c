@@ -1,7 +1,7 @@
 // Crispy Doom Adapter - Lifecycle
 // Create, destroy, tick, and stats for DMCP integration
 
-#include "dmcp_adapter.h"
+#include "dmcp_crispy.h"
 
 #include <stdarg.h>
 #include <stdio.h>

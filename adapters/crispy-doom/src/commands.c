@@ -1,6 +1,6 @@
 // Command execution for Crispy Doom.
 
-#include "dmcp_adapter.h"
+#include "dmcp_crispy.h"
 #include "dmcp_mappings.h"
 
 #include <limits.h>

@@ -1,7 +1,7 @@
 #ifndef DMCP_INTEGRATION_H
 #define DMCP_INTEGRATION_H
 
-#include "dmcp_adapter.h"
+#include "dmcp_crispy.h"
 #include "dmcp_hooks.h"
 
 #ifdef __cplusplus

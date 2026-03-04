@@ -1,7 +1,7 @@
 // Player State Extraction
 // Populates dmcp_player_t from Crispy Doom's player_t
 
-#include "dmcp_adapter.h"
+#include "dmcp_crispy.h"
 #include "enemy_types.h"
 #include "dmcp_mappings.h"
 
