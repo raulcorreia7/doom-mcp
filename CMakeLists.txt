@@ -217,7 +217,7 @@ dmcp_enable_warnings(dmcp_core_objs)
 if(DMCP_BUILD_SHARED)
   add_library(core SHARED $<TARGET_OBJECTS:dmcp_core_objs>)
   add_library(dmcp::core ALIAS core)
-  target_link_libraries(core PUBLIC dmcp::generic)
+  target_link_libraries(core PUBLIC dmcp::generic PRIVATE yyjson)
   target_include_directories(core
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

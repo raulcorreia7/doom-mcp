@@ -27,7 +27,11 @@ if(uSockets_ADDED)
     find_package(Threads REQUIRED)
     target_link_libraries(uSockets PUBLIC Threads::Threads)
   elseif(WIN32)
-    target_link_libraries(uSockets PUBLIC ws2_32)
+    find_package(libuv CONFIG REQUIRED)
+    target_link_libraries(uSockets PUBLIC
+      ws2_32
+      $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
+    )
   endif()
 
   if(NOT MSVC)
