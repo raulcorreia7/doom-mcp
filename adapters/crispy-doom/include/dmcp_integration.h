@@ -1,9 +1,7 @@
 // Forwarding header for backward compatibility
 // Crispy Doom engine integration hooks
 
-#ifndef DMCP_INTEGRATION_H
-#define DMCP_INTEGRATION_H
+// This header just forwards to engine_hooks.h for backward compatibility
+// with the crispy-doom engine integration patch.
 
 #include "engine_hooks.h"
-
-#endif
