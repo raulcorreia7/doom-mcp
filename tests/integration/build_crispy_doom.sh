@@ -95,6 +95,27 @@ cmake -B "$DMCP_BUILD_DIR" \
 echo "==> Building DMCP core"
 cmake --build "$DMCP_BUILD_DIR" --parallel
 
+DMCP_COMPAT_BUILD_DIR="$DMCP_ROOT/build"
+if [[ "$DMCP_BUILD_DIR" != "$DMCP_COMPAT_BUILD_DIR" ]]; then
+	mkdir -p "$DMCP_COMPAT_BUILD_DIR" "$DMCP_COMPAT_BUILD_DIR/Release" "$DMCP_COMPAT_BUILD_DIR/Debug"
+	for candidate in \
+		"$DMCP_BUILD_DIR/libdmcp.so" \
+		"$DMCP_BUILD_DIR/libdmcp_core.so" \
+		"$DMCP_BUILD_DIR/libdmcp.dylib" \
+		"$DMCP_BUILD_DIR/libdmcp_core.dylib" \
+		"$DMCP_BUILD_DIR/Release/dmcp.lib" \
+		"$DMCP_BUILD_DIR/Release/dmcp_core.lib" \
+		"$DMCP_BUILD_DIR/Debug/dmcp.lib" \
+		"$DMCP_BUILD_DIR/Debug/dmcp_core.lib"; do
+		if [[ -f "$candidate" ]]; then
+			relative_path="${candidate#"$DMCP_BUILD_DIR/"}"
+			destination="$DMCP_COMPAT_BUILD_DIR/$relative_path"
+			mkdir -p "$(dirname "$destination")"
+			cp -f "$candidate" "$destination"
+		fi
+	done
+fi
+
 echo "==> Configuring Crispy Doom with DMCP"
 cmake -S "$DMCP_ROOT/crispy-doom" -B "$CRISPY_BUILD_DIR" \
 	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \

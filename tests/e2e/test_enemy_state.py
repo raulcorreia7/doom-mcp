@@ -106,7 +106,7 @@ class TestEnemyTypes:
         "Revenant",
         "Mancubus",
         "Chaingunner",
-        "Imp",
+        "DoomImp",
         "Demon",
         "Spectre",
         "Cacodemon",
@@ -121,7 +121,7 @@ class TestEnemyTypes:
 
     def test_e1m1_has_basic_enemy_types(self, fresh_game):
         types_found = {enemy["type"] for enemy in fresh_game.get_state()["enemies"]}
-        assert "Zombieman" in types_found or "Imp" in types_found
+        assert "Zombieman" in types_found or "DoomImp" in types_found
 
     def test_all_enemy_types_are_known(self, fresh_game):
         for enemy in fresh_game.get_state()["enemies"]:
