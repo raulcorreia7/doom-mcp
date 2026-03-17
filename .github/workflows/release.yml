@@ -92,7 +92,7 @@ jobs:
       - name: Build DMCP
         shell: bash
         run: |
-          cmake --build build --config Release -j4
+          cmake --build build --config Release --parallel
 
       - name: Configure Crispy Doom
         shell: bash
@@ -110,7 +110,7 @@ jobs:
       - name: Build Crispy Doom
         shell: bash
         run: |
-          cmake --build crispy-doom/build --config Release -j4
+          cmake --build crispy-doom/build --config Release --parallel
 
       - name: Package Artifacts
         shell: bash
