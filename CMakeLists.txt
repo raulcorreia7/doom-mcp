@@ -25,8 +25,30 @@ set(DMCP_CRISPY_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/build" 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+# Release optimizations: -O2 for speed, -flto for smaller+faster, -gz=zstd for compressed debug
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -flto -ffunction-sections -fdata-sections")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto -ffunction-sections -fdata-sections")
+  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -flto -Wl,--gc-sections")
+  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -flto -Wl,--gc-sections")
+  
+  # Compress debug sections with zstd (keeps debug info, ~60% smaller)
+  include(CheckCCompilerFlag)
+  check_c_compiler_flag(-gz=zstd HAS_GZ_ZSTD)
+  if(HAS_GZ_ZSTD)
+    add_compile_options(-gz=zstd)
+    add_link_options(-gz=zstd)
+  endif()
+endif()
 
 if(DMCP_USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
