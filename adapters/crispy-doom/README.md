@@ -90,11 +90,13 @@ The hook parser currently understands:
 | Switch | Purpose |
 |--------|---------|
 | `-dmcp_port <port>` | Override the MCP HTTP port |
-| `-dmcp_allow_cheats` | Enable cheat-gated tools |
-| `-dmcp_allow_console` | Enable console command execution |
+| `-dmcp_allow_cheats` | Accepted; cheat-style tools are enabled by default |
+| `-dmcp_allow_console` | Accepted; console command execution is enabled by default |
 | `-dmcp_enable_screenshots` | Enable screenshot tools when frame capture is compiled in |
 
-Console commands are enabled automatically when cheats are enabled.
+Console and cheat-style tools are enabled by default. Engines that need a
+restricted runtime can override `config.allow_console_commands` or
+`config.allow_cheats` before calling `DMCP_Init(config)`.
 
 ## Hook Responsibilities
 

@@ -79,8 +79,8 @@ static inline dmcp_config_t dmcp_config_default(void) {
   cfg.screenshot.height                  = DMCP_DEFAULT_SCREENSHOT_HEIGHT;
   cfg.tools.game                         = true;
   cfg.tools.input                        = true;
-  cfg.permissions.allow_console_commands = false;
-  cfg.permissions.allow_cheats           = false;
+  cfg.permissions.allow_console_commands = true;
+  cfg.permissions.allow_cheats           = true;
   cfg.on_snapshot                        = NULL;
   cfg.on_log                             = NULL;
   cfg.user_data                          = NULL;

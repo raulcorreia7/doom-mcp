@@ -14,9 +14,13 @@ dmcp_engine_config_t dmcp_engine_config_from_argv(int argc, char** argv) {
     cfg.port = port;
   }
 
-  cfg.allow_cheats = dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_cheats");
-  cfg.allow_console_commands =
-      cfg.allow_cheats || dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_console");
+  if (dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_cheats")) {
+    cfg.allow_cheats           = true;
+    cfg.allow_console_commands = true;
+  }
+  if (dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_console")) {
+    cfg.allow_console_commands = true;
+  }
   cfg.screenshot_enabled = dmcp_engine_flag_from_argv(argc, argv, "dmcp_enable_screenshots");
 
   return cfg;

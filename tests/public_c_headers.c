@@ -34,8 +34,8 @@ int main(void) {
   return (server_config.struct_size == sizeof(server_config) &&
           doom_config.struct_size == sizeof(doom_config) && doom_config.tools.game == true &&
           doom_config.tools.input == true &&
-          doom_config.permissions.allow_console_commands == false &&
-          doom_config.permissions.allow_cheats == false &&
+          doom_config.permissions.allow_console_commands == true &&
+          doom_config.permissions.allow_cheats == true &&
           game_registration.struct_size == sizeof(game_registration) &&
           crispy_config.struct_size == sizeof(crispy_config) &&
           fake_config.struct_size == sizeof(fake_config) &&

@@ -195,6 +195,13 @@ TEST_CASE("Fake adapter exposes SDK MCP transport", "[integration][sdk][fake][tr
         DMCP_TOOL_GET_COMMAND_EXAMPLES,
         DMCP_TOOL_GIVE_ITEM,
         DMCP_TOOL_SPAWN_ENTITY,
+        DMCP_TOOL_CHANGE_LEVEL,
+        DMCP_TOOL_SET_PLAYER_HEALTH,
+        DMCP_TOOL_SET_PLAYER_POSITION,
+        DMCP_TOOL_EXECUTE_CONSOLE,
+        DMCP_TOOL_PAUSE_GAME,
+        DMCP_TOOL_DAMAGE_ENTITY,
+        DMCP_TOOL_KILL_ENTITY,
         DMCP_TOOL_PLAYER_INPUT,
     };
     for (const char* expected_tool : expected_tools) {
@@ -208,8 +215,6 @@ TEST_CASE("Fake adapter exposes SDK MCP transport", "[integration][sdk][fake][tr
     REQUIRE_FALSE(find_tool_by_name(tool_entries, "set_health"));
     REQUIRE_FALSE(find_tool_by_name(tool_entries, "set_position"));
     REQUIRE_FALSE(find_tool_by_name(tool_entries, "console_command"));
-    REQUIRE_FALSE(find_tool_by_name(tool_entries, DMCP_TOOL_EXECUTE_CONSOLE));
-    REQUIRE_FALSE(find_tool_by_name(tool_entries, DMCP_TOOL_SET_PLAYER_HEALTH));
 
     const std::string player  = call_jsonrpc(server.port, session_id, 3, "tools/call",
                                              R"({"name":"get_player","arguments":{}})");

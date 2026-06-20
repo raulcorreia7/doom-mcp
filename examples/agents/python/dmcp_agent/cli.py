@@ -110,7 +110,7 @@ def add_command_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]
     p_kill.add_argument("target_tid", type=int)
     p_kill.set_defaults(func=workflows.kill)
 
-    p_console = sub.add_parser("console", help="execute a gated engine console command")
+    p_console = sub.add_parser("console", help="execute an engine console command")
     p_console.add_argument("command_text")
     p_console.set_defaults(func=workflows.console)
 

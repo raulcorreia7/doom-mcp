@@ -91,8 +91,8 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
     REQUIRE(config.port == MCP_DEFAULT_PORT);
     REQUIRE(config.target_hz == DMCP_DEFAULT_TARGET_HZ);
     REQUIRE(config.start_transport == true);
-    REQUIRE(config.permissions.allow_console_commands == false);
-    REQUIRE(config.permissions.allow_cheats == false);
+    REQUIRE(config.permissions.allow_console_commands == true);
+    REQUIRE(config.permissions.allow_cheats == true);
   }
 
   SECTION("Create context with custom port") {
@@ -991,9 +991,30 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissions]") {
-  SECTION("Default config rejects raw console and cheat-style mutation") {
+  SECTION("Default config allows privileged commands") {
     dmcp_config_t   config = TestConfig();
     dmcp_context_t* ctx    = dmcp_context_create(&config);
+    REQUIRE(ctx != nullptr);
+
+    dmcp_command_t console{};
+    console.type = DMCP_CMD_EXECUTE_CONSOLE;
+    mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
+    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
+
+    dmcp_command_t health{};
+    health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
+    health.data.set_health.health = 200;
+    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_OK);
+
+    dmcp_context_destroy(ctx);
+  }
+
+  SECTION("Explicit disabled permissions reject raw console and cheat-style mutation") {
+    dmcp_config_t config                      = TestConfig();
+    config.permissions.allow_console_commands = false;
+    config.permissions.allow_cheats           = false;
+
+    dmcp_context_t* ctx = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
 
     dmcp_command_t console{};
@@ -1012,6 +1033,7 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
   SECTION("Console access alone does not allow known cheat commands") {
     dmcp_config_t config                      = TestConfig();
     config.permissions.allow_console_commands = true;
+    config.permissions.allow_cheats           = false;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
@@ -1024,7 +1046,7 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
     dmcp_context_destroy(ctx);
   }
 
-  SECTION("Explicit permission flags allow privileged commands") {
+  SECTION("Explicit enabled permissions allow privileged commands") {
     dmcp_config_t config                      = TestConfig();
     config.permissions.allow_console_commands = true;
     config.permissions.allow_cheats           = true;

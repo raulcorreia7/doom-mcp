@@ -88,8 +88,6 @@ static dmcp_zdoom_t* g_dmcp = nullptr;
 void EngineStartup() {
   dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
   config.base.port = 6060;
-  config.base.permissions.allow_cheats = false;
-  config.base.permissions.allow_console_commands = false;
 
   g_dmcp = dmcp_zdoom_create(&config);
 }
@@ -120,12 +118,14 @@ dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
 config.base.port = 6060;
 config.base.target_hz = 35;
 config.base.screenshot.enable = false;
-config.base.permissions.allow_cheats = false;
-config.base.permissions.allow_console_commands = false;
 ```
 
 Set `config.base.screenshot.enable = true` only after wiring
 `DMCP_CaptureFrame()` to a real renderer frame source.
+Console and cheat-style tools are enabled by default; set
+`config.base.permissions.allow_cheats` or
+`config.base.permissions.allow_console_commands` to `false` only for restricted
+embeds.
 
 ## Adapter Responsibilities
 

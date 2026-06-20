@@ -87,11 +87,15 @@ TEST_CASE("Fake adapter simple: default config", "[adapter][fake][simple]") {
 TEST_CASE("Adapter common simple: screenshots are opt-in from argv", "[adapter][common][simple]") {
   dmcp_engine_config_t default_config = dmcp_engine_config_default();
   REQUIRE(default_config.screenshot_enabled == false);
+  REQUIRE(default_config.allow_cheats == true);
+  REQUIRE(default_config.allow_console_commands == true);
 
   char                 program[]      = "engine";
   char*                no_args[]      = {program};
   dmcp_engine_config_t parsed_default = dmcp_engine_config_from_argv(1, no_args);
   REQUIRE(parsed_default.screenshot_enabled == false);
+  REQUIRE(parsed_default.allow_cheats == true);
+  REQUIRE(parsed_default.allow_console_commands == true);
 
   char                 screenshot_flag[] = "-dmcp_enable_screenshots";
   char*                screenshot_args[] = {program, screenshot_flag};

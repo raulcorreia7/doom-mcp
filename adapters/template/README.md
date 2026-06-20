@@ -138,7 +138,9 @@ dmcp_template_t* dmcp = dmcp_template_create(&cfg);
 Use `dmcp_template_capture_frame()` only after rendering and only when the
 engine can provide a contiguous RGBA frame. Screenshot tools are disabled by
 default; set `cfg.base.screenshot.enable = true` only when `capture_frame` is
-implemented. DMCP copies the pixels immediately.
+implemented. DMCP copies the pixels immediately. Console and cheat-style tools
+are enabled by default; restricted embeds can set the permission fields on
+`cfg.base.permissions` to `false`.
 
 ## Rules
 
