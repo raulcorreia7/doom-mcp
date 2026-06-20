@@ -1,0 +1,16 @@
+{
+    global:
+        dmcp_*;
+        DMCP_*;
+        mcp_*;
+        mcp_core_*;
+        mcp_status_*;
+    local:
+        yyjson_*;
+        bsd_*;
+        apple_*;
+        internal_*;
+        sweep_*;
+        default_*;
+        *;
+};

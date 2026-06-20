@@ -1,18 +1,20 @@
-# DMCPSourceLists.cmake
-# Source discovery for core libraries.
-# We intentionally use CONFIGURE_DEPENDS so adding/removing .cpp files updates
-# the build graph without manually editing CMakeLists.txt.
+function(dmcp_collect_sources out_var)
+  set(globs)
+  foreach(root IN LISTS ARGN)
+    list(APPEND globs
+      "${CMAKE_CURRENT_SOURCE_DIR}/${root}/*.c"
+      "${CMAKE_CURRENT_SOURCE_DIR}/${root}/*.cc"
+      "${CMAKE_CURRENT_SOURCE_DIR}/${root}/*.cpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/${root}/*.cxx"
+    )
+  endforeach()
 
-file(
-  GLOB_RECURSE MCP_GENERIC_SOURCES
-  CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/mcp/*.cpp"
-)
-list(SORT MCP_GENERIC_SOURCES)
+  file(GLOB_RECURSE sources CONFIGURE_DEPENDS ${globs})
+  list(SORT sources)
+  set(${out_var} "${sources}" PARENT_SCOPE)
+endfunction()
 
-file(
-  GLOB_RECURSE DMCP_CORE_SOURCES
-  CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/doom/*.cpp"
-)
-list(SORT DMCP_CORE_SOURCES)
+dmcp_collect_sources(MCP_CORE_FOUNDATION_SOURCES src/core)
+dmcp_collect_sources(MCP_GENERIC_SOURCES src/mcp)
+dmcp_collect_sources(MCP_GAME_SOURCES src/game)
+dmcp_collect_sources(DMCP_CORE_SOURCES src/doom)

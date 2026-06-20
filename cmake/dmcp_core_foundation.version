@@ -1,0 +1,8 @@
+{
+    global:
+        mcp_core_*;
+        mcp_status_*;
+        mcp_str*;
+    local:
+        *;
+};

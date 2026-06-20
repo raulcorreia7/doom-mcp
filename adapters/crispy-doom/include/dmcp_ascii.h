@@ -36,7 +36,7 @@ typedef struct {
   int                     gamma;
 
   uint8_t* rgb_buffers[2];
-  int      rgb_buffer_size;
+  size_t   rgb_buffer_size;
   int      rgb_buffer_idx;
 } dmcp_ascii_config_t;
 

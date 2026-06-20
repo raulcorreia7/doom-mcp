@@ -2,100 +2,48 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 
 #include "dmcp/doom/api.h"
-#include "dmcp/doom/protocol.h"
-#include "doom/layers/input/input.hpp"
-#include "doom/layers/orchestrator/orchestrator.hpp"
-#include "doom/layers/registry.hpp"
 #include "internal.hpp"
-#include "internal/mcp_handlers.hpp"
+#include "internal/mcp_registration.hpp"
 #include "internal/serialization.hpp"
 #include "mcp/generic/server.h"
 
 // Bring dmcp_log into scope for use inside extern "C" block
 using dmcp::dmcp_log;
 
-namespace {
-
-void destroy_layer_handle(dmcp_layer_t* layer) {
-  if (!layer) {
-    return;
-  }
-
-  if (layer->vtable && layer->vtable->destroy) {
-    layer->vtable->destroy(layer);
-    return;
-  }
-
-  delete layer;
-}
-
-using layer_ptr = std::unique_ptr<dmcp_layer_t, decltype(&destroy_layer_handle)>;
-
-bool register_layer(dmcp::context* ctx, layer_ptr layer, const char* expected_layer_name,
-                    bool enable_layer) {
-  if (!ctx || !ctx->layers) {
-    return false;
-  }
-
-  if (!layer) {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to create layer '%s'",
-             expected_layer_name ? expected_layer_name : "unknown");
-    return false;
-  }
-
-  const char* const layer_name =
-      (layer->vtable && layer->vtable->name) ? layer->vtable->name() : nullptr;
-  if (!layer_name || layer_name[0] == '\0') {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register unnamed layer");
-    return false;
-  }
-
-  if (!ctx->layers->register_layer(layer.get())) {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register layer '%s'", layer_name);
-    return false;
-  }
-
-  dmcp_layer_t* raw_layer = layer.release();
-  if (!enable_layer) {
-    dmcp_log(ctx, MCP_LOG_INFO, "Layer '%s' disabled by configuration", layer_name);
-    return true;
-  }
-
-  if (!ctx->layers->enable(layer_name)) {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to enable layer '%s'", layer_name);
-    return false;
-  }
-
-  if (raw_layer->vtable && raw_layer->vtable->register_methods &&
-      !raw_layer->vtable->register_methods(raw_layer, ctx->server, ctx)) {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register methods for layer '%s'", layer_name);
-    ctx->layers->disable(layer_name);
-    return false;
-  }
-
-  if (raw_layer->vtable && raw_layer->vtable->register_routes &&
-      !raw_layer->vtable->register_routes(raw_layer, ctx->server, ctx)) {
-    dmcp_log(ctx, MCP_LOG_ERROR, "Failed to register routes for layer '%s'", layer_name);
-    ctx->layers->disable(layer_name);
-    return false;
-  }
-
-  dmcp_log(ctx, MCP_LOG_INFO, "Layer '%s' enabled", layer_name);
-  return true;
-}
-
-}  // namespace
-
 extern "C" {
 
 dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   auto ctx = std::make_unique<dmcp::context>();
 
-  ctx->config = config ? *config : dmcp_config_default();
+  ctx->config = dmcp_config_default();
+  if (config) {
+    size_t copy_size = config->struct_size;
+    if (copy_size == 0 || copy_size > sizeof(dmcp_config_t)) {
+      copy_size = sizeof(dmcp_config_t);
+    }
+    std::memcpy(&ctx->config, config, copy_size);
+  }
+
+  if (ctx->config.target_hz == 0) {
+    dmcp_log(ctx.get(), MCP_LOG_ERROR, "Invalid DMCP config: target_hz must be greater than zero");
+    return nullptr;
+  }
+  if (ctx->config.snapshot_pool_size == 0) {
+    dmcp_log(ctx.get(), MCP_LOG_ERROR,
+             "Invalid DMCP config: snapshot_pool_size must be greater than zero");
+    return nullptr;
+  }
+  if (ctx->config.command_queue_slots == 0 ||
+      ctx->config.command_queue_slots > std::numeric_limits<uint32_t>::max()) {
+    dmcp_log(ctx.get(), MCP_LOG_ERROR,
+             "Invalid DMCP config: command_queue_slots must be in range 1..UINT32_MAX");
+    return nullptr;
+  }
 
   ctx->pool.resize(ctx->config.snapshot_pool_size);
   for (auto& entry : ctx->pool) {
@@ -110,11 +58,16 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   ctx->cmd_queue   = std::make_unique<dmcp::command_queue>();
   ctx->input_queue = std::make_unique<dmcp::command_queue>();
+  ctx->cmd_queue->max_size   = static_cast<uint32_t>(ctx->config.command_queue_slots);
+  ctx->input_queue->max_size = static_cast<uint32_t>(ctx->config.command_queue_slots);
 
   mcp_server_config_t server_config = mcp_default_config();
   server_config.port                = ctx->config.port;
   server_config.on_log              = ctx->config.on_log;
   server_config.log_user_data       = ctx->config.user_data;
+  server_config.start_transport     = ctx->config.start_transport;
+  std::strncpy(server_config.server_name, "doom-mcp", sizeof(server_config.server_name) - 1);
+  server_config.server_name[sizeof(server_config.server_name) - 1] = '\0';
 
   ctx->server = mcp_server_create(&server_config);
   if (!ctx->server) {
@@ -122,23 +75,13 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
     return nullptr;
   }
 
-  auto register_method = [&](const char* method_name, mcp_method_handler_t handler) {
-    mcp_result_t result = mcp_server_method_register(ctx->server, method_name, handler, ctx.get());
-    if (result.code != MCP_RESULT_CODE_OK) {
-      dmcp_log(ctx.get(), MCP_LOG_ERROR, "Failed to register method %s: %s", method_name,
-               result.message ? result.message : "unknown error");
+  if (!dmcp::register_mcp_surface(ctx.get())) {
+    if (ctx->server) {
+      mcp_server_destroy(ctx->server);
+      ctx->server = nullptr;
     }
-  };
-
-  register_method("tools/list", dmcp::handle_tools_list);
-  register_method("tools/call", dmcp::handle_tools_call);
-
-  ctx->layers = std::make_unique<dmcp::layer_registry>();
-
-  register_layer(ctx.get(), layer_ptr(dmcp_orchestrator_layer_create(), &destroy_layer_handle),
-                 DMCP_LAYER_ORCHESTRATOR, ctx->config.layers.orchestrator);
-  register_layer(ctx.get(), layer_ptr(dmcp_input_layer_create(), &destroy_layer_handle),
-                 DMCP_LAYER_INPUT, ctx->config.layers.input);
+    return nullptr;
+  }
 
   dmcp_log(ctx.get(), MCP_LOG_INFO, "DMCP context created (port=%u target_hz=%u screenshot=%s)",
            ctx->config.port, ctx->config.target_hz,
@@ -174,10 +117,6 @@ void dmcp_context_tick(dmcp_context_t* ctx_handle) {
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
-  if (ctx->layers) {
-    ctx->layers->tick_all(ctx_handle);
-  }
-
   const auto now = std::chrono::steady_clock::now();
   if (now - ctx->last_snapshot_time < ctx->min_interval) {
     return;
@@ -205,9 +144,7 @@ void dmcp_context_tick(dmcp_context_t* ctx_handle) {
   }
 
   const std::string json = dmcp::snapshot_to_json(snapshot->data);
-  if (!json.empty()) {
-    mcp_server_event_broadcast(ctx->server, "state", json.c_str());
-  }
+  dmcp::broadcast_state_event(ctx, json);
 
   dmcp::release_snapshot(ctx->pool, snapshot);
 
@@ -223,26 +160,44 @@ bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx_handle) {
   return ctx->screenshot.pending_requests.load() > 0;
 }
 
-mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx_handle,
-                                            const dmcp_screenshot_frame_t* frame) {
+bool dmcp_screenshot_request(dmcp_context_t* ctx_handle) {
+  if (!ctx_handle) return false;
+
+  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+  if (!ctx->screenshot.enabled.load()) return false;
+
+  uint32_t current = ctx->screenshot.pending_requests.load(std::memory_order_relaxed);
+  while (current < 4) {
+    if (ctx->screenshot.pending_requests.compare_exchange_weak(
+            current, current + 1, std::memory_order_release, std::memory_order_relaxed)) {
+      return true;
+    }
+  }
+
+  ctx->dropped_screenshots.fetch_add(1, std::memory_order_release);
+  return false;
+}
+
+mcp_status_t dmcp_screenshot_submit(dmcp_context_t*                ctx_handle,
+                                    const dmcp_screenshot_frame_t* frame) {
   if (!ctx_handle || !frame) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   if (!frame->pixels || frame->width == 0 || frame->height == 0) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   const uint32_t row_bytes = frame->width * 4;
   if (frame->stride < row_bytes) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
   if (!ctx->screenshot.enabled.load()) {
     dmcp_log(ctx, MCP_LOG_WARN, "Screenshot submit rejected: screenshot feature disabled");
-    return MCP_ERROR_DISABLED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
   }
 
   {
@@ -269,7 +224,7 @@ mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx_h
 
   dmcp_log(ctx, MCP_LOG_DEBUG, "Screenshot submitted (%ux%u)", frame->width, frame->height);
 
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx_handle, uint32_t target_width) {
@@ -278,11 +233,39 @@ const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx_handle, uint32_t targe
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
   if (!ctx->screenshot.enabled.load()) return nullptr;
-  if (ctx->screenshot.latest_pixels.empty()) return nullptr;
 
-  ctx->screenshot.convert_to_ascii(target_width);
+  thread_local std::string ascii;
+  if (!ctx->screenshot.build_ascii(target_width, &ascii)) {
+    return nullptr;
+  }
+
   dmcp_log(ctx, MCP_LOG_DEBUG, "ASCII screenshot generated (target_width=%u)", target_width);
-  return ctx->screenshot.get_ascii().c_str();
+  return ascii.c_str();
+}
+
+int dmcp_screenshot_copy_ascii(dmcp_context_t* ctx_handle, char* buffer, size_t buffer_size,
+                               uint32_t target_width) {
+  if (!ctx_handle || !buffer || buffer_size == 0) {
+    return -1;
+  }
+
+  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
+
+  if (!ctx->screenshot.enabled.load()) {
+    return -1;
+  }
+
+  std::string ascii;
+  if (!ctx->screenshot.build_ascii(target_width, &ascii)) {
+    return -1;
+  }
+
+  if (ascii.size() >= buffer_size) {
+    return -1;
+  }
+
+  std::memcpy(buffer, ascii.c_str(), ascii.size() + 1);
+  return static_cast<int>(ascii.size());
 }
 
 int dmcp_screenshot_to_json(dmcp_context_t* ctx_handle, char* buffer, size_t buffer_size,
@@ -293,16 +276,20 @@ int dmcp_screenshot_to_json(dmcp_context_t* ctx_handle, char* buffer, size_t buf
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
-  if (!ctx->screenshot.enabled.load() || ctx->screenshot.latest_pixels.empty()) {
+  if (!ctx->screenshot.enabled.load()) {
     return -1;
   }
 
-  ctx->screenshot.convert_to_ascii(target_width);
-  const std::string& ascii = ctx->screenshot.get_ascii();
+  std::string ascii;
+  uint32_t    frame_width  = 0;
+  uint32_t    frame_height = 0;
+  if (!ctx->screenshot.build_ascii(target_width, &ascii, &frame_width, &frame_height)) {
+    return -1;
+  }
 
   std::string json = "{";
-  json += "\"width\":" + std::to_string(ctx->screenshot.width) + ",";
-  json += "\"height\":" + std::to_string(ctx->screenshot.height) + ",";
+  json += "\"width\":" + std::to_string(frame_width) + ",";
+  json += "\"height\":" + std::to_string(frame_height) + ",";
   json += "\"ascii\":";
 
   json += "\"";
@@ -336,6 +323,7 @@ void dmcp_stats_get(const dmcp_context_t* ctx_handle, dmcp_stats_t* stats) {
 
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
 
+  stats->struct_size         = sizeof(dmcp_stats_t);
   stats->dropped_snapshots   = ctx->dropped_snapshots.load();
   stats->dropped_screenshots = ctx->dropped_screenshots.load();
 

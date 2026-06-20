@@ -35,19 +35,6 @@ extern "C" {
  * @note The caller owns the returned handle and must destroy it with
  *       dmcp_context_destroy() when done.
  * @warning Returns NULL if server fails to start (e.g., port in use)
- *
- * Breaking Changes:
- * - Function renamed from dmcp_create to dmcp_context_create (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * dmcp_context_t* ctx = dmcp_create(&config);
- *
- * // After
- * dmcp_context_t* ctx = dmcp_context_create(&config);
- * @endcode
- *
  * Example:
  * @code
  * void OnSnapshot(void* user, dmcp_snapshot_t* snapshot) {
@@ -79,19 +66,6 @@ DMCP_API dmcp_context_t* dmcp_context_create(const dmcp_config_t* config);
  *
  * @note Thread-safe - can be called from any thread
  * @note After this call, do not use the context handle
- *
- * Breaking Changes:
- * - Function renamed from dmcp_destroy to dmcp_context_destroy (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * dmcp_destroy(ctx);
- *
- * // After (same pattern, just renamed)
- * dmcp_context_destroy(ctx);
- * @endcode
- *
  * Example:
  * @code
  * dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -113,19 +87,6 @@ DMCP_API void dmcp_context_destroy(dmcp_context_t* ctx);
  * @return true if server is running, false otherwise
  *
  * @note Returns false if context handle is NULL
- *
- * Breaking Changes:
- * - Function renamed from dmcp_is_running to dmcp_context_is_running (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * if (dmcp_is_running(ctx)) { ... }
- *
- * // After (same pattern, just renamed)
- * if (dmcp_context_is_running(ctx)) { ... }
- * @endcode
- *
  * Example:
  * @code
  * if (dmcp_context_is_running(ctx)) {
@@ -155,19 +116,6 @@ DMCP_API bool dmcp_context_is_running(const dmcp_context_t* ctx);
  * @note Should be called from your game's main loop/thread
  * @note Snapshot rate is controlled by config.target_hz
  * @note Commands from agents are processed during this call
- *
- * Breaking Changes:
- * - Function renamed from dmcp_tick to dmcp_context_tick (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * dmcp_tick(ctx);
- *
- * // After (same pattern, just renamed)
- * dmcp_context_tick(ctx);
- * @endcode
- *
  * Example:
  * @code
  * // In your game loop
@@ -198,20 +146,6 @@ DMCP_API void dmcp_context_tick(dmcp_context_t* ctx);
  *
  * @note After submission, the "requested" flag is cleared
  * @note Returns false if context handle is NULL or screenshots disabled
- *
- * Breaking Changes:
- * - Function renamed from dmcp_screenshot_requested to
- * dmcp_screenshot_is_requested (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * if (dmcp_screenshot_requested(ctx)) {
- *
- * // After (same pattern, just renamed)
- * if (dmcp_screenshot_is_requested(ctx)) {
- * @endcode
- *
  * Example:
  * @code
  * // In your render loop or frame tick
@@ -231,6 +165,18 @@ DMCP_API void dmcp_context_tick(dmcp_context_t* ctx);
 DMCP_API bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
 
 /**
+ * @brief Request a screenshot from the engine
+ *
+ * Increments the pending screenshot request count. Engine integrations should
+ * poll dmcp_screenshot_is_requested() after rendering and submit a normalized
+ * RGBA frame with dmcp_screenshot_submit().
+ *
+ * @param ctx Context handle
+ * @return true if screenshots are enabled and a request was queued
+ */
+DMCP_API bool dmcp_screenshot_request(dmcp_context_t* ctx);
+
+/**
  * @brief Submit a screenshot frame
  *
  * Submits screenshot pixel data to the context. The data is copied
@@ -239,27 +185,11 @@ DMCP_API bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  *
  * @param ctx Context handle
  * @param frame Screenshot frame data (pixels, width, height, stride)
- * @return Result struct with code and message
+ * @return Status with code and message
  *
- * @note NYI: Screenshot encoding not yet implemented. Returns
- * MCP_RESULT_ERROR(-3, "Operation disabled").
  * @note Thread-safe - can be called from any thread
  * @note The frame data is copied, caller retains ownership of pixels
- * @note If queue is full, returns MCP_RESULT_ERROR(-4, "Queue full")
- *
- * Breaking Changes:
- * - Function renamed from dmcp_submit_screenshot to dmcp_screenshot_submit
- * (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * dmcp_submit_screenshot(ctx, &frame);
- *
- * // After (same pattern, just renamed)
- * dmcp_screenshot_submit(ctx, &frame);
- * @endcode
- *
+ * @note If queue is full, returns MCP_STATUS_ERROR(-4, "Queue full")
  * Example:
  * @code
  * // After capturing screenshot
@@ -270,14 +200,14 @@ DMCP_API bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
  *     .stride = width * 4  // RGBA = 4 bytes per pixel
  * };
  *
- * mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+ * mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
  * if (result.code != 0) {
  *     fprintf(stderr, "Screenshot submit failed: %s\n", result.message);
  * }
  * @endcode
  */
-DMCP_API mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
-                                                     const dmcp_screenshot_frame_t* frame);
+DMCP_API mcp_status_t dmcp_screenshot_submit(dmcp_context_t*                ctx,
+                                             const dmcp_screenshot_frame_t* frame);
 
 /**
  * @brief Get ASCII representation of latest screenshot
@@ -290,10 +220,26 @@ DMCP_API mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t*            
  * @return Pointer to ASCII string, or NULL if no screenshot available
  *
  * @note Returns NULL if context is NULL or no screenshot submitted
- * @note The returned string is owned by the context and valid until next screenshot submit
+ * @note The returned pointer is thread-local and valid until the next
+ *       dmcp_screenshot_get_ascii() call on the same thread
  * @note Thread-safe
  */
 DMCP_API const char* dmcp_screenshot_get_ascii(dmcp_context_t* ctx, uint32_t target_width);
+
+/**
+ * @brief Copy ASCII representation of latest screenshot into a caller buffer
+ *
+ * @param ctx Context handle
+ * @param buffer Output buffer for a null-terminated ASCII string
+ * @param buffer_size Size of output buffer
+ * @param target_width Target width in characters (default 160)
+ * @return Number of bytes written excluding the null terminator, or -1 on error
+ *
+ * @note Prefer this function for stable C API integrations.
+ * @note Returns -1 if no screenshot is available or the buffer is too small.
+ */
+DMCP_API int dmcp_screenshot_copy_ascii(dmcp_context_t* ctx, char* buffer, size_t buffer_size,
+                                        uint32_t target_width);
 
 /**
  * @brief Get screenshot as JSON with metadata
@@ -329,21 +275,6 @@ DMCP_API int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t b
  *
  * @note Thread-safe - can be called from any thread
  * @note Stats are cumulative since context creation
- *
- * Breaking Changes:
- * - Function renamed from dmcp_get_stats to dmcp_stats_get (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * dmcp_stats_t stats;
- * dmcp_get_stats(ctx, &stats);
- *
- * // After (same pattern, just renamed)
- * dmcp_stats_t stats;
- * dmcp_stats_get(ctx, &stats);
- * @endcode
- *
  * Example:
  * @code
  * dmcp_stats_t stats;
@@ -533,6 +464,27 @@ static inline void dmcp_strcpy(char* dest, const char* src, size_t dest_size) {
     i++;
   }
   dest[i] = '\0';
+}
+
+/**
+ * @brief Add an available map name to the snapshot's map catalog.
+ *
+ * Adapters that know the loaded game's map catalog should add each canonical
+ * map here. DMCP exposes this catalog through get_available_maps and uses it
+ * to validate change_level commands. If the catalog is empty, DMCP falls back
+ * to the base Doom map list for the current game mode.
+ *
+ * @param snapshot Snapshot to add map to
+ * @param map_name Canonical Doom map name, e.g. E1M1 or MAP01
+ * @return true if added successfully, false if full or NULL/empty inputs
+ */
+static inline bool dmcp_snapshot_add_map(dmcp_snapshot_t* snapshot, const char* map_name) {
+  if (!snapshot || !map_name || map_name[0] == '\0') return false;
+  if (snapshot->map_count >= DMCP_MAX_MAPS) return false;
+  dmcp_strcpy(snapshot->maps[snapshot->map_count].name, map_name,
+              sizeof(snapshot->maps[snapshot->map_count].name));
+  snapshot->map_count++;
+  return true;
 }
 
 #ifdef __cplusplus

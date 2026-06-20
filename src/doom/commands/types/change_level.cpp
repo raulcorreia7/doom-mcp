@@ -11,8 +11,12 @@ namespace dmcp {
 bool parse_change_level_command(const json_value& params, dmcp_command_t* out) {
   out->type = DMCP_CMD_CHANGE_LEVEL;
 
+  if (!has_only_fields(params, {"map_name", "skill_level", "reset_inventory"})) {
+    return false;
+  }
+
   std::string_view map_name;
-  if (!read_required_string(params, {"map_name", "level"}, &map_name) ||
+  if (!read_required_string(params, {"map_name"}, &map_name) ||
       !copy_normalized_map_name(out->data.change_level.map_name,
                                 sizeof(out->data.change_level.map_name), map_name)) {
     return false;

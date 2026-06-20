@@ -12,8 +12,12 @@ namespace dmcp {
 bool parse_set_health_command(const json_value& params, dmcp_command_t* out) {
   out->type = DMCP_CMD_SET_PLAYER_HEALTH;
 
+  if (!has_only_fields(params, {"health"})) {
+    return false;
+  }
+
   double health = 0.0;
-  if (!read_required_number(params, {"health", "value"}, &health)) {
+  if (!read_required_number(params, {"health"}, &health)) {
     return false;
   }
 

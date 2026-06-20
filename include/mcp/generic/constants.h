@@ -66,54 +66,12 @@ extern "C" {
 #define MCP_DEFAULT_PORT 6060
 
 /**
- * @brief Default snapshot rate limit (Hz)
- *
- * Default frequency at which game state snapshots are broadcast
- * to clients. Can be overridden in dmcp_config_t.
- */
-#define MCP_DEFAULT_TARGET_HZ 10
-
-/**
- * @brief Default snapshot pool size
- *
- * Number of snapshot objects pre-allocated in the pool.
- * Used for efficient memory allocation in game loop.
- */
-#define MCP_DEFAULT_SNAPSHOT_POOL_SIZE 16
-
-/**
- * @brief Default command queue size
- *
- * Number of slots in the command queue (agent -> game).
- * Controls how many pending commands can be queued.
- */
-#define MCP_DEFAULT_QUEUE_SLOTS 4
-
-/**
  * @brief Server startup timeout
  *
  * Maximum seconds to wait for server to start before
  * considering startup failed.
  */
 #define MCP_STARTUP_TIMEOUT_SECONDS 2
-
-// ============================================================================
-// Screenshot Defaults
-// ============================================================================
-
-/**
- * @brief Default screenshot width (pixels)
- *
- * Default width for screenshot capture when using default config.
- */
-#define MCP_DEFAULT_SCREENSHOT_WIDTH 640
-
-/**
- * @brief Default screenshot height (pixels)
- *
- * Default height for screenshot capture when using default config.
- */
-#define MCP_DEFAULT_SCREENSHOT_HEIGHT 480
 
 // ============================================================================
 // HTTP Endpoints

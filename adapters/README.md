@@ -1,6 +1,8 @@
 # DMCP Adapters
 
 Adapters bridge DMCP core (`dmcp::single` / `dmcp::core`) to concrete engine internals.
+Their public surface is a small C99-compatible API; engine-specific hook code
+stays in the engine or adapter, not in the generic MCP layer.
 
 ## Scope And Boundaries
 
@@ -31,6 +33,9 @@ Public adapter headers live in:
 ### C API
 
 - Prefix: `dmcp_<engine>_...`
+- Return status type: `mcp_status_t` from `include/mcp/core/status.h`
+- Configuration structs include `struct_size` so adapters can add fields while
+  preserving source-compatible initialization.
 - Common lifecycle surface per adapter:
   - `*_config_default()`
   - `*_create()` / `*_destroy()`

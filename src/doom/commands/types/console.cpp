@@ -9,6 +9,10 @@ namespace dmcp {
 bool parse_console_command(const json_value& params, dmcp_command_t* out) {
   out->type = DMCP_CMD_EXECUTE_CONSOLE;
 
+  if (!has_only_fields(params, {"command"})) {
+    return false;
+  }
+
   std::string_view command;
   if (!read_required_string(params, {"command"}, &command) ||
       !copy_checked_string(out->data.console.command, sizeof(out->data.console.command), command)) {

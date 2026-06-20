@@ -78,11 +78,15 @@ static const char* dmcp_world_entity_type_name(mobjtype_t type) {
 }
 
 static int dmcp_world_entity_is_enemy(const mobj_t* mo) {
+  unsigned int flags;
+
   if (!mo) {
     return 0;
   }
 
-  return (mo->flags & MF_COUNTKILL) && !(mo->flags & MF_CORPSE) && mo->health > 0;
+  flags = (unsigned int)mo->flags;
+  return (flags & (unsigned int)MF_COUNTKILL) != 0u && (flags & (unsigned int)MF_CORPSE) == 0u &&
+         mo->health > 0;
 }
 
 static int dmcp_world_entity_is_interactive(const mobj_t* mo) {
@@ -90,7 +94,7 @@ static int dmcp_world_entity_is_interactive(const mobj_t* mo) {
     return 0;
   }
 
-  if ((mo->flags & MF_MISSILE) != 0) {
+  if (((unsigned int)mo->flags & (unsigned int)MF_MISSILE) != 0u) {
     return 0;
   }
 
@@ -102,7 +106,7 @@ static int dmcp_world_entity_is_interactive(const mobj_t* mo) {
     return 0;
   }
 
-  if ((mo->flags & MF_SPECIAL) != 0) {
+  if (((unsigned int)mo->flags & (unsigned int)MF_SPECIAL) != 0u) {
     return 1;
   }
 
@@ -144,7 +148,7 @@ int dmcp_crispy_populate_enemies(dmcp_snapshot_t* snap) {
     }
 
     // Include both alive and dead enemies so query filters can select by status
-    if ((mo->flags & MF_COUNTKILL) != 0) {
+    if (((unsigned int)mo->flags & (unsigned int)MF_COUNTKILL) != 0u) {
       memset(&enemy, 0, sizeof(enemy));
 
       enemy.id     = count;

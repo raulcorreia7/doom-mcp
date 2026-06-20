@@ -46,6 +46,7 @@ bool handle_route_game_screenshot(void* user_data, const char* method, const cha
   }
 
   dmcp_log(ctx, MCP_LOG_DEBUG, "route GET /game/screenshot");
+  dmcp_screenshot_request(reinterpret_cast<dmcp_context_t*>(ctx));
 
   if (!ctx->screenshot.enabled.load()) {
     const std::string payload = build_route_error("not_found", "Screenshot route disabled");

@@ -1,0 +1,6 @@
+{
+    global:
+        mcp_game_*;
+    local:
+        *;
+};

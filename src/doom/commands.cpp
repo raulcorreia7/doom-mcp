@@ -12,20 +12,20 @@
 #include <queue>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
 #include "dmcp/doom/api.h"
 #include "doom/commands/json_parsers.hpp"
 #include "doom/commands/types/command_parsers.hpp"
 #include "internal.hpp"
+#include "internal/permissions.hpp"
 #include "mcp/generic/protocol.h"
 
 namespace dmcp {
 
 namespace {
 
-mcp_result_generic_t invalid_command(const char* message) {
-  return MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, message);
+mcp_status_t invalid_command(const char* message) {
+  return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, message);
 }
 
 bool is_coalescible_command(dmcp_command_type_t type) {
@@ -127,14 +127,19 @@ uint64_t command_queue::next_sequence() { return next_sequence_.fetch_add(1); }
 
 extern "C" {
 
-mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
+mcp_status_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
   if (!ctx->cmd_queue) {
-    return MCP_ERROR_DISABLED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
+  }
+
+  mcp_status_t permission = dmcp::validate_command_permissions(ctx, *cmd);
+  if (!mcp_status_is_ok(permission)) {
+    return permission;
   }
 
   if (dmcp::is_coalescible_command(cmd->type)) {
@@ -155,7 +160,7 @@ mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_
   uint64_t       sequence = 0;
   dmcp_command_t evicted  = {};
   if (!ctx->cmd_queue->push(*cmd, &sequence, &evicted)) {
-    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Command queue unavailable");
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_QUEUE_FULL, "Command queue unavailable");
   }
 
   if (evicted.sequence != 0) {
@@ -166,13 +171,13 @@ mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_
   }
 
   cmd->sequence = sequence;
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
-mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx_handle,
-                                                     const dmcp_command_t* cmd) {
+mcp_status_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx_handle,
+                                             const dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd || cmd->sequence == 0) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
@@ -198,14 +203,13 @@ mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx_h
     it->second = entry;
   }
 
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
-mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t*       ctx_handle,
-                                                  const dmcp_command_t* cmd, bool success,
-                                                  const char* message) {
+mcp_status_t dmcp_command_result_complete(dmcp_context_t* ctx_handle, const dmcp_command_t* cmd,
+                                          bool success, const char* message) {
   if (!ctx_handle || !cmd || cmd->sequence == 0) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
@@ -238,13 +242,13 @@ mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t*       ctx_hand
     it->second = entry;
   }
 
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
-mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx_handle, uint64_t sequence,
-                                             dmcp_command_result_t* out_result) {
+mcp_status_t dmcp_command_result_get(const dmcp_context_t* ctx_handle, uint64_t sequence,
+                                     dmcp_command_result_t* out_result) {
   if (!ctx_handle || !out_result || sequence == 0) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
@@ -252,11 +256,11 @@ mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx_handle, u
   std::lock_guard<std::mutex> lock(ctx->command_results_mutex);
   auto                        it = ctx->command_results.find(sequence);
   if (it == ctx->command_results.end()) {
-    return MCP_ERROR_NOT_FOUND;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_NOT_FOUND, "Not found");
   }
 
   *out_result = it->second;
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 bool dmcp_pop_command(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
@@ -321,23 +325,23 @@ void dmcp_clear_commands(dmcp_context_t* ctx_handle) {
 // Player Input Queue API
 // ============================================================================
 
-mcp_result_generic_t dmcp_push_input(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
+mcp_status_t dmcp_push_input(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
   if (!ctx->input_queue) {
-    return MCP_ERROR_DISABLED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
   }
 
   uint64_t sequence = 0;
   if (!ctx->input_queue->push(*cmd, &sequence, nullptr)) {
-    return MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Input queue unavailable");
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_QUEUE_FULL, "Input queue unavailable");
   }
 
   cmd->sequence = sequence;
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 bool dmcp_pop_input(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
@@ -402,21 +406,24 @@ void dmcp_clear_inputs(dmcp_context_t* ctx_handle) {
 // JSON Parsing
 // ============================================================================
 
-mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_t* out_cmd) {
+mcp_status_t dmcp_parse_command_json(const char* json_str, dmcp_command_t* out_cmd) {
   if (!json_str || !out_cmd) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   std::memset(out_cmd, 0, sizeof(*out_cmd));
 
   dmcp::json_document doc;
   if (!doc.parse(json_str)) {
-    return MCP_ERROR_ENCODING_FAILED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_ENCODING_FAILED, "Encoding failed");
   }
 
   dmcp::json_value root = doc.root();
   if (!root.is_object()) {
     return dmcp::invalid_command("Command payload must be an object");
+  }
+  if (!dmcp::has_only_fields(root, {"type", "params", "flags"})) {
+    return dmcp::invalid_command("Command payload has unsupported fields");
   }
 
   dmcp::json_value type_value = root["type"];
@@ -429,14 +436,9 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     return dmcp::invalid_command("Command type cannot be empty");
   }
 
-  const bool       has_params = root.has_member("params");
-  dmcp::json_value params     = root["params"];
-  if (has_params) {
-    if (!params.is_object()) {
-      return dmcp::invalid_command("Command params must be an object");
-    }
-  } else {
-    params = root;
+  dmcp::json_value params = root["params"];
+  if (!params.is_object()) {
+    return dmcp::invalid_command("Command params must be an object");
   }
 
   if (type_str == dmcp::cmds::spawn_entity) {
@@ -455,8 +457,7 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     if (!dmcp::parse_set_health_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_health health must be numeric in (0, 200]");
     }
-  } else if (type_str == dmcp::cmds::set_player_position ||
-             type_str == dmcp::cmds::teleport_player) {
+  } else if (type_str == dmcp::cmds::set_player_position) {
     if (!dmcp::parse_set_position_command(params, out_cmd)) {
       return dmcp::invalid_command("set_player_position requires numeric x and y");
     }
@@ -468,8 +469,6 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     if (!dmcp::parse_pause_command(params, out_cmd)) {
       return dmcp::invalid_command("pause_game requires boolean paused");
     }
-  } else if (type_str == dmcp::cmds::set_timescale) {
-    return dmcp::invalid_command("set_timescale is disabled");
   } else if (type_str == dmcp::cmds::damage_entity) {
     if (!dmcp::parse_damage_command(params, out_cmd)) {
       return dmcp::invalid_command("damage_entity target_tid must be an integer >= 0");
@@ -495,65 +494,13 @@ mcp_result_generic_t dmcp_parse_command_json(const char* json_str, dmcp_command_
     out_cmd->flags = static_cast<std::uint32_t>(flags);
   }
 
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
-mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx_handle, const char* json_str,
-                                                dmcp_command_t* out_cmd) {
-  if (!json_str || !out_cmd) {
-    return MCP_ERROR_INVALID_ARGS;
-  }
-
-  std::memset(out_cmd, 0, sizeof(*out_cmd));
-
-  dmcp::json_document doc;
-  if (!doc.parse(json_str)) {
-    return MCP_ERROR_ENCODING_FAILED;
-  }
-
-  dmcp::json_value root = doc.root();
-  if (!root.is_object()) {
-    return dmcp::invalid_command("Command payload must be an object");
-  }
-
-  dmcp::json_value type_value = root["type"];
-  if (!type_value.is_string()) {
-    return dmcp::invalid_command("Command type must be a string");
-  }
-
-  const std::string_view type_str = type_value.get_string();
-  if (type_str.empty()) {
-    return dmcp::invalid_command("Command type cannot be empty");
-  }
-
-  const bool       has_params = root.has_member("params");
-  dmcp::json_value params     = root["params"];
-  if (has_params) {
-    if (!params.is_object()) {
-      return dmcp::invalid_command("Command params must be an object");
-    }
-  } else {
-    params = root;
-  }
-
-  auto* ctx = ctx_handle ? reinterpret_cast<dmcp::context*>(ctx_handle) : nullptr;
-  if (ctx) {
-    std::lock_guard<std::mutex> lock(ctx->custom_parsers_mutex);
-    auto                        it = ctx->custom_parsers.find(std::string(type_str));
-    if (it != ctx->custom_parsers.end()) {
-      std::string params_json = params.is_object() ? params.dump() : "{}";
-      return it->second.second(params_json.c_str(), out_cmd);
-    }
-  }
-
-  return dmcp_parse_command_json(json_str, out_cmd);
-}
-
-mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
-                                                const char* message, char* buffer,
-                                                size_t buffer_size) {
+mcp_status_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
+                                        const char* message, char* buffer, size_t buffer_size) {
   if (!cmd || !buffer || buffer_size == 0) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   dmcp::json_builder builder;
@@ -566,27 +513,11 @@ mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool 
 
   const std::string result = builder.finish();
   if (result.size() >= buffer_size) {
-    return MCP_ERROR_ENCODING_FAILED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_ENCODING_FAILED, "Encoding failed");
   }
 
   std::strcpy(buffer, result.c_str());
-  return MCP_OK;
-}
-
-mcp_result_generic_t dmcp_register_command_parser(dmcp_context_t* ctx_handle, const char* type_name,
-                                                  dmcp_command_type_t          type,
-                                                  dmcp_custom_command_parser_t parser) {
-  if (!ctx_handle || !type_name || !parser) {
-    return MCP_ERROR_INVALID_ARGS;
-  }
-
-  auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
-  {
-    std::lock_guard<std::mutex> lock(ctx->custom_parsers_mutex);
-    ctx->custom_parsers[type_name] = {type, parser};
-  }
-
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 }  // extern "C"

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ctype.h>
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>
@@ -27,18 +26,6 @@ static inline void dmcp_strcpy_safe(char* dest, const char* src, size_t dest_siz
   }
   strncpy(dest, src, dest_size - 1);
   dest[dest_size - 1] = '\0';
-}
-
-static inline bool dmcp_str_equals_ci(const char* a, const char* b) {
-  if (!a || !b) return false;
-  while (*a && *b) {
-    if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
-      return false;
-    }
-    ++a;
-    ++b;
-  }
-  return *a == '\0' && *b == '\0';
 }
 
 static inline float dmcp_fixed_to_float_safe(int32_t fixed_val) {

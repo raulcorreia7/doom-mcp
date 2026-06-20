@@ -57,11 +57,19 @@ bool Document::parse(std::string_view json) {
     yyjson_doc_free(impl->doc);
     impl->doc = nullptr;
   }
+  if (impl->mut_doc) {
+    yyjson_mut_doc_free(impl->mut_doc);
+    impl->mut_doc = nullptr;
+  }
   impl->doc = yyjson_read(json.data(), json.size(), 0);
   return impl->doc != nullptr;
 }
 
 void Document::create_object() {
+  if (impl->doc) {
+    yyjson_doc_free(impl->doc);
+    impl->doc = nullptr;
+  }
   if (impl->mut_doc) yyjson_mut_doc_free(impl->mut_doc);
   impl->mut_doc        = yyjson_mut_doc_new(nullptr);
   yyjson_mut_val* root = yyjson_mut_obj(impl->mut_doc);
@@ -69,6 +77,10 @@ void Document::create_object() {
 }
 
 void Document::create_array() {
+  if (impl->doc) {
+    yyjson_doc_free(impl->doc);
+    impl->doc = nullptr;
+  }
   if (impl->mut_doc) yyjson_mut_doc_free(impl->mut_doc);
   impl->mut_doc        = yyjson_mut_doc_new(nullptr);
   yyjson_mut_val* root = yyjson_mut_arr(impl->mut_doc);
@@ -306,8 +318,13 @@ void Value::push_back(std::string_view val) {
 void Value::push_back(const Value& val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc || !val.ptr_) return;
   yyjson_mut_val* arr = static_cast<yyjson_mut_val*>(ptr_);
-  yyjson_mut_val* copy =
-      yyjson_val_mut_copy(doc_->impl->mut_doc, static_cast<yyjson_val*>(val.ptr_));
+  yyjson_mut_val* copy = nullptr;
+  if (val.doc_ && val.doc_->impl->doc) {
+    copy = yyjson_val_mut_copy(doc_->impl->mut_doc, static_cast<yyjson_val*>(val.ptr_));
+  } else if (val.doc_ && val.doc_->impl->mut_doc) {
+    copy = yyjson_mut_val_mut_copy(doc_->impl->mut_doc, static_cast<yyjson_mut_val*>(val.ptr_));
+  }
+  if (!copy) return;
   yyjson_mut_arr_append(arr, copy);
 }
 

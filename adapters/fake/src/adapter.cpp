@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <random>
@@ -16,8 +17,7 @@ struct dmcp_fake_s {
   dmcp_fake_config_t config{};
 
   dmcp_snapshot_t snapshot{};
-  bool            paused    = false;
-  float           timescale = 0.0f;
+  bool            paused = false;
 
   int32_t next_enemy_id  = 0;
   int32_t next_entity_id = 0;
@@ -35,7 +35,6 @@ constexpr float kPlayerStartY     = 64.0f;
 constexpr float kPlayerStartZ     = 0.0f;
 constexpr float kPlayerStartAngle = 90.0f;
 constexpr float kEnemySpawnAngle  = 180.0f;
-constexpr float kTimescaleNormal  = 1.0f;
 constexpr float kRadiansToDegrees = 57.29577951308232f;
 
 constexpr float   kEnemyMoveStep       = 2.0f;
@@ -94,9 +93,30 @@ constexpr std::array<const char*, 2> kInitialInventoryItems   = {"Bullets", "She
 constexpr std::array<int32_t, 2>     kInitialInventoryAmounts = {kInitialAmmoBullets,
                                                                  kInitialAmmoShells};
 
-constexpr std::array<const char*, 8> kWeaponSlots = {
-    "Fist", "Pistol", "Shotgun", "Chaingun", "RocketLauncher", "PlasmaRifle", "BFG9000", "Chainsaw",
+constexpr std::array<int32_t, DMCP_MAX_AMMO_TYPES> kDefaultMaxAmmo = {200, 50, 300, 50};
+constexpr std::array<int32_t, DMCP_MAX_AMMO_TYPES> kInitialAmmo    = {kInitialAmmoBullets,
+                                                                      kInitialAmmoShells, 0, 0};
+
+constexpr std::array<const char*, 7> kWeaponSlots = {
+    "Fist", "Pistol", "Shotgun", "Chaingun", "RocketLauncher", "PlasmaRifle", "BFG9000",
 };
+
+constexpr std::array<const char*, 2> kAvailableMaps = {"MAP01", "MAP02"};
+
+dmcp_fake_config_t CopyConfig(const dmcp_fake_config_t* config) {
+  dmcp_fake_config_t effective = dmcp_fake_config_default();
+  if (!config) {
+    return effective;
+  }
+
+  size_t copy_size = config->struct_size;
+  if (copy_size == 0 || copy_size > sizeof(dmcp_fake_config_t)) {
+    copy_size = sizeof(dmcp_fake_config_t);
+  }
+  std::memcpy(&effective, config, copy_size);
+  effective.struct_size = sizeof(dmcp_fake_config_t);
+  return effective;
+}
 
 size_t clamp_enemy_capacity(const dmcp_fake_t* fake) {
   const size_t configured = static_cast<size_t>(fake->config.max_enemies);
@@ -196,10 +216,10 @@ void initialize_snapshot(dmcp_fake_t* fake) {
            kReadyWeaponPistol);
   set_text(fake->snapshot.player.pendingweapon, sizeof(fake->snapshot.player.pendingweapon),
            kPendingWeaponNone);
-  fake->snapshot.player.ammo[0]        = kInitialAmmoBullets;
-  fake->snapshot.player.maxammo[0]     = DMCP_AMMO_MAX_DEFAULT;
-  fake->snapshot.player.ammo[1]        = kInitialAmmoShells;
-  fake->snapshot.player.maxammo[1]     = DMCP_AMMO_MAX_DEFAULT;
+  for (size_t i = 0; i < kDefaultMaxAmmo.size(); ++i) {
+    fake->snapshot.player.ammo[i]    = kInitialAmmo[i];
+    fake->snapshot.player.maxammo[i] = kDefaultMaxAmmo[i];
+  }
   fake->snapshot.player.weaponowned[0] = 1;
   fake->snapshot.player.weaponowned[1] = 1;
   set_text(fake->snapshot.player.playerstate, sizeof(fake->snapshot.player.playerstate),
@@ -216,6 +236,11 @@ void initialize_snapshot(dmcp_fake_t* fake) {
   set_text(fake->snapshot.game.version, sizeof(fake->snapshot.game.version), kVersionName);
   fake->snapshot.game.consoleplayer   = 0;
   fake->snapshot.game.respawnmonsters = 0;
+
+  fake->snapshot.map_count = 0;
+  for (const char* map_name : kAvailableMaps) {
+    dmcp_snapshot_add_map(&fake->snapshot, map_name);
+  }
 
   fake->snapshot.enemy_count = 0;
   for (size_t i = 0; i < kInitialEnemyTypes.size(); ++i) {
@@ -457,8 +482,9 @@ bool apply_command(dmcp_fake_t* fake, const dmcp_command_t& cmd, char* message,
         fake->snapshot.player.cheats |= kCheatFlagGodMode;
         fake->snapshot.player.hp = DMCP_PLAYER_GOD_HEALTH;
       } else if (console_command == "give all") {
-        fake->snapshot.player.ammo[0] = DMCP_AMMO_MAX_DEFAULT;
-        fake->snapshot.player.ammo[1] = DMCP_AMMO_MAX_DEFAULT;
+        for (size_t i = 0; i < kDefaultMaxAmmo.size(); ++i) {
+          fake->snapshot.player.ammo[i] = fake->snapshot.player.maxammo[i];
+        }
       } else if (console_command == "killall") {
         for (uint32_t i = 0; i < fake->snapshot.enemy_count; ++i) {
           if (fake->snapshot.enemies[i].hp > 0) {
@@ -475,18 +501,6 @@ bool apply_command(dmcp_fake_t* fake, const dmcp_command_t& cmd, char* message,
       fake->paused                = cmd.data.pause.paused;
       fake->snapshot.level.paused = fake->paused ? 1 : 0;
       set_text(message, message_size, fake->paused ? "Game paused" : "Game resumed");
-      return true;
-    }
-    case DMCP_CMD_SET_TIMESCALE: {
-      const float scale = cmd.data.timescale.scale;
-      if (scale < static_cast<float>(DMCP_TIMESCALE_MIN) ||
-          scale > static_cast<float>(DMCP_TIMESCALE_MAX)) {
-        set_text(message, message_size, "Timescale out of supported range");
-        return false;
-      }
-
-      fake->timescale = scale;
-      set_text(message, message_size, "Timescale updated");
       return true;
     }
     case DMCP_CMD_DAMAGE_ENTITY: {
@@ -571,56 +585,54 @@ void advance_simulation(dmcp_fake_t* fake) {
 extern "C" {
 
 dmcp_fake_t* dmcp_fake_create(const dmcp_fake_config_t* config) {
-  auto* fake = new (std::nothrow) dmcp_fake_s;
-  if (!fake) {
+  std::unique_ptr<dmcp_fake_s> fake;
+  try {
+    fake = std::make_unique<dmcp_fake_s>();
+  } catch (const std::bad_alloc&) {
     return nullptr;
   }
 
-  fake->config = config ? *config : dmcp_fake_config_default();
-  if (fake->config.struct_size != sizeof(dmcp_fake_config_t)) {
-    fake->config.struct_size = sizeof(dmcp_fake_config_t);
-  }
+  fake->config = CopyConfig(config);
 
   fake->config.base.struct_size = sizeof(dmcp_config_t);
   fake->config.base.on_snapshot = fake_snapshot_callback;
-  fake->config.base.user_data   = fake;
+  fake->config.base.user_data   = fake.get();
 
   fake->rng.seed(fake->config.seed);
-  fake->timescale      = kTimescaleNormal;
   fake->next_enemy_id  = kInitialEnemyIdBase;
   fake->next_entity_id = kInitialEntityIdBase;
 
-  initialize_snapshot(fake);
+  initialize_snapshot(fake.get());
 
-  fake->dmcp_ctx = dmcp_context_create(&fake->config.base);
-  if (!fake->dmcp_ctx) {
-    delete fake;
+  std::unique_ptr<dmcp_context_t, decltype(&dmcp_context_destroy)> dmcp_ctx(
+      dmcp_context_create(&fake->config.base), dmcp_context_destroy);
+  if (!dmcp_ctx) {
     return nullptr;
   }
 
-  return fake;
+  fake->dmcp_ctx = dmcp_ctx.release();
+  return fake.release();
 }
 
 void dmcp_fake_destroy(dmcp_fake_t* fake) {
   if (!fake) {
     return;
   }
+  std::unique_ptr<dmcp_fake_s> owned_fake(fake);
 
-  if (fake->dmcp_ctx) {
-    dmcp_context_destroy(fake->dmcp_ctx);
-    fake->dmcp_ctx = nullptr;
+  if (owned_fake->dmcp_ctx) {
+    dmcp_context_destroy(owned_fake->dmcp_ctx);
+    owned_fake->dmcp_ctx = nullptr;
   }
-
-  delete fake;
 }
 
-mcp_result_t dmcp_fake_tick(dmcp_fake_t* fake) {
+mcp_status_t dmcp_fake_tick(dmcp_fake_t* fake) {
   if (!fake || !fake->dmcp_ctx) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
-  if (!dmcp_context_is_running(fake->dmcp_ctx)) {
-    return MCP_ERROR_DISABLED;
+  if (fake->config.base.start_transport && !dmcp_context_is_running(fake->dmcp_ctx)) {
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
   }
 
   dmcp_fake_inputs_process(fake);
@@ -632,7 +644,7 @@ mcp_result_t dmcp_fake_tick(dmcp_fake_t* fake) {
   }
 
   dmcp_context_tick(fake->dmcp_ctx);
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 void dmcp_fake_commands_process(dmcp_fake_t* fake) {
@@ -659,6 +671,9 @@ bool dmcp_fake_command_execute(dmcp_fake_t* fake, const dmcp_command_t* cmd) {
 bool dmcp_fake_is_running(const dmcp_fake_t* fake) {
   if (!fake || !fake->dmcp_ctx) {
     return false;
+  }
+  if (!fake->config.base.start_transport) {
+    return true;
   }
   return dmcp_context_is_running(fake->dmcp_ctx);
 }

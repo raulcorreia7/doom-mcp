@@ -10,10 +10,8 @@
 
 namespace dmcp {
 
-constexpr uint32_t COMMAND_QUEUE_MAX_SIZE = 64;
 constexpr float    DEFAULT_PLAYER_HEALTH  = 100.0f;
 constexpr int32_t  DEFAULT_SKILL_LEVEL    = 3;
-constexpr float    DEFAULT_TIMESCALE      = 1.0f;
 
 class command_queue {
  public:
@@ -26,7 +24,7 @@ class command_queue {
   void                          clear();
   uint64_t                      next_sequence();
 
-  uint32_t max_size = COMMAND_QUEUE_MAX_SIZE;
+  uint32_t max_size = DMCP_DEFAULT_QUEUE_SLOTS;
 
  private:
   std::deque<dmcp_command_t> queue_;

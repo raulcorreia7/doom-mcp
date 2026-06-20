@@ -21,17 +21,17 @@ json_builder build_entry(const char* description) {
   return entry;
 }
 
-// Build example object with type and params
-json_builder build_example(const char* type) {
+// Build example object with the MCP tool name.
+json_builder build_example(const char* name) {
   json_builder example;
   example.start_object();
-  example.add("type", type);
+  example.add("name", name);
   return example;
 }
 
-// Add params to example and attach to entry
+// Add arguments to example and attach to entry.
 void add_example_to_entry(json_builder* entry, json_builder* example, json_builder* params) {
-  example->add("params", *params);
+  example->add("arguments", *params);
   entry->add("example", *example);
 }
 
@@ -124,7 +124,7 @@ void add_change_level(json_builder* result) {
   result->add("change_level", entry);
 }
 
-// teleport_player / set_player_position helper
+// set_player_position helper
 void add_position_command(json_builder* result, const char* key, const char* type,
                           const char* description, int64_t angle) {
   json_builder entry   = build_entry(description);
@@ -164,37 +164,35 @@ void add_kill_entity(json_builder* result) {
 
 // batch execution helper
 void add_batch_execution(json_builder* result) {
-  // Build individual commands
   json_builder c1;
   c1.start_object();
-  c1.add("type", "give_item");
+  c1.add("name", "give_item");
   json_builder p1;
   p1.start_object();
   p1.add("item_class", "Shotgun");
   p1.add("amount", static_cast<int64_t>(1));
-  c1.add("params", p1);
+  c1.add("arguments", p1);
 
   json_builder c2;
   c2.start_object();
-  c2.add("type", "give_item");
+  c2.add("name", "give_item");
   json_builder p2;
   p2.start_object();
   p2.add("item_class", "Shells");
   p2.add("amount", static_cast<int64_t>(20));
-  c2.add("params", p2);
+  c2.add("arguments", p2);
 
-  json_builder commands;
-  commands.start_array();
-  commands.push(c1);
-  commands.push(c2);
+  json_builder calls;
+  calls.start_array();
+  calls.push(c1);
+  calls.push(c2);
 
-  // Build the example
   json_builder entry = build_entry(
       "Execute multiple mutating commands in one request (do not mix with read batches)");
   json_builder example = build_example("execute_batch");
   json_builder params;
   params.start_object();
-  params.add("commands", commands);
+  params.add("calls", calls);
   add_example_to_entry(&entry, &example, &params);
   result->add("execute_batch", entry);
 }
@@ -255,8 +253,6 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
   // Player commands
   add_int_command(&result, "set_player_health", "set_player_health",
                   "Set player health to specific value", "health", 100);
-  add_position_command(&result, "teleport_player", "teleport_player",
-                       "Teleport player to coordinates", 180);
   add_position_command(&result, "set_player_position", "set_player_position",
                        "Set player position (preserves momentum)", 0);
 
@@ -267,19 +263,22 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
                    "paused", true);
 
   // Player input examples (one action per tick)
-  add_string_command(&result, "input_forward", "player_input", "Move forward one tick", "a", "fwd");
-  add_string_command(&result, "input_back", "player_input", "Move backward one tick", "a", "back");
-  add_string_command(&result, "input_strafe_left", "player_input", "Strafe left one tick", "a",
-                     "left");
-  add_string_command(&result, "input_strafe_right", "player_input", "Strafe right one tick", "a",
-                     "right");
-  add_string_command(&result, "input_turn_left", "player_input", "Turn left one tick", "a",
-                     "tleft");
-  add_string_command(&result, "input_turn_right", "player_input", "Turn right one tick", "a",
-                     "tright");
-  add_string_command(&result, "input_attack", "player_input", "Attack one tick", "a", "atk");
-  add_string_command(&result, "input_use", "player_input", "Use (open door, etc.) one tick", "a",
-                     "use");
+  add_string_command(&result, "input_forward", "player_input", "Move forward one tick", "action",
+                     "forward");
+  add_string_command(&result, "input_backward", "player_input", "Move backward one tick", "action",
+                     "backward");
+  add_string_command(&result, "input_strafe_left", "player_input", "Strafe left one tick", "action",
+                     "strafe_left");
+  add_string_command(&result, "input_strafe_right", "player_input", "Strafe right one tick",
+                     "action", "strafe_right");
+  add_string_command(&result, "input_turn_left", "player_input", "Turn left one tick", "action",
+                     "turn_left");
+  add_string_command(&result, "input_turn_right", "player_input", "Turn right one tick", "action",
+                     "turn_right");
+  add_string_command(&result, "input_attack", "player_input", "Attack one tick", "action",
+                     "attack");
+  add_string_command(&result, "input_use", "player_input", "Use (open door, etc.) one tick",
+                     "action", "use");
 
   // Input with value examples
   {
@@ -287,8 +286,8 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
     json_builder example = build_example("player_input");
     json_builder params;
     params.start_object();
-    add_param(&params, "a", "aim");
-    add_param(&params, "v", static_cast<int64_t>(90));
+    add_param(&params, "action", "aim");
+    add_param(&params, "value", static_cast<int64_t>(90));
     add_example_to_entry(&entry, &example, &params);
     result.add("input_aim", entry);
   }
@@ -297,8 +296,8 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
     json_builder example = build_example("player_input");
     json_builder params;
     params.start_object();
-    add_param(&params, "a", "wpn");
-    add_param(&params, "v", static_cast<int64_t>(3));
+    add_param(&params, "action", "weapon");
+    add_param(&params, "value", static_cast<int64_t>(3));
     add_example_to_entry(&entry, &example, &params);
     result.add("input_weapon", entry);
   }

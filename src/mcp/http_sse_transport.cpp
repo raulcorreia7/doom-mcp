@@ -19,6 +19,7 @@
 #include "mcp/generic/constants.h"
 #include "mcp/generic/protocol.h"
 #include "mcp/generic/transport.h"
+#include "mcp/json_rpc.hpp"
 #include "mcp/request_context.hpp"
 
 // ============================================================================
@@ -43,14 +44,15 @@ static constexpr const char* kJsonErrorUnsupportedMediaType =
     "application/json\"}}";
 static constexpr const char* kJsonErrorForbiddenOrigin =
     "{\"error\":{\"code\":\"forbidden_origin\",\"message\":\"Origin not allowed\"}}";
+static constexpr size_t kMaxPendingEventsPerClient = 64;
 
 struct Client {
-  std::string               id;
-  void*                     handle = nullptr;
-  std::atomic<bool>         closed{false};
-  std::mutex                mutex;
-  std::condition_variable   cv;
-  std::deque<std::string>   pending;
+  std::string                           id;
+  void*                                 handle = nullptr;
+  std::atomic<bool>                     closed{false};
+  std::mutex                            mutex;
+  std::condition_variable               cv;
+  std::deque<std::string>               pending;
   std::chrono::steady_clock::time_point connected_at;
 };
 
@@ -60,6 +62,7 @@ struct TransportContext {
   void*                     user_data;
 
   std::string allowed_origin;
+  size_t      max_payload_size = MCP_MAX_PAYLOAD_SIZE;
 
   std::unique_ptr<httplib::Server> server;
 
@@ -138,7 +141,7 @@ static void SetMcpHeaders(httplib::Response& res, std::string_view request_sessi
 }
 
 static void WriteJsonErrorResponse(httplib::Response& res, int status, std::string_view payload,
-                                   bool add_mcp_headers = false,
+                                   bool             add_mcp_headers    = false,
                                    std::string_view request_session_id = {}) {
   res.status = status;
   SetCommonHeaders(res);
@@ -252,7 +255,8 @@ static void DispatchHttpRequest(TransportContext* ctx, const httplib::Request& r
                        response_meta);
 }
 
-static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req, httplib::Response& res) {
+static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req,
+                         httplib::Response& res) {
   if (!IsOriginAllowed(ctx, req)) {
     WriteJsonErrorResponse(res, 403, kJsonErrorForbiddenOrigin);
     return;
@@ -264,8 +268,8 @@ static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req, htt
     return;
   }
 
-  auto client         = std::make_shared<Client>();
-  client->id          = "client_" + std::to_string(ctx->client_counter.fetch_add(1));
+  auto client          = std::make_shared<Client>();
+  client->id           = "client_" + std::to_string(ctx->client_counter.fetch_add(1));
   client->connected_at = std::chrono::steady_clock::now();
 
   {
@@ -381,7 +385,7 @@ static void HandleHttpRequest(TransportContext* ctx, const httplib::Request& req
     }
   }
 
-  if (MethodCanHaveBody(method) && req.body.size() > MCP_MAX_PAYLOAD_SIZE) {
+  if (MethodCanHaveBody(method) && req.body.size() > ctx->max_payload_size) {
     WriteJsonErrorResponse(res, 413, kJsonErrorPayloadTooLarge, path == MCP_ENDPOINT_MCP,
                            GetHeaderValue(req, "MCP-Session-Id"));
     return;
@@ -393,7 +397,7 @@ static void HandleHttpRequest(TransportContext* ctx, const httplib::Request& req
 
 static void TransportThreadMain(TransportContext* ctx) {
   ctx->server = std::make_unique<httplib::Server>();
-  ctx->server->set_payload_max_length(MCP_MAX_PAYLOAD_SIZE);
+  ctx->server->set_payload_max_length(ctx->max_payload_size);
 
   auto handler = [ctx](const httplib::Request& req, httplib::Response& res) {
     HandleHttpRequest(ctx, req, res);
@@ -447,12 +451,17 @@ static void TransportThreadMain(TransportContext* ctx) {
 
 extern "C" {
 
+static void SSE_Stop(mcp_transport_t* transport);
+
 static mcp_transport_t* SSE_Create(uint16_t port, const mcp_transport_callbacks_t* callbacks,
                                    void* user_data) {
-  auto* ctx = new mcp::transport::TransportContext();
+  auto ctx  = std::make_unique<mcp::transport::TransportContext>();
   ctx->port = port;
   if (callbacks) {
     ctx->callbacks = *callbacks;
+  }
+  if (ctx->callbacks.max_payload_size > 0) {
+    ctx->max_payload_size = ctx->callbacks.max_payload_size;
   }
   ctx->user_data = user_data;
 
@@ -460,12 +469,15 @@ static mcp_transport_t* SSE_Create(uint16_t port, const mcp_transport_callbacks_
     ctx->allowed_origin = env_origin;
   }
 
-  return reinterpret_cast<mcp_transport_t*>(ctx);
+  return reinterpret_cast<mcp_transport_t*>(ctx.release());
 }
 
 static void SSE_Destroy(mcp_transport_t* transport) {
   if (!transport) return;
-  auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
+  std::unique_ptr<mcp::transport::TransportContext> ctx(
+      reinterpret_cast<mcp::transport::TransportContext*>(transport));
+
+  SSE_Stop(transport);
 
   std::vector<std::shared_ptr<mcp::transport::Client>> clients_snapshot;
   {
@@ -475,10 +487,8 @@ static void SSE_Destroy(mcp_transport_t* transport) {
   }
 
   for (const auto& client : clients_snapshot) {
-    mcp::transport::MarkClientClosed(ctx, client, true);
+    mcp::transport::MarkClientClosed(ctx.get(), client, true);
   }
-
-  delete ctx;
 }
 
 static bool SSE_Start(mcp_transport_t* transport) {
@@ -526,9 +536,7 @@ static void SSE_Stop(mcp_transport_t* transport) {
   if (!transport) return;
   auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
 
-  if (ctx->stopping.exchange(true, std::memory_order_acq_rel)) {
-    return;
-  }
+  ctx->stopping.store(true, std::memory_order_release);
 
   if (ctx->server) {
     ctx->server->stop();
@@ -557,7 +565,8 @@ static bool SSE_IsRunning(const mcp_transport_t* transport) {
 
 static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t len) {
   if (!transport || !data || len == 0) return;
-  auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
+  auto*             ctx    = reinterpret_cast<mcp::transport::TransportContext*>(transport);
+  const std::string framed = mcp::FormatSseMessage(std::string_view(data, len));
 
   std::vector<std::shared_ptr<mcp::transport::Client>> clients_snapshot;
   {
@@ -573,7 +582,10 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t l
     {
       std::lock_guard<std::mutex> lock(client->mutex);
       if (!client->closed.load(std::memory_order_acquire)) {
-        client->pending.emplace_back(data, len);
+        if (client->pending.size() >= mcp::transport::kMaxPendingEventsPerClient) {
+          client->pending.pop_front();
+        }
+        client->pending.push_back(framed);
       }
     }
     client->cv.notify_one();
@@ -588,15 +600,15 @@ static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
 }
 
 const mcp_transport_interface_t mcp_sse_transport = {
-    1,                        // version
-    "sse-httplib",           // name
-    SSE_Create,               // create
-    SSE_Destroy,              // destroy
-    SSE_Start,                // start
-    SSE_Stop,                 // stop
-    SSE_IsRunning,            // is_running
-    SSE_Broadcast,            // broadcast
-    SSE_GetClientCount,       // get_client_count
+    1,                   // version
+    "sse-httplib",       // name
+    SSE_Create,          // create
+    SSE_Destroy,         // destroy
+    SSE_Start,           // start
+    SSE_Stop,            // stop
+    SSE_IsRunning,       // is_running
+    SSE_Broadcast,       // broadcast
+    SSE_GetClientCount,  // get_client_count
 };
 
 }  // extern "C"

@@ -59,9 +59,9 @@ bool handle_tool_get_command_result(context* ctx, const json_value& params, char
 
   if (sequences.size() == 1) {
     dmcp_command_result_t result = {};
-    mcp_result_generic_t  get_result =
+    mcp_status_t          get_result =
         dmcp_command_result_get(reinterpret_cast<dmcp_context_t*>(ctx), sequences[0], &result);
-    if (get_result.code != MCP_RESULT_CODE_OK) {
+    if (get_result.code != MCP_STATUS_CODE_OK) {
       const std::string resp = build_content_response("Command result not found", true);
       return write_json_response(resp, response_buffer, response_size);
     }
@@ -83,9 +83,9 @@ bool handle_tool_get_command_result(context* ctx, const json_value& params, char
 
   for (uint64_t sequence : sequences) {
     dmcp_command_result_t result = {};
-    mcp_result_generic_t  get_result =
+    mcp_status_t          get_result =
         dmcp_command_result_get(reinterpret_cast<dmcp_context_t*>(ctx), sequence, &result);
-    if (get_result.code == MCP_RESULT_CODE_OK) {
+    if (get_result.code == MCP_STATUS_CODE_OK) {
       results.push(build_command_result_object(result));
     } else {
       not_found.push(static_cast<int64_t>(sequence));
@@ -110,7 +110,7 @@ json_builder build_get_command_result_schema() {
   json_builder sequence_prop;
   sequence_prop.start_object();
   sequence_prop.add("type", "integer");
-  sequence_prop.add("description", "Single command sequence id returned by execute_command");
+  sequence_prop.add("description", "Single command sequence id returned by a mutating tool");
   props.add("sequence", std::move(sequence_prop));
 
   json_builder sequences_prop;

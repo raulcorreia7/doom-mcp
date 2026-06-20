@@ -12,7 +12,6 @@ bool parse_give_item_command(const json_value& params, dmcp_command_t* out);
 bool parse_set_health_command(const json_value& params, dmcp_command_t* out);
 bool parse_set_position_command(const json_value& params, dmcp_command_t* out);
 bool parse_pause_command(const json_value& params, dmcp_command_t* out);
-bool parse_timescale_command(const json_value& params, dmcp_command_t* out);
 bool parse_damage_command(const json_value& params, dmcp_command_t* out);
 bool parse_kill_command(const json_value& params, dmcp_command_t* out);
 bool parse_console_command(const json_value& params, dmcp_command_t* out);

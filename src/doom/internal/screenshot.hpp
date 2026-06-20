@@ -19,18 +19,39 @@ struct screenshot_state {
   uint32_t              width  = 0;
   uint32_t              height = 0;
 
-  void convert_to_ascii(uint32_t target_width = 160) {
-    if (latest_pixels.empty() || width == 0 || height == 0) {
-      std::lock_guard<std::mutex> lock(mutex);
-      latest_ascii.clear();
-      return;
-    }
+  bool build_ascii(uint32_t target_width, std::string* out_ascii, uint32_t* out_width = nullptr,
+                   uint32_t* out_height = nullptr) {
     std::lock_guard<std::mutex> lock(mutex);
+
+    if (latest_pixels.empty() || width == 0 || height == 0) {
+      latest_ascii.clear();
+      if (out_ascii) {
+        out_ascii->clear();
+      }
+      if (out_width) {
+        *out_width = 0;
+      }
+      if (out_height) {
+        *out_height = 0;
+      }
+      return false;
+    }
+
     latest_ascii = convert_pixels_to_ascii(latest_pixels.data(), latest_pixels.size(), width,
                                            height, target_width);
-  }
 
-  const std::string& get_ascii() const { return latest_ascii; }
+    if (out_ascii) {
+      *out_ascii = latest_ascii;
+    }
+    if (out_width) {
+      *out_width = width;
+    }
+    if (out_height) {
+      *out_height = height;
+    }
+
+    return !latest_ascii.empty();
+  }
 };
 
 }  // namespace dmcp

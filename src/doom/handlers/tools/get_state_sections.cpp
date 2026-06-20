@@ -1,5 +1,10 @@
 #include "tools.hpp"
 
+#include "dmcp/doom/protocol.h"
+
+#include <initializer_list>
+#include <utility>
+
 namespace dmcp {
 
 namespace {
@@ -9,26 +14,49 @@ bool write_tool_payload(std::string_view payload, char* response_buffer, size_t 
   return write_json_response(resp, response_buffer, response_size);
 }
 
-json_builder build_pagination_schema(const char* description) {
-  json_builder schema;
-  schema.start_object();
-  schema.add("type", "object");
+void add_string_enum_property(json_builder* props, const char* name, const char* description,
+                              std::initializer_list<const char*> values) {
+  if (!props || !name || !description) {
+    return;
+  }
 
-  json_builder props;
-  props.start_object();
+  json_builder prop;
+  prop.start_object();
+  prop.add("type", "string");
+  prop.add("description", description);
+
+  json_builder enum_values;
+  enum_values.start_array();
+  for (const char* value : values) {
+    enum_values.push(value);
+  }
+  prop.add("enum", std::move(enum_values));
+
+  props->add(name, std::move(prop));
+}
+
+void add_pagination_properties(json_builder* props, const char* limit_description) {
+  if (!props || !limit_description) {
+    return;
+  }
 
   json_builder offset_prop;
   offset_prop.start_object();
   offset_prop.add("type", "integer");
   offset_prop.add("description", "Zero-based pagination offset");
-  props.add("offset", std::move(offset_prop));
+  props->add("offset", std::move(offset_prop));
 
   json_builder limit_prop;
   limit_prop.start_object();
   limit_prop.add("type", "integer");
-  limit_prop.add("description", description);
-  props.add("limit", std::move(limit_prop));
+  limit_prop.add("description", limit_description);
+  props->add("limit", std::move(limit_prop));
+}
 
+json_builder build_object_schema_with_properties(json_builder props) {
+  json_builder schema;
+  schema.start_object();
+  schema.add("type", "object");
   schema.add("properties", std::move(props));
   return schema;
 }
@@ -108,6 +136,23 @@ bool handle_tool_get_entities(context* ctx, const json_value& params, char* resp
   return write_tool_payload(payload, response_buffer, response_size);
 }
 
+bool handle_tool_get_items(context* ctx, const json_value& params, char* response_buffer,
+                           size_t response_size) {
+  dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_items");
+
+  const dmcp_snapshot_t snapshot = copy_latest_snapshot(ctx);
+  const json_value      args     = extract_tool_arguments(params);
+
+  std::string payload;
+  std::string error;
+  if (!build_state_section_payload(snapshot, "items", args, &payload, &error)) {
+    const std::string resp = build_content_response(error, true);
+    return write_json_response(resp, response_buffer, response_size);
+  }
+
+  return write_tool_payload(payload, response_buffer, response_size);
+}
+
 bool handle_tool_get_inventory(context* ctx, const json_value& params, char* response_buffer,
                                size_t response_size) {
   dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_inventory");
@@ -136,7 +181,7 @@ bool handle_tool_get_state(context* ctx, const json_value& params, char* respons
   if (!section_val.is_string()) {
     return write_json_response(
         build_content_response(
-            "section is required (player, enemies, entities, map, inventory, game)", true),
+            "section is required (player, enemies, entities, items, map, inventory, game)", true),
         response_buffer, response_size);
   }
 
@@ -246,47 +291,45 @@ json_builder build_get_game_info_schema() {
 }
 
 json_builder build_get_enemies_schema() {
-  json_builder schema;
-  schema.start_object();
-  schema.add("type", "object");
-
   json_builder props;
   props.start_object();
-
-  json_builder offset_prop;
-  offset_prop.start_object();
-  offset_prop.add("type", "integer");
-  offset_prop.add("description", "Zero-based pagination offset");
-  props.add("offset", std::move(offset_prop));
-
-  json_builder limit_prop;
-  limit_prop.start_object();
-  limit_prop.add("type", "integer");
-  limit_prop.add("description", "Maximum number of enemies to return");
-  props.add("limit", std::move(limit_prop));
-
-  json_builder status_prop;
-  status_prop.start_object();
-  status_prop.add("type", "string");
-  status_prop.add("description", "Enemy status filter: alive (default), dead, or all");
-  json_builder status_enum;
-  status_enum.start_array();
-  status_enum.push("alive");
-  status_enum.push("dead");
-  status_enum.push("all");
-  status_prop.add("enum", std::move(status_enum));
-  props.add("status", std::move(status_prop));
-
-  schema.add("properties", std::move(props));
-  return schema;
+  add_pagination_properties(&props, "Maximum number of enemies to return");
+  add_string_enum_property(&props, "status", "Enemy status filter: alive (default), dead, or all",
+                           {DMCP_STATUS_ALIVE, DMCP_STATUS_DEAD, DMCP_STATUS_ALL});
+  return build_object_schema_with_properties(std::move(props));
 }
 
 json_builder build_get_entities_schema() {
-  return build_pagination_schema("Maximum number of entities to return");
+  json_builder props;
+  props.start_object();
+  add_pagination_properties(&props, "Maximum number of entities to return");
+  add_string_enum_property(
+      &props, "kind",
+      "Entity kind filter: all, enemy, item, weapon, ammo, key, health, armor, powerup, world",
+      {DMCP_KIND_ALL, DMCP_KIND_ENEMY, DMCP_KIND_ITEM, DMCP_KIND_WEAPON, DMCP_KIND_AMMO,
+       DMCP_KIND_KEY, DMCP_KIND_HEALTH, DMCP_KIND_ARMOR, DMCP_KIND_POWERUP, DMCP_KIND_WORLD});
+  add_string_enum_property(&props, "status",
+                           "Enemy status filter when kind includes enemies: alive, dead, all",
+                           {DMCP_STATUS_ALIVE, DMCP_STATUS_DEAD, DMCP_STATUS_ALL});
+  return build_object_schema_with_properties(std::move(props));
+}
+
+json_builder build_get_items_schema() {
+  json_builder props;
+  props.start_object();
+  add_pagination_properties(&props, "Maximum number of items to return");
+  add_string_enum_property(&props, "kind",
+                           "Item kind filter: item, weapon, ammo, key, health, armor, powerup",
+                           {DMCP_KIND_ITEM, DMCP_KIND_WEAPON, DMCP_KIND_AMMO, DMCP_KIND_KEY,
+                            DMCP_KIND_HEALTH, DMCP_KIND_ARMOR, DMCP_KIND_POWERUP});
+  return build_object_schema_with_properties(std::move(props));
 }
 
 json_builder build_get_inventory_schema() {
-  return build_pagination_schema("Maximum number of inventory entries to return");
+  json_builder props;
+  props.start_object();
+  add_pagination_properties(&props, "Maximum number of inventory entries to return");
+  return build_object_schema_with_properties(std::move(props));
 }
 
 json_builder build_get_state_schema() {
@@ -300,41 +343,30 @@ json_builder build_get_state_schema() {
   json_builder section_prop;
   section_prop.start_object();
   section_prop.add("type", "string");
-  section_prop.add("description", "State section: player, enemies, entities, map, inventory, game");
+  section_prop.add("description",
+                   "State section: player, enemies, entities, items, map, inventory, game");
   json_builder section_enum;
   section_enum.start_array();
   section_enum.push("player");
   section_enum.push("enemies");
   section_enum.push("entities");
+  section_enum.push("items");
   section_enum.push("map");
   section_enum.push("inventory");
   section_enum.push("game");
   section_prop.add("enum", std::move(section_enum));
   props.add("section", std::move(section_prop));
 
-  json_builder offset_prop;
-  offset_prop.start_object();
-  offset_prop.add("type", "integer");
-  offset_prop.add("description", "Pagination offset (for enemies/entities/inventory)");
-  props.add("offset", std::move(offset_prop));
-
-  json_builder limit_prop;
-  limit_prop.start_object();
-  limit_prop.add("type", "integer");
-  limit_prop.add("description", "Pagination limit (for enemies/entities/inventory)");
-  props.add("limit", std::move(limit_prop));
-
-  json_builder status_prop;
-  status_prop.start_object();
-  status_prop.add("type", "string");
-  status_prop.add("description", "Enemy status filter for section=enemies: alive, dead, all");
-  json_builder status_enum;
-  status_enum.start_array();
-  status_enum.push("alive");
-  status_enum.push("dead");
-  status_enum.push("all");
-  status_prop.add("enum", std::move(status_enum));
-  props.add("status", std::move(status_prop));
+  add_pagination_properties(&props, "Pagination limit (for enemies/entities/items/inventory)");
+  add_string_enum_property(
+      &props, "kind",
+      "Entity or item kind filter for section=entities/items: all, enemy, item, weapon, ammo, key, "
+      "health, armor, powerup, world",
+      {DMCP_KIND_ALL, DMCP_KIND_ENEMY, DMCP_KIND_ITEM, DMCP_KIND_WEAPON, DMCP_KIND_AMMO,
+       DMCP_KIND_KEY, DMCP_KIND_HEALTH, DMCP_KIND_ARMOR, DMCP_KIND_POWERUP, DMCP_KIND_WORLD});
+  add_string_enum_property(&props, "status",
+                           "Enemy status filter for section=enemies/entities: alive, dead, all",
+                           {DMCP_STATUS_ALIVE, DMCP_STATUS_DEAD, DMCP_STATUS_ALL});
 
   schema.add("properties", std::move(props));
 
@@ -369,41 +401,30 @@ json_builder build_get_state_batch_schema() {
   json_builder section_prop;
   section_prop.start_object();
   section_prop.add("type", "string");
-  section_prop.add("description", "State section: player, enemies, entities, map, inventory, game");
+  section_prop.add("description",
+                   "State section: player, enemies, entities, items, map, inventory, game");
   json_builder section_enum;
   section_enum.start_array();
   section_enum.push("player");
   section_enum.push("enemies");
   section_enum.push("entities");
+  section_enum.push("items");
   section_enum.push("map");
   section_enum.push("inventory");
   section_enum.push("game");
   section_prop.add("enum", std::move(section_enum));
   item_props.add("section", std::move(section_prop));
 
-  json_builder offset_prop;
-  offset_prop.start_object();
-  offset_prop.add("type", "integer");
-  offset_prop.add("description", "Pagination offset (enemies/entities/inventory)");
-  item_props.add("offset", std::move(offset_prop));
-
-  json_builder limit_prop;
-  limit_prop.start_object();
-  limit_prop.add("type", "integer");
-  limit_prop.add("description", "Pagination limit (enemies/entities/inventory)");
-  item_props.add("limit", std::move(limit_prop));
-
-  json_builder status_prop;
-  status_prop.start_object();
-  status_prop.add("type", "string");
-  status_prop.add("description", "Enemy status filter for section=enemies: alive, dead, all");
-  json_builder status_enum;
-  status_enum.start_array();
-  status_enum.push("alive");
-  status_enum.push("dead");
-  status_enum.push("all");
-  status_prop.add("enum", std::move(status_enum));
-  item_props.add("status", std::move(status_prop));
+  add_pagination_properties(&item_props, "Pagination limit (enemies/entities/items/inventory)");
+  add_string_enum_property(
+      &item_props, "kind",
+      "Entity or item kind filter for section=entities/items: all, enemy, item, weapon, ammo, key, "
+      "health, armor, powerup, world",
+      {DMCP_KIND_ALL, DMCP_KIND_ENEMY, DMCP_KIND_ITEM, DMCP_KIND_WEAPON, DMCP_KIND_AMMO,
+       DMCP_KIND_KEY, DMCP_KIND_HEALTH, DMCP_KIND_ARMOR, DMCP_KIND_POWERUP, DMCP_KIND_WORLD});
+  add_string_enum_property(&item_props, "status",
+                           "Enemy status filter for section=enemies/entities: alive, dead, all",
+                           {DMCP_STATUS_ALIVE, DMCP_STATUS_DEAD, DMCP_STATUS_ALL});
 
   item_schema.add("properties", std::move(item_props));
 

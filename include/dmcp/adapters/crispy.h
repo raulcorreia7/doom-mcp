@@ -18,9 +18,6 @@ typedef struct {
   uint32_t struct_size;
 
   dmcp_config_t base;
-
-  const char* iwad_path;
-  const char* pwad_path;
 } dmcp_crispy_config_t;
 
 static inline dmcp_crispy_config_t dmcp_crispy_config_default(void) {
@@ -29,16 +26,14 @@ static inline dmcp_crispy_config_t dmcp_crispy_config_default(void) {
   cfg.struct_size            = sizeof(dmcp_crispy_config_t);
   cfg.base                   = dmcp_config_default();
   cfg.base.target_hz         = DMCP_CRISPY_DEFAULT_TARGET_HZ;
-  cfg.base.screenshot.enable = false;
-  cfg.iwad_path              = NULL;
-  cfg.pwad_path              = NULL;
+  cfg.base.screenshot.enable = true;
   return cfg;
 }
 
 DMCP_API dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config);
 DMCP_API void           dmcp_crispy_destroy(dmcp_crispy_t* ctx);
 
-DMCP_API mcp_result_t dmcp_crispy_tick(dmcp_crispy_t* ctx);
+DMCP_API mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx);
 DMCP_API void         dmcp_crispy_commands_process(dmcp_crispy_t* ctx);
 DMCP_API void         dmcp_crispy_inputs_process(dmcp_crispy_t* ctx);
 

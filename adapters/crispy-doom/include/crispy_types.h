@@ -74,15 +74,15 @@ static inline const char* dmcp_weapon_to_string(weapontype_t weapon) {
     case wp_chaingun:
       return "Chaingun";
     case wp_missile:
-      return "Rocket Launcher";
+      return "RocketLauncher";
     case wp_plasma:
-      return "Plasma Rifle";
+      return "PlasmaRifle";
     case wp_bfg:
       return "BFG9000";
     case wp_chainsaw:
       return "Chainsaw";
     case wp_supershotgun:
-      return "Super Shotgun";
+      return "SuperShotgun";
     default:
       return "Unknown";
   }
@@ -93,19 +93,19 @@ static inline const char* dmcp_armortype_to_string(int armortype) {
     case 0:
       return "None";
     case 1:
-      return "Green Armor";
+      return "GreenArmor";
     case 2:
-      return "Blue Armor";
+      return "BlueArmor";
     default:
       return "Unknown";
   }
 }
 
-static inline const char* dmcp_gamemode_to_string(boolean netgame, int deathmatch) {
-  if (!netgame) {
+static inline const char* dmcp_gamemode_to_string(boolean is_netgame, int deathmatch_mode) {
+  if (!is_netgame) {
     return "single_player";
   }
-  switch (deathmatch) {
+  switch (deathmatch_mode) {
     case 0:
       return "cooperative";
     case 1:

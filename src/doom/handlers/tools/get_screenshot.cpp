@@ -4,10 +4,12 @@ namespace dmcp {
 
 bool handle_tool_get_screenshot(context* ctx, char* response_buffer, size_t response_size) {
   dmcp_log(ctx, MCP_LOG_DEBUG, "tools/call get_screenshot");
-  if (!ctx->screenshot.enabled) {
+  if (!ctx->screenshot.enabled.load()) {
     const std::string resp = build_content_response("Screenshot feature disabled", true);
     return write_json_response(resp, response_buffer, response_size);
   }
+
+  dmcp_screenshot_request(reinterpret_cast<dmcp_context_t*>(ctx));
 
   if (ctx->screenshot.latest_pixels.empty()) {
     const std::string resp = build_content_response("No screenshot available", true);

@@ -7,6 +7,10 @@ namespace dmcp {
 bool parse_set_position_command(const json_value& params, dmcp_command_t* out) {
   out->type = DMCP_CMD_SET_PLAYER_POSITION;
 
+  if (!has_only_fields(params, {"x", "y", "angle"})) {
+    return false;
+  }
+
   position_coords pos;
   if (!parse_position_coords(params, &pos)) {
     return false;

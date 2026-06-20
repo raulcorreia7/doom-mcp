@@ -21,7 +21,6 @@ typedef enum {
   DMCP_CMD_SET_PLAYER_POSITION,
   DMCP_CMD_EXECUTE_CONSOLE,
   DMCP_CMD_PAUSE_GAME,
-  DMCP_CMD_SET_TIMESCALE,
   DMCP_CMD_DAMAGE_ENTITY,
   DMCP_CMD_KILL_ENTITY,
   DMCP_CMD_PLAYER_INPUT,
@@ -85,10 +84,6 @@ typedef struct {
 } dmcp_cmd_pause_t;
 
 typedef struct {
-  float scale;  // 1.0 = normal, 0.5 = half speed, 2.0 = double
-} dmcp_cmd_timescale_t;
-
-typedef struct {
   int32_t target_tid;
   int32_t damage;
   char    damage_type[32];
@@ -101,7 +96,10 @@ typedef struct {
 typedef struct {
   dmcp_player_input_action_t action;
   float                      aim_angle;
-  int32_t                    weapon_slot;
+  /* Doom weapon slot for DMCP_INPUT_WEAPON:
+     1=fist/chainsaw, 2=pistol, 3=shotgun/super shotgun, 4=chaingun,
+     5=rocket launcher, 6=plasma rifle, 7=BFG9000. */
+  int32_t weapon_slot;
 } dmcp_cmd_player_input_t;
 
 // ============================================================================
@@ -121,7 +119,6 @@ typedef struct {
     dmcp_cmd_set_position_t set_position;
     dmcp_cmd_console_t      console;
     dmcp_cmd_pause_t        pause;
-    dmcp_cmd_timescale_t    timescale;
     dmcp_cmd_damage_t       damage;
     dmcp_cmd_kill_t         kill;
     dmcp_cmd_player_input_t input;
@@ -143,7 +140,7 @@ typedef struct {
 // ============================================================================
 
 // Push a command from agent to game
-DMCP_API mcp_result_generic_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
+DMCP_API mcp_status_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
 // Pop a command for execution (call from game thread)
 DMCP_API bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
@@ -155,17 +152,16 @@ DMCP_API bool dmcp_has_commands(const dmcp_context_t* ctx);
 DMCP_API uint32_t dmcp_command_count(const dmcp_context_t* ctx);
 
 // Mark command as queued for asynchronous completion tracking.
-DMCP_API mcp_result_generic_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx,
-                                                              const dmcp_command_t* cmd);
+DMCP_API mcp_status_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx,
+                                                      const dmcp_command_t* cmd);
 
 // Mark command as completed with success/failure status.
-DMCP_API mcp_result_generic_t dmcp_command_result_complete(dmcp_context_t*       ctx,
-                                                           const dmcp_command_t* cmd, bool success,
-                                                           const char* message);
+DMCP_API mcp_status_t dmcp_command_result_complete(dmcp_context_t* ctx, const dmcp_command_t* cmd,
+                                                   bool success, const char* message);
 
 // Retrieve tracked command execution result by sequence id.
-DMCP_API mcp_result_generic_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_t sequence,
-                                                      dmcp_command_result_t* out_result);
+DMCP_API mcp_status_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_t sequence,
+                                              dmcp_command_result_t* out_result);
 
 // Clear all pending commands
 DMCP_API void dmcp_clear_commands(dmcp_context_t* ctx);
@@ -174,7 +170,7 @@ DMCP_API void dmcp_clear_commands(dmcp_context_t* ctx);
 // Player Input Queue API (tick-based, one per tick)
 // ============================================================================
 
-DMCP_API mcp_result_generic_t dmcp_push_input(dmcp_context_t* ctx, dmcp_command_t* cmd);
+DMCP_API mcp_status_t dmcp_push_input(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
 DMCP_API bool dmcp_pop_input(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
 
@@ -191,30 +187,12 @@ DMCP_API void dmcp_clear_inputs(dmcp_context_t* ctx);
 // Parse a JSON-RPC command request into a command structure
 // JSON format: {"type": "spawn_entity", "params": {"entity_class": "DoomImp",
 // ...}}
-DMCP_API mcp_result_generic_t dmcp_parse_command_json(const char* json, dmcp_command_t* out_cmd);
-
-// Extended version with context for custom parser lookup
-DMCP_API mcp_result_generic_t dmcp_parse_command_json_ex(dmcp_context_t* ctx, const char* json,
-                                                         dmcp_command_t* out_cmd);
+DMCP_API mcp_status_t dmcp_parse_command_json(const char* json, dmcp_command_t* out_cmd);
 
 // Serialize command result to JSON
-DMCP_API mcp_result_generic_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
-                                                         const char* message, char* buffer,
-                                                         size_t buffer_size);
-
-// ============================================================================
-// Command Registration (for custom commands)
-// ============================================================================
-
-typedef mcp_result_generic_t (*dmcp_custom_command_parser_t)(const char*     json_params,
-                                                             dmcp_command_t* out_cmd);
-
-// Register a custom command parser
-// This allows engines to extend the command system
-DMCP_API mcp_result_generic_t dmcp_register_command_parser(dmcp_context_t*              ctx,
-                                                           const char*                  type_name,
-                                                           dmcp_command_type_t          type,
-                                                           dmcp_custom_command_parser_t parser);
+DMCP_API mcp_status_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
+                                                 const char* message, char* buffer,
+                                                 size_t buffer_size);
 
 #ifdef __cplusplus
 }

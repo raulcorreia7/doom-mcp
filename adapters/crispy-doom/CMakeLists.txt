@@ -1,5 +1,4 @@
-file(GLOB ADAPTER_CRISPY_SOURCES src/*.c)
-file(GLOB ADAPTER_CRISPY_HEADERS include/*.h)
+dmcp_collect_sources(ADAPTER_CRISPY_SOURCES src)
 
 add_library(adapter_crispy ${DMCP_LIBRARY_TYPE} ${ADAPTER_CRISPY_SOURCES})
 add_library(dmcp::adapter_crispy ALIAS adapter_crispy)
@@ -34,7 +33,7 @@ target_include_directories(adapter_crispy
         ${DMCP_CRISPY_SRC_DIR}
         ${DMCP_CRISPY_DOOM_DIR}
         ${DMCP_CRISPY_GEN_INCLUDE_DIR}
-        ${CMAKE_SOURCE_DIR}/adapters/common/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
 )
 
 target_link_libraries(adapter_crispy

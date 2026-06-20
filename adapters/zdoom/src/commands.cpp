@@ -146,18 +146,6 @@ static bool PauseGame(const dmcp_cmd_pause_t* pause) {
   return true;
 }
 
-// Helper to set timescale
-static bool SetTimescale(const dmcp_cmd_timescale_t* timescale) {
-  if (!timescale || !dmcp_validate_timescale(timescale->scale)) {
-    return false;
-  }
-
-  char cmd[64];
-  snprintf(cmd, sizeof(cmd), "timescale %f", timescale->scale);
-  ExecuteConsoleCommand(cmd);
-  return true;
-}
-
 // Helper to damage entity
 static bool DamageEntity(AdapterContext* ctx, const dmcp_cmd_damage_t* damage) {
   if (!damage) {
@@ -263,9 +251,6 @@ bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* 
 
     case DMCP_CMD_PAUSE_GAME:
       return PauseGame(&cmd->data.pause);
-
-    case DMCP_CMD_SET_TIMESCALE:
-      return SetTimescale(&cmd->data.timescale);
 
     case DMCP_CMD_DAMAGE_ENTITY:
       return DamageEntity(ctx, &cmd->data.damage);

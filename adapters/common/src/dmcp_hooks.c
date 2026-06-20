@@ -4,14 +4,16 @@
 #include <string.h>
 
 int dmcp_engine_port_from_argv(int argc, char** argv, const char* flag) {
+  char needle[64];
+  int  i;
+
   if (!argv || !flag || argc < 2) {
     return 0;
   }
 
-  char needle[64];
   snprintf(needle, sizeof(needle), "-%s", flag);
 
-  for (int i = 1; i < argc - 1; ++i) {
+  for (i = 1; i < argc - 1; ++i) {
     if (strcmp(argv[i], needle) == 0 || strcmp(argv[i], flag) == 0) {
       char* end  = NULL;
       long  port = strtol(argv[i + 1], &end, 10);
@@ -22,4 +24,23 @@ int dmcp_engine_port_from_argv(int argc, char** argv, const char* flag) {
     }
   }
   return 0;
+}
+
+bool dmcp_engine_flag_from_argv(int argc, char** argv, const char* flag) {
+  char needle[64];
+  int  i;
+
+  if (!argv || !flag || argc < 2) {
+    return false;
+  }
+
+  snprintf(needle, sizeof(needle), "-%s", flag);
+
+  for (i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], needle) == 0 || strcmp(argv[i], flag) == 0) {
+      return true;
+    }
+  }
+
+  return false;
 }

@@ -15,7 +15,7 @@ extern "C" {
  * @brief Opaque handle to MCP server instance
  *
  * This handle is returned by mcp_server_create() and used by all server
- * operations. The internal structure is opaque to maintain ABI stability.
+ * operations. The internal structure is opaque to maintain API stability.
  */
 typedef struct mcp_server_s mcp_server_t;
 
@@ -131,9 +131,9 @@ MCP_API bool mcp_server_is_running(const mcp_server_t* server);
  * @param path Route path (for example: "/game/state")
  * @param handler Route handler callback
  * @param user_data User data passed to handler
- * @return Result struct with code and message
+ * @return Status with code and message
  */
-MCP_API mcp_result_t mcp_server_route_register(mcp_server_t* server, const char* method,
+MCP_API mcp_status_t mcp_server_route_register(mcp_server_t* server, const char* method,
                                                const char* path, mcp_route_handler_t handler,
                                                void* user_data);
 
@@ -170,24 +170,11 @@ MCP_API void mcp_server_route_unregister(mcp_server_t* server, const char* metho
  * @param method Method name (e.g., "tools/call")
  * @param handler Handler function to call when method is invoked
  * @param user_data User data passed to handler (may be NULL)
- * @return Result struct with code and message
+ * @return Status with code and message
  *
  * @note Thread-safe - can be called from any thread
  * @note If a method with the same name is already registered, it is
  *       replaced with the new handler.
- *
- * Breaking Changes:
- * - Function renamed from mcp_server_register_method to
- * mcp_server_method_register (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * mcp_server_register_method(server, "tools/call", handler, data);
- *
- * // After
- * mcp_server_method_register(server, "tools/call", handler, data);
- * @endcode
  *
  * Example:
  * @code
@@ -197,14 +184,14 @@ MCP_API void mcp_server_route_unregister(mcp_server_t* server, const char* metho
  *     return true;
  * }
  *
- * mcp_result_t result = mcp_server_method_register(server, "tools/call",
+ * mcp_status_t result = mcp_server_method_register(server, "tools/call",
  *                                                OnToolCall, NULL);
- * if (result.code != MCP_RESULT_CODE_OK) {
+ * if (result.code != MCP_STATUS_CODE_OK) {
  *     fprintf(stderr, "Registration failed: %s\n", result.message);
  * }
  * @endcode
  */
-MCP_API mcp_result_t mcp_server_method_register(mcp_server_t* server, const char* method,
+MCP_API mcp_status_t mcp_server_method_register(mcp_server_t* server, const char* method,
                                                 mcp_method_handler_t handler, void* user_data);
 
 /**
@@ -238,7 +225,7 @@ MCP_API void mcp_server_method_unregister(mcp_server_t* server, const char* meth
  * @param server Server handle
  * @param methods Array of method registrations
  * @param count Number of methods to register
- * @return Result struct with code and message
+ * @return Status with code and message
  *
  * @note Thread-safe - acquires mutex once for entire batch
  * @note If any registration fails, entire batch fails (atomic semantics)
@@ -252,8 +239,8 @@ MCP_API void mcp_server_method_unregister(mcp_server_t* server, const char* meth
  *     {"resources/list", OnListResources, NULL}
  * };
  *
- * mcp_result_t result = mcp_server_methods_register(server, methods, 3);
- * if (result.code != MCP_RESULT_CODE_OK) {
+ * mcp_status_t result = mcp_server_methods_register(server, methods, 3);
+ * if (result.code != MCP_STATUS_CODE_OK) {
  *     fprintf(stderr, "Batch registration failed: %s\n", result.message);
  * }
  * @endcode
@@ -264,7 +251,7 @@ typedef struct {
   void*                user_data;  ///< User data passed to handler
 } mcp_method_registration_t;
 
-MCP_API mcp_result_t mcp_server_methods_register(mcp_server_t*                    server,
+MCP_API mcp_status_t mcp_server_methods_register(mcp_server_t*                    server,
                                                  const mcp_method_registration_t* methods,
                                                  size_t                           count);
 
@@ -291,20 +278,6 @@ MCP_API mcp_result_t mcp_server_methods_register(mcp_server_t*                  
  * @note Thread-safe - can be called from any thread
  * @note If no clients are connected, the event is silently dropped
  * @note The json_payload must be valid JSON (not validated by this function)
- *
- * Breaking Changes:
- * - Function renamed from mcp_server_broadcast to mcp_server_event_broadcast
- * (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * mcp_server_broadcast(server, "state", "{\"hp\":100}");
- *
- * // After
- * mcp_server_event_broadcast(server, "state", "{\"hp\":100}");
- * @endcode
- *
  * Example:
  * @code
  * // In game loop, broadcast state to all clients
@@ -327,22 +300,7 @@ MCP_API void mcp_server_event_broadcast(mcp_server_t* server, const char* event_
  * @return Number of connected clients (0 if server is NULL or stopped)
  *
  * @note Thread-safe - can be called from any thread
- * @note Returns actual count, not a boolean like the old API
- *
- * Breaking Changes:
- * - Function renamed from mcp_server_has_clients to mcp_server_clients_count
- * (v0.5.0)
- * - Return type changed from bool to uint64_t for more information
- *
- * Migration:
- * @code
- * // Before (boolean)
- * if (mcp_server_has_clients(server)) { ... }
- *
- * // After (count)
- * uint64_t count = mcp_server_clients_count(server);
- * if (count > 0) { ... }
- * @endcode
+ * @note Returns a count suitable for rate decisions and monitoring.
  *
  * Example:
  * @code
@@ -373,21 +331,6 @@ MCP_API uint64_t mcp_server_clients_count(const mcp_server_t* server);
  *
  * @note Thread-safe - can be called from any thread
  * @note Stats are cumulative since server creation
- *
- * Breaking Changes:
- * - Function renamed from mcp_server_get_stats to mcp_server_stats_get (v0.5.0)
- *
- * Migration:
- * @code
- * // Before
- * mcp_server_stats_t stats;
- * mcp_server_get_stats(server, &stats);
- *
- * // After (same pattern, just renamed)
- * mcp_server_stats_t stats;
- * mcp_server_stats_get(server, &stats);
- * @endcode
- *
  * Example:
  * @code
  * mcp_server_stats_t stats;

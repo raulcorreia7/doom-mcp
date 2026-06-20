@@ -11,6 +11,7 @@
 #include "dmcp/doom/content.h"
 #include "dmcp/doom/protocol.h"
 #include "doom/handlers/tools/tools.hpp"
+#include "doom/internal/content_catalog.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/json_types.hpp"
 #include "mcp/generic/constants.h"
@@ -22,7 +23,6 @@ static const command_tool_definition k_command_tools[] = {
     {DMCP_TOOL_CHANGE_LEVEL, DMCP_CMD_NAME_CHANGE_LEVEL, "Change to another map/level"},
     {DMCP_TOOL_GIVE_ITEM, DMCP_CMD_NAME_GIVE_ITEM, "Give an item to the player"},
     {DMCP_TOOL_SET_PLAYER_HEALTH, DMCP_CMD_NAME_SET_PLAYER_HEALTH, "Set player health value"},
-    {DMCP_TOOL_TELEPORT_PLAYER, DMCP_CMD_NAME_TELEPORT_PLAYER, "Teleport player to coordinates"},
     {DMCP_TOOL_SET_PLAYER_POSITION, DMCP_CMD_NAME_SET_PLAYER_POSITION,
      "Set player position and facing"},
     {DMCP_TOOL_EXECUTE_CONSOLE, DMCP_CMD_NAME_EXECUTE_CONSOLE, "Execute an engine console command"},
@@ -41,17 +41,15 @@ dmcp_gamemode_t parse_game_mode_from_string(std::string_view mode_name) {
 
 namespace {
 
-dmcp_gamemode_t get_snapshot_game_mode(context* ctx) {
+dmcp_snapshot_t snapshot_for_validation(context* ctx) {
+  dmcp_snapshot_t snapshot{};
   if (!ctx) {
-    return DMCP_GAMEMODE_UNKNOWN;
+    return snapshot;
   }
 
   std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-  if (ctx->last_snapshot.game.version[0] == '\0') {
-    return DMCP_GAMEMODE_UNKNOWN;
-  }
-
-  return parse_game_mode_from_string(ctx->last_snapshot.game.version);
+  snapshot = ctx->last_snapshot;
+  return snapshot;
 }
 
 bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::string* out_error) {
@@ -59,7 +57,8 @@ bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::str
     return false;
   }
 
-  const dmcp_gamemode_t mode = get_snapshot_game_mode(ctx);
+  const dmcp_snapshot_t snapshot = snapshot_for_validation(ctx);
+  const dmcp_gamemode_t mode     = resolve_game_mode(snapshot, {}).mode;
   if (mode == DMCP_GAMEMODE_UNKNOWN) {
     return true;
   }
@@ -80,7 +79,7 @@ bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::str
       }
       break;
     case DMCP_CMD_CHANGE_LEVEL:
-      if (!dmcp_is_map_available(cmd.data.change_level.map_name, mode)) {
+      if (!map_is_available_for_snapshot(snapshot, cmd.data.change_level.map_name, mode)) {
         *out_error = dmcp_content_unavailable_message("Map", cmd.data.change_level.map_name, mode);
         return false;
       }
@@ -125,10 +124,6 @@ const command_tool_definition* find_command_tool(std::string_view tool_name) {
 }
 
 const char* resolve_command_type_for_method(std::string_view method_name) {
-  if (method_name == tools::execute_command) {
-    return DMCP_TOOL_EXECUTE_COMMAND;
-  }
-
   const command_tool_definition* tool = find_command_tool(method_name);
   return tool ? tool->command_type : nullptr;
 }
@@ -284,12 +279,11 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
     return false;
   }
 
-  const std::string    command_payload(command_json);
-  dmcp_command_t       cmd{};
-  mcp_result_generic_t parse_result = dmcp_parse_command_json_ex(
-      reinterpret_cast<dmcp_context_t*>(ctx), command_payload.c_str(), &cmd);
+  const std::string command_payload(command_json);
+  dmcp_command_t    cmd{};
+  mcp_status_t      parse_result = dmcp_parse_command_json(command_payload.c_str(), &cmd);
 
-  if (parse_result.code != MCP_RESULT_CODE_OK) {
+  if (parse_result.code != MCP_STATUS_CODE_OK) {
     if (parse_result.message && parse_result.message[0] != '\0') {
       *error_message = parse_result.message;
     }
@@ -300,9 +294,8 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
     return false;
   }
 
-  mcp_result_generic_t push_result =
-      dmcp_push_command(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
-  if (push_result.code != MCP_RESULT_CODE_OK) {
+  mcp_status_t push_result = dmcp_push_command(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
+  if (push_result.code != MCP_STATUS_CODE_OK) {
     if (push_result.message && push_result.message[0] != '\0') {
       *error_message = push_result.message;
     } else {
@@ -319,21 +312,16 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
 
 json_value extract_tool_arguments(const json_value& params) {
   json_value args = params["arguments"];
-  if (!args.is_object()) {
-    args = params["params"];
+  if (params.has_member("arguments") && args.is_object()) {
+    return args;
   }
-  if (!args.is_object()) {
-    args = params;
-  }
-  return args;
+  return {};
 }
 
 std::string extract_command_json(const json_value& params) {
   json_value command_args = extract_tool_arguments(params);
-  if (!command_args.is_object() && params["type"].is_string()) {
-    command_args = params;
-  }
-  if (!command_args.is_object()) {
+  if (!command_args.is_object() || !command_args["type"].is_string() ||
+      !command_args["params"].is_object()) {
     return {};
   }
   return command_args.dump();
@@ -407,9 +395,8 @@ const command_tool_definition* get_command_tools_array() { return k_command_tool
 
 size_t get_command_tools_count() { return sizeof(k_command_tools) / sizeof(k_command_tools[0]); }
 
-bool handle_tool_command_alias(context* ctx, const command_tool_definition* command_tool,
-                               const json_value& params, char* response_buffer,
-                               size_t response_size) {
+bool handle_tool_command(context* ctx, const command_tool_definition* command_tool,
+                         const json_value& params, char* response_buffer, size_t response_size) {
   if (!command_tool) {
     return false;
   }

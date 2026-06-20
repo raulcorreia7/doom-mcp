@@ -26,6 +26,8 @@ bool parse_json_bool(const json_value& val, bool* out);
 
 json_value first_present_field(const json_value& obj, std::initializer_list<const char*> keys);
 
+bool has_only_fields(const json_value& obj, std::initializer_list<const char*> allowed_keys);
+
 bool copy_checked_string(char* dst, size_t dst_size, std::string_view value);
 
 bool copy_normalized_map_name(char* dst, size_t dst_size, std::string_view map_name);

@@ -36,16 +36,16 @@ The ZDoom adapter uses a streamlined C++ implementation:
 
 ```bash
 # From doom-mcp root
-cmake -B build/default -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_ADAPTERS=ON -DDMCP_BUILD_ADAPTER_ZDOOM=ON
+cmake -B build/default \
+  -DDMCP_BUILD_TESTS=ON \
+  -DDMCP_BUILD_ADAPTER_ZDOOM=ON \
+  -DDMCP_ZDOOM_INCLUDE_DIRS=/path/to/zdoom/src
 cmake --build build/default --parallel
 ```
 
 In your ZDoom-based engine's CMakeLists.txt:
 
-```cmake
-find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::adapter_zdoom)
-```
+Add the DMCP source tree as a local subdirectory and link `dmcp::adapter_zdoom`.
 
 ## Integration Points
 
@@ -68,8 +68,8 @@ cfg.base.port = 6060;
 dmcp_zdoom_t* ctx = dmcp_zdoom_create(&cfg);
 
 // In G_Ticker (35 Hz)
-mcp_result_t result = dmcp_zdoom_tick(ctx);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = dmcp_zdoom_tick(ctx);
+if (result.code != MCP_STATUS_CODE_OK) {
     // Handle error
 }
 
@@ -90,10 +90,10 @@ dmcp_zdoom_destroy(ctx);
 All enum values are output as readable strings:
 
 - **Difficulty**: `"Hurt Me Plenty"`, `"Ultra-Violence"`, etc.
-- **Weapons**: `"Pistol"`, `"Shotgun"`, `"Rocket Launcher"`, etc.
+- **Weapons**: `"Pistol"`, `"Shotgun"`, `"RocketLauncher"`, etc.
 - **Player State**: `"alive"`, `"dead"`, `"reborn"`
 - **Game State**: `"in_level"`, `"intermission"`, `"finale"`
-- **Enemy Types**: `"Zombieman"`, `"Imp"`, `"Cacodemon"`, etc.
+- **Enemy Types**: `"Zombieman"`, `"DoomImp"`, `"Cacodemon"`, etc.
 
 ## License
 

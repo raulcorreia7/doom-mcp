@@ -12,7 +12,7 @@ extern "C" {
 #include <stdint.h>
 
 #include "mcp/generic/protocol.h"
-#include "mcp/generic/result.h"
+#include "mcp/core/status.h"
 
 #define DMCP_MAX_STRING 64
 #define DMCP_MAX_WEAPONS 9
@@ -95,6 +95,10 @@ typedef struct {
 } dmcp_item_t;
 
 typedef struct {
+  char name[DMCP_MAX_MAP_NAME];
+} dmcp_map_t;
+
+typedef struct {
   int32_t     id;
   int32_t     hp;
   int32_t     max_hp;
@@ -116,6 +120,12 @@ typedef struct dmcp_snapshot_t {
 
   dmcp_item_t inventory[DMCP_MAX_INVENTORY];
   uint32_t    inventory_count;
+
+  // Optional adapter-provided map catalog for the loaded game. Leave empty
+  // when the adapter cannot provide it; DMCP then falls back to the base Doom
+  // catalog for the current game mode.
+  dmcp_map_t maps[DMCP_MAX_MAPS];
+  uint32_t   map_count;
 } dmcp_snapshot_t;
 
 typedef struct {

@@ -14,8 +14,8 @@ static const char* CHARSET_BLOCK = " ░▒▓█";
 static const char* CHARSET_BRAILLE =
     " ⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿";
 
-static char* g_output_buffer = NULL;
-static int   g_output_size   = 0;
+static char*  g_output_buffer = NULL;
+static size_t g_output_size   = 0;
 
 static char* g_last_ascii      = NULL;
 static bool  g_preview_enabled = false;
@@ -58,7 +58,7 @@ const char* dmcp_ascii_get_output(void) { return g_output_buffer; }
 static float calc_brightness(uint8_t r, uint8_t g, uint8_t b, int gamma) {
   float br = r * 0.299f + g * 0.587f + b * 0.114f;
   if (gamma != 0) {
-    br = 255.0f * powf(br / 255.0f, 1.0f / (1.0f + gamma * 0.1f));
+    br = 255.0f * powf(br / 255.0f, 1.0f / (1.0f + (float)gamma * 0.1f));
   }
   return br;
 }
@@ -81,7 +81,7 @@ static char brightness_to_char(float brightness, const char* charset, int count,
   int idx;
 
   if (!gradients || count <= 1) return charset[count - 1];
-  idx = (int)((brightness / 255.0f) * (count - 1));
+  idx = (int)((brightness / 255.0f) * (float)(count - 1));
   if (idx < 0) idx = 0;
   if (idx >= count) idx = count - 1;
   return charset[idx];
@@ -105,16 +105,19 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   float          scale_y;
   int            charset_count;
   const char*    charset;
-  int            rgb_needed;
+  size_t         rgb_needed;
   uint8_t*       rgb;
   int            max_escape_len;
-  int            out_needed;
+  size_t         out_needed;
   char*          out;
   int            out_len;
   int            y;
   int            x;
   int            py;
   int            px;
+  size_t         width_sz;
+  size_t         height_sz;
+  size_t         pixel_count;
   const uint8_t* p;
   uint8_t        r, g, b;
   float          brightness;
@@ -123,6 +126,17 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   if (!pixels || width <= 0 || height <= 0 || !cfg) {
     return NULL;
   }
+
+  width_sz  = (size_t)width;
+  height_sz = (size_t)height;
+  if (height_sz != 0 && width_sz > SIZE_MAX / height_sz) {
+    return NULL;
+  }
+  pixel_count = width_sz * height_sz;
+  if (pixel_count > SIZE_MAX / 3) {
+    return NULL;
+  }
+  rgb_needed = pixel_count * 3;
 
   cfg_width  = cfg->width > 0 ? cfg->width : width;
   cfg_height = cfg->height > 0 ? cfg->height : height;
@@ -138,7 +152,6 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   charset_count = 0;
   charset       = get_charset(cfg->charset, &charset_count);
 
-  rgb_needed = width * height * 3;
   if (cfg->rgb_buffer_size < rgb_needed) {
     free(cfg->rgb_buffers[0]);
     free(cfg->rgb_buffers[1]);
@@ -155,11 +168,18 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   }
 
   rgb = cfg->rgb_buffers[cfg->rgb_buffer_idx];
-  memcpy(rgb, pixels, width * height * 3);
+  memcpy(rgb, pixels, rgb_needed);
   cfg->rgb_buffer_idx = 1 - cfg->rgb_buffer_idx;
 
   max_escape_len = cfg->color == DMCP_ASCII_COLOR_24BIT ? 32 : 20;
-  out_needed     = cfg_width * cfg_height * (max_escape_len + 4) + 256;
+  if ((size_t)cfg_height != 0 && (size_t)cfg_width > SIZE_MAX / (size_t)cfg_height) {
+    return NULL;
+  }
+  out_needed = (size_t)cfg_width * (size_t)cfg_height;
+  if (out_needed > (SIZE_MAX - 256) / (size_t)(max_escape_len + 4)) {
+    return NULL;
+  }
+  out_needed = out_needed * (size_t)(max_escape_len + 4) + 256;
   if (g_output_size < out_needed) {
     free(g_output_buffer);
     g_output_buffer = (char*)malloc(out_needed);
@@ -217,13 +237,15 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
 
 char* dmcp_crispy_render_ascii(const uint8_t* pixels, int width, int height, int target_width) {
   dmcp_ascii_config_t cfg;
+  const char*         result;
+
   dmcp_ascii_config_init(&cfg);
   cfg.width    = target_width;
-  cfg.height   = (int)((float)height * target_width / width * 0.5f);
+  cfg.height   = (int)((float)height * (float)target_width / (float)width * 0.5f);
   cfg.color    = DMCP_ASCII_COLOR_NONE;
   cfg.use_bold = 0;
 
-  const char* result = dmcp_ascii_render(pixels, width, height, &cfg);
+  result = dmcp_ascii_render(pixels, width, height, &cfg);
   dmcp_ascii_config_free(&cfg);
 
   return result ? strdup(result) : NULL;

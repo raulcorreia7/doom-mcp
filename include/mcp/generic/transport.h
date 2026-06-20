@@ -18,7 +18,7 @@ extern "C" {
 /**
  * @brief Opaque handle to transport instance
  *
- * Transport implementations use opaque handles to maintain ABI stability.
+ * Transport implementations use opaque handles to maintain API stability.
  * The internal structure is implementation-specific.
  */
 typedef struct mcp_transport_s mcp_transport_t;
@@ -35,6 +35,7 @@ typedef struct mcp_transport_s mcp_transport_t;
  */
 typedef struct {
   size_t struct_size;  ///< Must be sizeof(mcp_transport_callbacks_t)
+  size_t max_payload_size;  ///< Maximum accepted request body size; 0 uses default
 
   /**
    * @brief Called when a new HTTP request arrives
@@ -104,7 +105,7 @@ typedef struct {
  * @note This is a function pointer table (vtable pattern)
  * @note All implementations must provide all functions
  */
-typedef struct {
+struct mcp_transport_interface_s {
   uint32_t version;  ///< Interface version (currently 1)
 
   /**
@@ -191,7 +192,7 @@ typedef struct {
    */
   size_t (*get_client_count)(const mcp_transport_t* transport);
 
-} mcp_transport_interface_t;
+};
 
 // SSE transport over HTTP (built-in implementation)
 /**

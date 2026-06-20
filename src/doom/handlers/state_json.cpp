@@ -7,6 +7,8 @@
 
 #include "dmcp/doom/protocol.h"
 #include "dmcp/doom/types.h"
+#include "doom/internal/content_categories.hpp"
+#include "doom/internal/json_serializers.hpp"
 #include "doom/internal/json_types.hpp"
 #include "doom/handlers/tools/tools.hpp"
 
@@ -20,9 +22,18 @@ enum class enemy_status_filter {
   all,
 };
 
-const char* enemy_state_name(const dmcp_enemy_t& enemy) {
-  return enemy.hp > 0 ? DMCP_STATUS_ALIVE : DMCP_STATUS_DEAD;
-}
+enum class entity_kind_filter {
+  all,
+  enemy,
+  item,
+  weapon,
+  ammo,
+  key,
+  health,
+  armor,
+  powerup,
+  world,
+};
 
 bool enemy_matches_filter(const dmcp_enemy_t& enemy, enemy_status_filter filter) {
   const bool is_alive = enemy.hp > 0;
@@ -40,12 +51,13 @@ bool enemy_matches_filter(const dmcp_enemy_t& enemy, enemy_status_filter filter)
 }
 
 bool parse_enemy_status_filter(const json_value& args, enemy_status_filter* out_filter,
-                               std::string* out_error) {
+                               std::string*        out_error,
+                               enemy_status_filter default_filter = enemy_status_filter::alive) {
   if (!out_filter || !out_error) {
     return false;
   }
 
-  *out_filter = enemy_status_filter::alive;
+  *out_filter = default_filter;
 
   if (!args.is_object()) {
     return true;
@@ -81,129 +93,141 @@ bool parse_enemy_status_filter(const json_value& args, enemy_status_filter* out_
   return false;
 }
 
-json_builder build_vec3_json(const dmcp_vec3_t& position) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("x", static_cast<double>(position.x));
-  obj.add("y", static_cast<double>(position.y));
-  obj.add("z", static_cast<double>(position.z));
-  return obj;
-}
-
-json_builder build_player_json(const dmcp_player_t& player) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("hp", static_cast<int64_t>(player.hp));
-  obj.add("armor", static_cast<int64_t>(player.armor));
-  obj.add("armortype", player.armortype);
-  obj.add("position", build_vec3_json(player.position));
-  obj.add("angle", static_cast<double>(player.angle));
-  obj.add("readyweapon", player.readyweapon);
-  obj.add("pendingweapon", player.pendingweapon);
-
-  json_builder weapon_owned;
-  weapon_owned.start_array();
-  for (size_t i = 0; i < DMCP_MAX_WEAPONS; ++i) {
-    weapon_owned.push(static_cast<int64_t>(player.weaponowned[i]));
+std::string_view status_filter_name(enemy_status_filter filter) {
+  switch (filter) {
+    case enemy_status_filter::alive:
+      return status::alive;
+    case enemy_status_filter::dead:
+      return status::dead;
+    case enemy_status_filter::all:
+      return status::all;
   }
-  obj.add("weaponowned", std::move(weapon_owned));
+  return status::all;
+}
 
-  json_builder ammo;
-  ammo.start_array();
-  for (size_t i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
-    ammo.push(static_cast<int64_t>(player.ammo[i]));
+bool parse_entity_kind_filter(const json_value& args, entity_kind_filter* out_filter,
+                              std::string*       out_error,
+                              entity_kind_filter default_filter = entity_kind_filter::all) {
+  if (!out_filter || !out_error) {
+    return false;
   }
-  obj.add("ammo", std::move(ammo));
 
-  json_builder maxammo;
-  maxammo.start_array();
-  for (size_t i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
-    maxammo.push(static_cast<int64_t>(player.maxammo[i]));
+  *out_filter = default_filter;
+  if (!args.is_object()) {
+    return true;
   }
-  obj.add("maxammo", std::move(maxammo));
 
-  obj.add("backpack", player.backpack != 0);
-
-  json_builder powers;
-  powers.start_array();
-  for (size_t i = 0; i < DMCP_MAX_POWERUPS; ++i) {
-    powers.push(static_cast<int64_t>(player.powers[i]));
+  json_value kind_val = args["kind"];
+  if (!kind_val) {
+    return true;
   }
-  obj.add("powers", std::move(powers));
 
-  json_builder cards;
-  cards.start_array();
-  for (size_t i = 0; i < DMCP_MAX_KEYS; ++i) {
-    cards.push(static_cast<int64_t>(player.cards[i]));
+  if (!kind_val.is_string()) {
+    *out_error =
+        "kind must be one of: all, enemy, item, weapon, ammo, key, health, armor, powerup, world";
+    return false;
   }
-  obj.add("cards", std::move(cards));
 
-  obj.add("playerstate", player.playerstate);
-  obj.add("cheats", static_cast<int64_t>(player.cheats));
-  obj.add("damagecount", static_cast<int64_t>(player.damagecount));
+  const std::string_view kind(kind_val.get_string());
+  if (kind == DMCP_KIND_ALL) {
+    *out_filter = entity_kind_filter::all;
+  } else if (kind == DMCP_KIND_ENEMY) {
+    *out_filter = entity_kind_filter::enemy;
+  } else if (kind == DMCP_KIND_ITEM) {
+    *out_filter = entity_kind_filter::item;
+  } else if (kind == DMCP_KIND_WEAPON) {
+    *out_filter = entity_kind_filter::weapon;
+  } else if (kind == DMCP_KIND_AMMO) {
+    *out_filter = entity_kind_filter::ammo;
+  } else if (kind == DMCP_KIND_KEY) {
+    *out_filter = entity_kind_filter::key;
+  } else if (kind == DMCP_KIND_HEALTH) {
+    *out_filter = entity_kind_filter::health;
+  } else if (kind == DMCP_KIND_ARMOR) {
+    *out_filter = entity_kind_filter::armor;
+  } else if (kind == DMCP_KIND_POWERUP) {
+    *out_filter = entity_kind_filter::powerup;
+  } else if (kind == DMCP_KIND_WORLD) {
+    *out_filter = entity_kind_filter::world;
+  } else {
+    *out_error =
+        "kind must be one of: all, enemy, item, weapon, ammo, key, health, armor, powerup, world";
+    return false;
+  }
+
+  return true;
+}
+
+std::string_view entity_kind_filter_name(entity_kind_filter filter) {
+  switch (filter) {
+    case entity_kind_filter::all:
+      return DMCP_KIND_ALL;
+    case entity_kind_filter::enemy:
+      return DMCP_KIND_ENEMY;
+    case entity_kind_filter::item:
+      return DMCP_KIND_ITEM;
+    case entity_kind_filter::weapon:
+      return DMCP_KIND_WEAPON;
+    case entity_kind_filter::ammo:
+      return DMCP_KIND_AMMO;
+    case entity_kind_filter::key:
+      return DMCP_KIND_KEY;
+    case entity_kind_filter::health:
+      return DMCP_KIND_HEALTH;
+    case entity_kind_filter::armor:
+      return DMCP_KIND_ARMOR;
+    case entity_kind_filter::powerup:
+      return DMCP_KIND_POWERUP;
+    case entity_kind_filter::world:
+      return DMCP_KIND_WORLD;
+  }
+  return DMCP_KIND_ALL;
+}
+
+std::string_view entity_kind_name(const dmcp_entity_t& entity) {
+  const std::string_view type(entity.type);
+  if (content_categories::is_item(type)) {
+    return content_categories::item_kind(type);
+  }
+  return DMCP_KIND_WORLD;
+}
+
+bool entity_matches_kind(const dmcp_entity_t& entity, entity_kind_filter filter) {
+  const std::string_view kind = entity_kind_name(entity);
+  switch (filter) {
+    case entity_kind_filter::all:
+      return true;
+    case entity_kind_filter::item:
+      return content_categories::is_item(entity.type);
+    case entity_kind_filter::weapon:
+      return kind == DMCP_KIND_WEAPON;
+    case entity_kind_filter::ammo:
+      return kind == DMCP_KIND_AMMO;
+    case entity_kind_filter::key:
+      return kind == DMCP_KIND_KEY;
+    case entity_kind_filter::health:
+      return kind == DMCP_KIND_HEALTH;
+    case entity_kind_filter::armor:
+      return kind == DMCP_KIND_ARMOR;
+    case entity_kind_filter::powerup:
+      return kind == DMCP_KIND_POWERUP;
+    case entity_kind_filter::world:
+      return kind == DMCP_KIND_WORLD;
+    case entity_kind_filter::enemy:
+      return false;
+  }
+  return false;
+}
+
+json_builder enemy_entity_json(const dmcp_enemy_t& enemy) {
+  json_builder obj = json_serializers::enemy(enemy);
+  obj.add("kind", DMCP_KIND_ENEMY);
   return obj;
 }
 
-json_builder build_level_json(const dmcp_level_t& level) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("tic", static_cast<int64_t>(level.tic));
-  obj.add("leveltime", static_cast<int64_t>(level.leveltime));
-  obj.add("level_id", level.level_id);
-  obj.add("level_name", level.level_name);
-  obj.add("kill_count", static_cast<int64_t>(level.kill_count));
-  obj.add("item_count", static_cast<int64_t>(level.item_count));
-  obj.add("secret_count", static_cast<int64_t>(level.secret_count));
-  obj.add("totalkills", static_cast<int64_t>(level.totalkills));
-  obj.add("totalitems", static_cast<int64_t>(level.totalitems));
-  obj.add("totalsecrets", static_cast<int64_t>(level.totalsecrets));
-  obj.add("skill", level.skill);
-  obj.add("gamestate", level.gamestate);
-  obj.add("paused", level.paused != 0);
-  return obj;
-}
-
-json_builder build_game_json(const dmcp_game_t& game) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("mode", game.mode);
-  obj.add("version", game.version);
-  obj.add("respawnmonsters", game.respawnmonsters != 0);
-  obj.add("consoleplayer", static_cast<int64_t>(game.consoleplayer));
-  return obj;
-}
-
-json_builder build_enemy_json(const dmcp_enemy_t& enemy) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("id", static_cast<int64_t>(enemy.id));
-  obj.add("hp", static_cast<int64_t>(enemy.hp));
-  obj.add("max_hp", static_cast<int64_t>(enemy.max_hp));
-  obj.add("state", enemy_state_name(enemy));
-  obj.add("position", build_vec3_json(enemy.position));
-  obj.add("angle", static_cast<double>(enemy.angle));
-  obj.add("target_id", static_cast<int64_t>(enemy.target_id));
-  obj.add("type", enemy.type);
-  return obj;
-}
-
-json_builder build_item_json(const dmcp_item_t& item) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("name", item.name);
-  obj.add("amount", static_cast<int64_t>(item.amount));
-  return obj;
-}
-
-json_builder build_entity_json(const dmcp_entity_t& entity) {
-  json_builder obj;
-  obj.start_object();
-  obj.add("id", static_cast<int64_t>(entity.id));
-  obj.add("hp", static_cast<int64_t>(entity.hp));
-  obj.add("max_hp", static_cast<int64_t>(entity.max_hp));
-  obj.add("position", build_vec3_json(entity.position));
-  obj.add("angle", static_cast<double>(entity.angle));
-  obj.add("type", entity.type);
+json_builder world_entity_json(const dmcp_entity_t& entity) {
+  json_builder obj = json_serializers::entity(entity);
+  obj.add("kind", entity_kind_name(entity));
   return obj;
 }
 
@@ -212,21 +236,21 @@ json_builder build_entity_json(const dmcp_entity_t& entity) {
 std::string build_player_state_json(const dmcp_snapshot_t& snapshot) {
   json_builder payload;
   payload.start_object();
-  payload.add("player", build_player_json(snapshot.player));
+  payload.add("player", json_serializers::player(snapshot.player));
   return payload.finish();
 }
 
 std::string build_map_state_json(const dmcp_snapshot_t& snapshot) {
   json_builder payload;
   payload.start_object();
-  payload.add("map", build_level_json(snapshot.level));
+  payload.add("map", json_serializers::level(snapshot.level));
   return payload.finish();
 }
 
 std::string build_game_info_json(const dmcp_snapshot_t& snapshot) {
   json_builder payload;
   payload.start_object();
-  payload.add("game", build_game_json(snapshot.game));
+  payload.add("game", json_serializers::game(snapshot.game));
   return payload.finish();
 }
 
@@ -262,7 +286,7 @@ std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t off
   json_builder enemies;
   enemies.start_array();
   for (size_t i = start; i < end; ++i) {
-    enemies.push(build_enemy_json(snapshot.enemies[matched_indexes[i]]));
+    enemies.push(json_serializers::enemy(snapshot.enemies[matched_indexes[i]]));
   }
   payload.add("enemies", std::move(enemies));
   return payload.finish();
@@ -284,20 +308,75 @@ std::string build_inventory_state_json(const dmcp_snapshot_t& snapshot, size_t o
   json_builder items;
   items.start_array();
   for (size_t i = start; i < end; ++i) {
-    items.push(build_item_json(snapshot.inventory[i]));
+    items.push(json_serializers::item(snapshot.inventory[i]));
   }
   payload.add("inventory", std::move(items));
   return payload.finish();
 }
 
-std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
-                                      size_t limit) {
-  const size_t total = snapshot.entity_count;
+std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                      std::string_view kind_filter,
+                                      std::string_view status_filter) {
+  entity_kind_filter kind = entity_kind_filter::all;
+  if (kind_filter == DMCP_KIND_ENEMY) {
+    kind = entity_kind_filter::enemy;
+  } else if (kind_filter == DMCP_KIND_ITEM) {
+    kind = entity_kind_filter::item;
+  } else if (kind_filter == DMCP_KIND_WEAPON) {
+    kind = entity_kind_filter::weapon;
+  } else if (kind_filter == DMCP_KIND_AMMO) {
+    kind = entity_kind_filter::ammo;
+  } else if (kind_filter == DMCP_KIND_KEY) {
+    kind = entity_kind_filter::key;
+  } else if (kind_filter == DMCP_KIND_HEALTH) {
+    kind = entity_kind_filter::health;
+  } else if (kind_filter == DMCP_KIND_ARMOR) {
+    kind = entity_kind_filter::armor;
+  } else if (kind_filter == DMCP_KIND_POWERUP) {
+    kind = entity_kind_filter::powerup;
+  } else if (kind_filter == DMCP_KIND_WORLD) {
+    kind = entity_kind_filter::world;
+  }
+
+  enemy_status_filter status = enemy_status_filter::all;
+  if (status_filter == "alive") {
+    status = enemy_status_filter::alive;
+  } else if (status_filter == "dead") {
+    status = enemy_status_filter::dead;
+  }
+
+  struct matched_entity {
+    bool   enemy;
+    size_t index;
+  };
+
+  std::vector<matched_entity> matched;
+  matched.reserve(snapshot.enemy_count + snapshot.entity_count);
+
+  if (kind == entity_kind_filter::all || kind == entity_kind_filter::enemy) {
+    for (size_t i = 0; i < snapshot.enemy_count; ++i) {
+      if (enemy_matches_filter(snapshot.enemies[i], status)) {
+        matched.push_back({true, i});
+      }
+    }
+  }
+
+  if (kind != entity_kind_filter::enemy) {
+    for (size_t i = 0; i < snapshot.entity_count; ++i) {
+      if (entity_matches_kind(snapshot.entities[i], kind)) {
+        matched.push_back({false, i});
+      }
+    }
+  }
+
+  const size_t total = matched.size();
   const size_t start = std::min(offset, total);
   const size_t end   = std::min(start + limit, total);
 
   json_builder payload;
   payload.start_object();
+  payload.add("kind", std::string(kind_filter));
+  payload.add("status", std::string(status_filter));
   payload.add("entity_count", static_cast<int64_t>(total));
   payload.add("offset", static_cast<int64_t>(start));
   payload.add("limit", static_cast<int64_t>(limit));
@@ -306,9 +385,64 @@ std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t of
   json_builder entities;
   entities.start_array();
   for (size_t i = start; i < end; ++i) {
-    entities.push(build_entity_json(snapshot.entities[i]));
+    const matched_entity& match = matched[i];
+    if (match.enemy) {
+      entities.push(enemy_entity_json(snapshot.enemies[match.index]));
+    } else {
+      entities.push(world_entity_json(snapshot.entities[match.index]));
+    }
   }
   payload.add("entities", std::move(entities));
+  return payload.finish();
+}
+
+std::string build_items_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                   std::string_view kind_filter) {
+  entity_kind_filter kind = entity_kind_filter::item;
+  if (kind_filter == DMCP_KIND_WEAPON) {
+    kind = entity_kind_filter::weapon;
+  } else if (kind_filter == DMCP_KIND_AMMO) {
+    kind = entity_kind_filter::ammo;
+  } else if (kind_filter == DMCP_KIND_KEY) {
+    kind = entity_kind_filter::key;
+  } else if (kind_filter == DMCP_KIND_HEALTH) {
+    kind = entity_kind_filter::health;
+  } else if (kind_filter == DMCP_KIND_ARMOR) {
+    kind = entity_kind_filter::armor;
+  } else if (kind_filter == DMCP_KIND_POWERUP) {
+    kind = entity_kind_filter::powerup;
+  } else if (kind_filter == DMCP_KIND_ALL) {
+    kind = entity_kind_filter::item;
+  }
+
+  std::vector<size_t> matched_indexes;
+  matched_indexes.reserve(snapshot.entity_count);
+  for (size_t i = 0; i < snapshot.entity_count; ++i) {
+    if (entity_matches_kind(snapshot.entities[i], kind)) {
+      matched_indexes.push_back(i);
+    }
+  }
+
+  const size_t total = matched_indexes.size();
+  const size_t start = std::min(offset, total);
+  const size_t end   = std::min(start + limit, total);
+
+  json_builder payload;
+  payload.start_object();
+  const std::string_view response_kind =
+      kind_filter == DMCP_KIND_ALL ? std::string_view(DMCP_KIND_ITEM) : kind_filter;
+  payload.add("kind", std::string(response_kind));
+  payload.add("item_count", static_cast<int64_t>(total));
+  payload.add("offset", static_cast<int64_t>(start));
+  payload.add("limit", static_cast<int64_t>(limit));
+  payload.add("returned", static_cast<int64_t>(end - start));
+
+  json_builder items;
+  items.start_array();
+  for (size_t i = start; i < end; ++i) {
+    items.push(world_entity_json(snapshot.entities[matched_indexes[i]]));
+  }
+  payload.add("items", std::move(items));
   return payload.finish();
 }
 
@@ -367,7 +501,7 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
   constexpr size_t k_default_limit = 64;
 
   if (section.empty()) {
-    *out_error = "section is required (player, enemies, entities, map, inventory, game)";
+    *out_error = "section is required (player, enemies, entities, items, map, inventory, game)";
     return false;
   }
 
@@ -376,12 +510,12 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
     return true;
   }
 
-  if (section == "map" || section == "level") {
+  if (section == "map") {
     *out_payload = build_map_state_json(snapshot);
     return true;
   }
 
-  if (section == "game" || section == "game_info") {
+  if (section == "game") {
     *out_payload = build_game_info_json(snapshot);
     return true;
   }
@@ -399,18 +533,46 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
       return false;
     }
 
-    std::string_view status_filter = "alive";
-    if (filter == enemy_status_filter::dead) {
-      status_filter = "dead";
-    } else if (filter == enemy_status_filter::all) {
-      status_filter = "all";
-    }
-
-    *out_payload = build_enemies_state_json(snapshot, offset, limit, status_filter);
+    *out_payload = build_enemies_state_json(snapshot, offset, limit, status_filter_name(filter));
     return true;
   }
 
   if (section == "entities") {
+    entity_kind_filter kind_filter = entity_kind_filter::all;
+    if (!parse_entity_kind_filter(args, &kind_filter, out_error)) {
+      return false;
+    }
+
+    enemy_status_filter status_filter = enemy_status_filter::all;
+    if (!parse_enemy_status_filter(args, &status_filter, out_error, enemy_status_filter::all)) {
+      return false;
+    }
+
+    size_t       offset      = 0;
+    size_t       limit       = k_default_limit;
+    const size_t total_count = snapshot.enemy_count + snapshot.entity_count;
+    if (!parse_offset_limit_from_json(args, total_count, k_default_limit, &offset, &limit,
+                                      out_error)) {
+      return false;
+    }
+
+    *out_payload =
+        build_entities_state_json(snapshot, offset, limit, entity_kind_filter_name(kind_filter),
+                                  status_filter_name(status_filter));
+    return true;
+  }
+
+  if (section == "items") {
+    entity_kind_filter kind_filter = entity_kind_filter::item;
+    if (!parse_entity_kind_filter(args, &kind_filter, out_error, entity_kind_filter::item)) {
+      return false;
+    }
+    if (kind_filter == entity_kind_filter::all || kind_filter == entity_kind_filter::enemy ||
+        kind_filter == entity_kind_filter::world) {
+      *out_error = "items kind must be one of: item, weapon, ammo, key, health, armor, powerup";
+      return false;
+    }
+
     size_t offset = 0;
     size_t limit  = k_default_limit;
     if (!parse_offset_limit_from_json(args, snapshot.entity_count, k_default_limit, &offset, &limit,
@@ -418,7 +580,8 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
       return false;
     }
 
-    *out_payload = build_entities_state_json(snapshot, offset, limit);
+    *out_payload =
+        build_items_state_json(snapshot, offset, limit, entity_kind_filter_name(kind_filter));
     return true;
   }
 
@@ -434,7 +597,8 @@ bool build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_vi
     return true;
   }
 
-  *out_error = "Unknown section. Use one of: player, enemies, entities, map, inventory, game";
+  *out_error =
+      "Unknown section. Use one of: player, enemies, entities, items, map, inventory, game";
   return false;
 }
 

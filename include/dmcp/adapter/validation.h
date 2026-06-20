@@ -20,10 +20,6 @@ static inline bool dmcp_validate_armor(int armor) {
   return armor >= 0 && armor <= DMCP_PLAYER_MAX_ARMOR;
 }
 
-static inline bool dmcp_validate_timescale(float scale) {
-  return scale >= DMCP_TIMESCALE_MIN && scale <= DMCP_TIMESCALE_MAX;
-}
-
 static inline bool dmcp_validate_skill(int skill) {
   return skill >= DMCP_SKILL_MIN && skill <= DMCP_SKILL_MAX;
 }

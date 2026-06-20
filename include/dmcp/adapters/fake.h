@@ -40,11 +40,13 @@ static inline dmcp_fake_config_t dmcp_fake_config_default(void) {
 DMCP_API dmcp_fake_t* dmcp_fake_create(const dmcp_fake_config_t* config);
 DMCP_API void         dmcp_fake_destroy(dmcp_fake_t* fake);
 
-DMCP_API mcp_result_t dmcp_fake_tick(dmcp_fake_t* fake);
+DMCP_API mcp_status_t dmcp_fake_tick(dmcp_fake_t* fake);
 DMCP_API void         dmcp_fake_commands_process(dmcp_fake_t* fake);
 DMCP_API void         dmcp_fake_inputs_process(dmcp_fake_t* fake);
 DMCP_API bool         dmcp_fake_command_execute(dmcp_fake_t* fake, const dmcp_command_t* cmd);
 
+/* Returns true when the fake adapter can process local ticks and queues.
+   If base.start_transport is false, this does not imply an HTTP/SSE listener. */
 DMCP_API bool            dmcp_fake_is_running(const dmcp_fake_t* fake);
 DMCP_API dmcp_context_t* dmcp_fake_get_context(dmcp_fake_t* fake);
 DMCP_API void            dmcp_fake_get_stats(dmcp_fake_t* fake, dmcp_stats_t* out_stats);

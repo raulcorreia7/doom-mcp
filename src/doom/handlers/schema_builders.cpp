@@ -13,29 +13,32 @@ tool_annotation_hints infer_tool_annotation_hints(std::string_view tool_name) {
 
   if (tool_name == DMCP_TOOL_GET_PLAYER || tool_name == DMCP_TOOL_GET_ENEMIES ||
       tool_name == DMCP_TOOL_GET_ENTITIES || tool_name == DMCP_TOOL_GET_MAP ||
-      tool_name == DMCP_TOOL_GET_LEVEL || tool_name == DMCP_TOOL_GET_INVENTORY ||
-      tool_name == DMCP_TOOL_GET_GAME_INFO || tool_name == DMCP_TOOL_GET_GAME ||
-      tool_name == DMCP_TOOL_GET_STATE || tool_name == DMCP_TOOL_GET_STATE_BATCH ||
-      tool_name == DMCP_TOOL_GET_SCREENSHOT || tool_name == DMCP_TOOL_GET_COMMAND_RESULT ||
-      tool_name == DMCP_TOOL_GET_AVAILABLE_CONTENT ||
+      tool_name == DMCP_TOOL_GET_ITEMS || tool_name == DMCP_TOOL_GET_INVENTORY ||
+      tool_name == DMCP_TOOL_GET_GAME_INFO || tool_name == DMCP_TOOL_GET_STATE ||
+      tool_name == DMCP_TOOL_GET_STATE_BATCH || tool_name == DMCP_TOOL_GET_SCREENSHOT ||
+      tool_name == DMCP_TOOL_GET_COMMAND_RESULT || tool_name == DMCP_TOOL_GET_AVAILABLE_CONTENT ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_ENEMIES ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_ENTITIES || tool_name == DMCP_TOOL_GET_AVAILABLE_ITEMS ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_WEAPONS || tool_name == DMCP_TOOL_GET_AVAILABLE_AMMO ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_KEYS || tool_name == DMCP_TOOL_GET_AVAILABLE_MAPS ||
+      tool_name == DMCP_TOOL_GET_AVAILABLE_GIVEABLE ||
       tool_name == DMCP_TOOL_GET_COMMAND_EXAMPLES) {
     hints.read_only  = true;
     hints.idempotent = true;
     return hints;
   }
 
-  if (tool_name == DMCP_TOOL_EXECUTE_COMMAND || tool_name == DMCP_TOOL_EXECUTE_BATCH ||
-      tool_name == DMCP_TOOL_SPAWN_ENTITY || tool_name == DMCP_TOOL_CHANGE_LEVEL ||
-      tool_name == DMCP_TOOL_GIVE_ITEM || tool_name == DMCP_TOOL_SET_PLAYER_HEALTH ||
-      tool_name == DMCP_TOOL_TELEPORT_PLAYER || tool_name == DMCP_TOOL_SET_PLAYER_POSITION ||
+  if (tool_name == DMCP_TOOL_EXECUTE_BATCH || tool_name == DMCP_TOOL_SPAWN_ENTITY ||
+      tool_name == DMCP_TOOL_CHANGE_LEVEL || tool_name == DMCP_TOOL_GIVE_ITEM ||
+      tool_name == DMCP_TOOL_SET_PLAYER_HEALTH || tool_name == DMCP_TOOL_SET_PLAYER_POSITION ||
       tool_name == DMCP_TOOL_EXECUTE_CONSOLE || tool_name == DMCP_TOOL_PAUSE_GAME ||
       tool_name == DMCP_TOOL_DAMAGE_ENTITY || tool_name == DMCP_TOOL_KILL_ENTITY ||
       tool_name == DMCP_TOOL_PLAYER_INPUT) {
     hints.destructive = true;
   }
 
-  if (tool_name == DMCP_TOOL_SET_PLAYER_HEALTH || tool_name == DMCP_TOOL_TELEPORT_PLAYER ||
-      tool_name == DMCP_TOOL_SET_PLAYER_POSITION || tool_name == DMCP_TOOL_PAUSE_GAME) {
+  if (tool_name == DMCP_TOOL_SET_PLAYER_HEALTH || tool_name == DMCP_TOOL_SET_PLAYER_POSITION ||
+      tool_name == DMCP_TOOL_PAUSE_GAME) {
     hints.idempotent = true;
   }
 
@@ -92,6 +95,7 @@ void add_command_tool_schema(const char* tool_name, json_builder* schema) {
     add_property(&props, "x", "number", "Spawn X coordinate");
     add_property(&props, "y", "number", "Spawn Y coordinate");
     add_property(&props, "angle", "number", "Facing angle in degrees");
+    add_property(&props, "tid", "integer", "Optional Thing ID; 0 lets the engine assign one");
     required.push("entity_class");
     has_required = true;
   } else if (std::strcmp(tool_name, DMCP_TOOL_CHANGE_LEVEL) == 0) {
@@ -106,11 +110,10 @@ void add_command_tool_schema(const char* tool_name, json_builder* schema) {
     required.push("item_class");
     has_required = true;
   } else if (std::strcmp(tool_name, DMCP_TOOL_SET_PLAYER_HEALTH) == 0) {
-    add_property(&props, "health", "number", "Health value (alias: value)");
+    add_property(&props, "health", "number", "Health value");
     required.push("health");
     has_required = true;
-  } else if (std::strcmp(tool_name, DMCP_TOOL_TELEPORT_PLAYER) == 0 ||
-             std::strcmp(tool_name, DMCP_TOOL_SET_PLAYER_POSITION) == 0) {
+  } else if (std::strcmp(tool_name, DMCP_TOOL_SET_PLAYER_POSITION) == 0) {
     add_property(&props, "x", "number", "Destination X coordinate");
     add_property(&props, "y", "number", "Destination Y coordinate");
     add_property(&props, "angle", "number", "Facing angle in degrees");
@@ -122,7 +125,7 @@ void add_command_tool_schema(const char* tool_name, json_builder* schema) {
     required.push("command");
     has_required = true;
   } else if (std::strcmp(tool_name, DMCP_TOOL_PAUSE_GAME) == 0) {
-    add_property(&props, "paused", "boolean", "Pause state (alias: pause)");
+    add_property(&props, "paused", "boolean", "Pause state");
     required.push("paused");
     has_required = true;
   } else if (std::strcmp(tool_name, DMCP_TOOL_DAMAGE_ENTITY) == 0) {

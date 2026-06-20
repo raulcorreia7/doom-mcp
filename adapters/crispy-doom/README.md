@@ -1,12 +1,15 @@
-# Crispy Doom DMCP Integration
-
-This directory tracks the DMCP integration patch used for the Crispy Doom
-submodule.
+# Crispy Doom DMCP Adapter
 
 ## Files
 
-- `patches/dmcp_integration.patch` - Unified diff applied to `crispy-doom/`
-  to enable DMCP hooks and build wiring.
+- `include/` - C headers used by the Crispy engine hook points.
+- `src/` - Adapter lifecycle, state extraction, command execution, and input
+  handling.
+
+The pinned `crispy-doom/` submodule already contains the minimal engine hook
+points and CMake options needed to build these adapter sources. This adapter
+directory is the reusable implementation; there is no tracked patch file to
+apply.
 
 ## Build Workflow
 
@@ -18,21 +21,9 @@ make crispy-doom
 ```
 
 `make crispy-doom` automatically runs
-`tests/integration/apply_crispy_dmcp_patch.sh` before configuring/building.
+`tests/integration/build_crispy_doom.sh`, which validates the checked-in hooks,
+builds DMCP, and configures Crispy with `DMCP_ENABLE=ON`.
 
-By default the build workflow reverts the patch after a successful build so the
-submodule stays clean.
-
-Use `CRISPY_KEEP_PATCH=1` to keep patch changes applied locally.
-
-## Reapply Patch Manually
-
-```bash
-./tests/integration/apply_crispy_dmcp_patch.sh
-```
-
-The script is idempotent:
-
-- applies the patch if missing,
-- reports "already applied" if present,
-- fails if the submodule tree diverged from the expected base.
+This is a build/integration check only: it does not apply patches, download a
+WAD, or launch the game. Runtime/headless Crispy checks are optional engine e2e
+validation and should stay separate from the default no-game test path.

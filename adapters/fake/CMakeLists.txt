@@ -1,4 +1,4 @@
-file(GLOB ADAPTER_FAKE_SOURCES src/*.cpp)
+dmcp_collect_sources(ADAPTER_FAKE_SOURCES src)
 
 add_library(adapter_fake ${DMCP_LIBRARY_TYPE} ${ADAPTER_FAKE_SOURCES})
 add_library(dmcp::adapter_fake ALIAS adapter_fake)
@@ -21,7 +21,7 @@ target_include_directories(adapter_fake
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/adapters/common/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
 )
 
 target_link_libraries(adapter_fake

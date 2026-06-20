@@ -7,6 +7,26 @@ extern "C" {
 #endif
 
 // ============================================================================
+// Doom MCP Runtime Defaults
+// ============================================================================
+
+// Default Doom state capture rate. Adapters can override this in
+// dmcp_config_t without changing the generic MCP server behavior.
+#define DMCP_DEFAULT_TARGET_HZ 10
+
+// Snapshot storage is preallocated because adapters usually tick from the game
+// thread. The network side reads the last copied snapshot.
+#define DMCP_DEFAULT_SNAPSHOT_POOL_SIZE 16
+
+// Number of pending mutating commands accepted from agent/MCP clients.
+#define DMCP_DEFAULT_QUEUE_SLOTS 64
+
+// Default framebuffer dimensions used when an adapter does not provide a
+// native screenshot size.
+#define DMCP_DEFAULT_SCREENSHOT_WIDTH 640
+#define DMCP_DEFAULT_SCREENSHOT_HEIGHT 480
+
+// ============================================================================
 // Game-Specific Array Limits
 // ============================================================================
 
@@ -18,6 +38,8 @@ extern "C" {
 #define DMCP_MAX_ENTITY_TYPE 128
 #define DMCP_MAX_LEVEL_ID 32
 #define DMCP_MAX_LEVEL_NAME 96
+#define DMCP_MAX_MAPS 128
+#define DMCP_MAX_MAP_NAME 16
 
 // ============================================================================
 // Player Limits (from Doom engine: deh_misc.h, p_local.h)
@@ -60,13 +82,6 @@ extern "C" {
 
 #define DMCP_TID_MIN 0
 #define DMCP_TID_MAX 32767
-
-// ============================================================================
-// Timescale Limits
-// ============================================================================
-
-#define DMCP_TIMESCALE_MIN 0.1
-#define DMCP_TIMESCALE_MAX 10.0
 
 // ============================================================================
 // Skill Levels

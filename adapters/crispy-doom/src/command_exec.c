@@ -3,6 +3,7 @@
 #include "dmcp_crispy.h"
 #include "crispy_types.h"
 
+#include <ctype.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -11,6 +12,7 @@
 #include "dmcp/adapter/content.h"
 #include "dmcp/adapter/utils.h"
 #include "dmcp/adapter/validation.h"
+#include "mcp/core/string.h"
 
 #include "d_player.h"
 #include "d_think.h"
@@ -91,96 +93,59 @@ typedef struct {
 } dmcp_spawn_mapping_t;
 
 static const dmcp_spawn_mapping_t k_spawn_mappings[] = {
-    // Enemies
     {"DoomImp", MT_TROOP, DMCP_SPAWN_KIND_ENEMY},
-    {"Imp", MT_TROOP, DMCP_SPAWN_KIND_ENEMY},
     {"Zombieman", MT_POSSESSED, DMCP_SPAWN_KIND_ENEMY},
-    {"Zombie", MT_POSSESSED, DMCP_SPAWN_KIND_ENEMY},
     {"ShotgunGuy", MT_SHOTGUY, DMCP_SPAWN_KIND_ENEMY},
-    {"Shotgun Guy", MT_SHOTGUY, DMCP_SPAWN_KIND_ENEMY},
     {"ChaingunGuy", MT_CHAINGUY, DMCP_SPAWN_KIND_ENEMY},
-    {"Chaingun Guy", MT_CHAINGUY, DMCP_SPAWN_KIND_ENEMY},
     {"Demon", MT_SERGEANT, DMCP_SPAWN_KIND_ENEMY},
-    {"Pinky", MT_SERGEANT, DMCP_SPAWN_KIND_ENEMY},
     {"Spectre", MT_SHADOWS, DMCP_SPAWN_KIND_ENEMY},
     {"Cacodemon", MT_HEAD, DMCP_SPAWN_KIND_ENEMY},
     {"BaronOfHell", MT_BRUISER, DMCP_SPAWN_KIND_ENEMY},
-    {"Baron of Hell", MT_BRUISER, DMCP_SPAWN_KIND_ENEMY},
     {"HellKnight", MT_KNIGHT, DMCP_SPAWN_KIND_ENEMY},
-    {"Hell Knight", MT_KNIGHT, DMCP_SPAWN_KIND_ENEMY},
     {"LostSoul", MT_SKULL, DMCP_SPAWN_KIND_ENEMY},
-    {"Lost Soul", MT_SKULL, DMCP_SPAWN_KIND_ENEMY},
     {"Arachnotron", MT_BABY, DMCP_SPAWN_KIND_ENEMY},
     {"PainElemental", MT_PAIN, DMCP_SPAWN_KIND_ENEMY},
-    {"Pain Elemental", MT_PAIN, DMCP_SPAWN_KIND_ENEMY},
     {"Revenant", MT_UNDEAD, DMCP_SPAWN_KIND_ENEMY},
     {"Mancubus", MT_FATSO, DMCP_SPAWN_KIND_ENEMY},
     {"Archvile", MT_VILE, DMCP_SPAWN_KIND_ENEMY},
-    {"Arch-vile", MT_VILE, DMCP_SPAWN_KIND_ENEMY},
     {"SpiderMastermind", MT_SPIDER, DMCP_SPAWN_KIND_ENEMY},
-    {"Spider Mastermind", MT_SPIDER, DMCP_SPAWN_KIND_ENEMY},
     {"Cyberdemon", MT_CYBORG, DMCP_SPAWN_KIND_ENEMY},
     {"BossBrain", MT_BOSSBRAIN, DMCP_SPAWN_KIND_ENEMY},
-    {"Icon Of Sin", MT_BOSSBRAIN, DMCP_SPAWN_KIND_ENEMY},
-
-    // Weapon pickups
     {"Shotgun", MT_SHOTGUN, DMCP_SPAWN_KIND_ITEM},
     {"SuperShotgun", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
-    {"Super Shotgun", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
-    {"SSG", MT_SUPERSHOTGUN, DMCP_SPAWN_KIND_ITEM},
     {"Chaingun", MT_CHAINGUN, DMCP_SPAWN_KIND_ITEM},
     {"RocketLauncher", MT_MISC27, DMCP_SPAWN_KIND_ITEM},
-    {"Rocket Launcher", MT_MISC27, DMCP_SPAWN_KIND_ITEM},
     {"PlasmaRifle", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
-    {"Plasma Rifle", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
-    {"Plasma", MT_MISC28, DMCP_SPAWN_KIND_ITEM},
     {"BFG9000", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
-    {"BFG", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
-    {"BFG 9000", MT_MISC25, DMCP_SPAWN_KIND_ITEM},
     {"Chainsaw", MT_MISC26, DMCP_SPAWN_KIND_ITEM},
-
-    // Ammo and pickups
     {"Clip", MT_CLIP, DMCP_SPAWN_KIND_ITEM},
-    {"Bullets", MT_CLIP, DMCP_SPAWN_KIND_ITEM},
     {"BoxOfBullets", MT_MISC17, DMCP_SPAWN_KIND_ITEM},
-    {"Box of Bullets", MT_MISC17, DMCP_SPAWN_KIND_ITEM},
     {"Shells", MT_MISC22, DMCP_SPAWN_KIND_ITEM},
-    {"Shell", MT_MISC22, DMCP_SPAWN_KIND_ITEM},
     {"BoxOfShells", MT_MISC23, DMCP_SPAWN_KIND_ITEM},
-    {"Box of Shells", MT_MISC23, DMCP_SPAWN_KIND_ITEM},
     {"RocketAmmo", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
-    {"Rocket", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
-    {"Rockets", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
-    {"Rocket Ammo", MT_MISC18, DMCP_SPAWN_KIND_ITEM},
     {"BoxOfRockets", MT_MISC19, DMCP_SPAWN_KIND_ITEM},
-    {"Box of Rockets", MT_MISC19, DMCP_SPAWN_KIND_ITEM},
     {"Cell", MT_MISC20, DMCP_SPAWN_KIND_ITEM},
-    {"Cells", MT_MISC20, DMCP_SPAWN_KIND_ITEM},
     {"CellPack", MT_MISC21, DMCP_SPAWN_KIND_ITEM},
-    {"Cell Pack", MT_MISC21, DMCP_SPAWN_KIND_ITEM},
-
-    // Health / armor / powerups
     {"Stimpack", MT_MISC10, DMCP_SPAWN_KIND_ITEM},
     {"Medikit", MT_MISC11, DMCP_SPAWN_KIND_ITEM},
     {"SoulSphere", MT_MISC12, DMCP_SPAWN_KIND_ITEM},
-    {"Soul Sphere", MT_MISC12, DMCP_SPAWN_KIND_ITEM},
     {"MegaSphere", MT_MEGA, DMCP_SPAWN_KIND_ITEM},
-    {"Mega Sphere", MT_MEGA, DMCP_SPAWN_KIND_ITEM},
     {"GreenArmor", MT_MISC0, DMCP_SPAWN_KIND_ITEM},
-    {"Green Armor", MT_MISC0, DMCP_SPAWN_KIND_ITEM},
     {"BlueArmor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
-    {"Blue Armor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
     {"MegaArmor", MT_MISC1, DMCP_SPAWN_KIND_ITEM},
     {"Backpack", MT_MISC24, DMCP_SPAWN_KIND_ITEM},
+    {"BlueKeycard", MT_MISC4, DMCP_SPAWN_KIND_ITEM},
+    {"RedKeycard", MT_MISC5, DMCP_SPAWN_KIND_ITEM},
+    {"YellowKeycard", MT_MISC6, DMCP_SPAWN_KIND_ITEM},
+    {"YellowSkullKey", MT_MISC7, DMCP_SPAWN_KIND_ITEM},
+    {"RedSkullKey", MT_MISC8, DMCP_SPAWN_KIND_ITEM},
+    {"BlueSkullKey", MT_MISC9, DMCP_SPAWN_KIND_ITEM},
     {"Invulnerability", MT_INV, DMCP_SPAWN_KIND_ITEM},
     {"Berserk", MT_MISC13, DMCP_SPAWN_KIND_ITEM},
     {"Invisibility", MT_INS, DMCP_SPAWN_KIND_ITEM},
     {"RadiationSuit", MT_MISC14, DMCP_SPAWN_KIND_ITEM},
-    {"Radiation Suit", MT_MISC14, DMCP_SPAWN_KIND_ITEM},
     {"ComputerMap", MT_MISC15, DMCP_SPAWN_KIND_ITEM},
-    {"Computer Map", MT_MISC15, DMCP_SPAWN_KIND_ITEM},
     {"LightAmp", MT_MISC16, DMCP_SPAWN_KIND_ITEM},
-    {"Light Amp", MT_MISC16, DMCP_SPAWN_KIND_ITEM},
 };
 
 static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_type,
@@ -192,7 +157,7 @@ static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_ty
   }
 
   for (i = 0; i < sizeof(k_spawn_mappings) / sizeof(k_spawn_mappings[0]); ++i) {
-    if (dmcp_str_equals_ci(entity_class, k_spawn_mappings[i].name)) {
+    if (strcmp(entity_class, k_spawn_mappings[i].name) == 0) {
       *out_type = k_spawn_mappings[i].type;
       *out_kind = k_spawn_mappings[i].kind;
       return true;
@@ -200,6 +165,10 @@ static bool dmcp_resolve_spawn_type(const char* entity_class, mobjtype_t* out_ty
   }
 
   return false;
+}
+
+static bool dmcp_item_is(const dmcp_cmd_give_item_t* give, const char* item_class) {
+  return give && item_class && strcmp(give->item_class, item_class) == 0;
 }
 
 static bool dmcp_has_required_sound_lump(int sound_id) {
@@ -234,7 +203,8 @@ static bool dmcp_spawn_assets_available(mobjtype_t type) {
   }
 
   spawn_state = &states[info->spawnstate];
-  if (spawn_state->sprite < 0 || spawn_state->sprite >= numsprites || !sprites) {
+  if (numsprites <= 0 || spawn_state->sprite < 0 ||
+      spawn_state->sprite >= (spritenum_t)numsprites || !sprites) {
     return false;
   }
 
@@ -276,8 +246,8 @@ static bool dmcp_spawn_position_in_bounds(mobjtype_t type, fixed_t x, fixed_t y)
   int64_t max_y;
   int64_t left;
   int64_t right;
-  int64_t bottom;
-  int64_t top;
+  int64_t obj_bottom;
+  int64_t obj_top;
 
   if (type < 0 || type >= NUMMOBJTYPES) {
     return false;
@@ -294,12 +264,12 @@ static bool dmcp_spawn_position_in_bounds(mobjtype_t type, fixed_t x, fixed_t y)
   max_x  = min_x + (int64_t)bmapwidth * (int64_t)MAPBLOCKSIZE;
   max_y  = min_y + (int64_t)bmapheight * (int64_t)MAPBLOCKSIZE;
 
-  left   = (int64_t)x - (int64_t)radius;
-  right  = (int64_t)x + (int64_t)radius;
-  bottom = (int64_t)y - (int64_t)radius;
-  top    = (int64_t)y + (int64_t)radius;
+  left       = (int64_t)x - (int64_t)radius;
+  right      = (int64_t)x + (int64_t)radius;
+  obj_bottom = (int64_t)y - (int64_t)radius;
+  obj_top    = (int64_t)y + (int64_t)radius;
 
-  if (left < min_x || right >= max_x || bottom < min_y || top >= max_y) {
+  if (left < min_x || right >= max_x || obj_bottom < min_y || obj_top >= max_y) {
     return false;
   }
 
@@ -319,120 +289,117 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
 
   amount = dmcp_clamp_int((int)give->amount, 1, 1000);
 
-  if (dmcp_str_equals_ci(give->item_class, "Pistol")) {
+  if (dmcp_item_is(give, "Pistol")) {
     player->weaponowned[wp_pistol] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Shotgun")) {
+  if (dmcp_item_is(give, "Shotgun")) {
     player->weaponowned[wp_shotgun] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Chaingun")) {
+  if (dmcp_item_is(give, "Chaingun")) {
     player->weaponowned[wp_chaingun] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "RocketLauncher") ||
-      dmcp_str_equals_ci(give->item_class, "Rocket Launcher")) {
+  if (dmcp_item_is(give, "RocketLauncher")) {
     player->weaponowned[wp_missile] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "PlasmaRifle") ||
-      dmcp_str_equals_ci(give->item_class, "Plasma Rifle")) {
+  if (dmcp_item_is(give, "PlasmaRifle")) {
     player->weaponowned[wp_plasma] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "BFG9000") ||
-      dmcp_str_equals_ci(give->item_class, "BFG")) {
+  if (dmcp_item_is(give, "BFG9000")) {
     player->weaponowned[wp_bfg] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Chainsaw")) {
+  if (dmcp_item_is(give, "Chainsaw")) {
     player->weaponowned[wp_chainsaw] = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "SuperShotgun") ||
-      dmcp_str_equals_ci(give->item_class, "Super Shotgun")) {
+  if (dmcp_item_is(give, "SuperShotgun")) {
     player->weaponowned[wp_supershotgun] = 1;
     return true;
   }
 
-  if (dmcp_str_equals_ci(give->item_class, "Clip") ||
-      dmcp_str_equals_ci(give->item_class, "Bullets")) {
+  if (dmcp_item_is(give, "Clip")) {
     player->ammo[am_clip] += 10 * amount;
     player->ammo[am_clip] = dmcp_clamp_int(player->ammo[am_clip], 0, player->maxammo[am_clip]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "BoxOfBullets") ||
-      dmcp_str_equals_ci(give->item_class, "Box of Bullets")) {
+  if (dmcp_item_is(give, "BoxOfBullets")) {
     player->ammo[am_clip] += 50 * amount;
     player->ammo[am_clip] = dmcp_clamp_int(player->ammo[am_clip], 0, player->maxammo[am_clip]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Shell") ||
-      dmcp_str_equals_ci(give->item_class, "Shells")) {
+  if (dmcp_item_is(give, "Shells")) {
     player->ammo[am_shell] += 4 * amount;
     player->ammo[am_shell] = dmcp_clamp_int(player->ammo[am_shell], 0, player->maxammo[am_shell]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "BoxOfShells") ||
-      dmcp_str_equals_ci(give->item_class, "Box of Shells")) {
+  if (dmcp_item_is(give, "BoxOfShells")) {
     player->ammo[am_shell] += 20 * amount;
     player->ammo[am_shell] = dmcp_clamp_int(player->ammo[am_shell], 0, player->maxammo[am_shell]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Rocket") ||
-      dmcp_str_equals_ci(give->item_class, "Rockets") ||
-      dmcp_str_equals_ci(give->item_class, "RocketAmmo") ||
-      dmcp_str_equals_ci(give->item_class, "Rocket Ammo")) {
+  if (dmcp_item_is(give, "RocketAmmo")) {
     player->ammo[am_misl] += amount;
     player->ammo[am_misl] = dmcp_clamp_int(player->ammo[am_misl], 0, player->maxammo[am_misl]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "BoxOfRockets") ||
-      dmcp_str_equals_ci(give->item_class, "Box of Rockets")) {
+  if (dmcp_item_is(give, "BoxOfRockets")) {
     player->ammo[am_misl] += 5 * amount;
     player->ammo[am_misl] = dmcp_clamp_int(player->ammo[am_misl], 0, player->maxammo[am_misl]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Cell") ||
-      dmcp_str_equals_ci(give->item_class, "Cells")) {
+  if (dmcp_item_is(give, "Cell")) {
     player->ammo[am_cell] += 20 * amount;
     player->ammo[am_cell] = dmcp_clamp_int(player->ammo[am_cell], 0, player->maxammo[am_cell]);
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "CellPack") ||
-      dmcp_str_equals_ci(give->item_class, "Cell Pack")) {
+  if (dmcp_item_is(give, "CellPack")) {
     player->ammo[am_cell] += 100 * amount;
     player->ammo[am_cell] = dmcp_clamp_int(player->ammo[am_cell], 0, player->maxammo[am_cell]);
     return true;
   }
 
-  if (dmcp_str_equals_ci(give->item_class, "Stimpack")) {
+  if (dmcp_item_is(give, "Stimpack")) {
     player->health =
         dmcp_clamp_int(player->health + (DMCP_ITEM_STIMPACK * amount), 1, DMCP_PLAYER_MAX_HEALTH);
     player->mo->health = player->health;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "Medikit")) {
+  if (dmcp_item_is(give, "Medikit")) {
     player->health =
         dmcp_clamp_int(player->health + (DMCP_ITEM_MEDIKIT * amount), 1, DMCP_PLAYER_MAX_HEALTH);
     player->mo->health = player->health;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "GreenArmor") ||
-      dmcp_str_equals_ci(give->item_class, "Green Armor")) {
+  if (dmcp_item_is(give, "SoulSphere")) {
+    player->health =
+        dmcp_clamp_int(player->health + (DMCP_ITEM_SOULSPHERE * amount), 1, DMCP_PLAYER_MAX_HEALTH);
+    player->mo->health = player->health;
+    return true;
+  }
+  if (dmcp_item_is(give, "MegaSphere")) {
+    player->health      = DMCP_ITEM_MEGASPHERE;
+    player->mo->health  = player->health;
+    player->armorpoints = DMCP_ARMOR_BLUE_LIMIT;
+    player->armortype   = 2;
+    return true;
+  }
+  if (dmcp_item_is(give, "GreenArmor")) {
     player->armorpoints = DMCP_ARMOR_GREEN_LIMIT;
     player->armortype   = 1;
     return true;
   }
-  if (dmcp_str_equals_ci(give->item_class, "BlueArmor") ||
-      dmcp_str_equals_ci(give->item_class, "Blue Armor")) {
-    player->armorpoints = DMCP_PLAYER_MAX_ARMOR;
+  if (dmcp_item_is(give, "BlueArmor") || dmcp_item_is(give, "MegaArmor")) {
+    player->armorpoints = DMCP_ARMOR_BLUE_LIMIT;
     player->armortype   = 2;
     return true;
   }
 
-  if (dmcp_str_equals_ci(give->item_class, "Backpack")) {
+  if (dmcp_item_is(give, "Backpack")) {
     int i;
     if (!player->backpack) {
       for (i = 0; i < NUMAMMO; ++i) {
@@ -441,6 +408,55 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
       player->backpack = true;
     }
     return true;
+  }
+
+  if (dmcp_item_is(give, "BlueKeycard")) {
+    player->cards[it_bluecard] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "YellowKeycard")) {
+    player->cards[it_yellowcard] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "RedKeycard")) {
+    player->cards[it_redcard] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "BlueSkullKey")) {
+    player->cards[it_blueskull] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "YellowSkullKey")) {
+    player->cards[it_yellowskull] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "RedSkullKey")) {
+    player->cards[it_redskull] = 1;
+    return true;
+  }
+
+  if (dmcp_item_is(give, "Invulnerability")) {
+    return P_GivePower(player, pw_invulnerability) != 0;
+  }
+  if (dmcp_item_is(give, "Berserk")) {
+    bool success = P_GivePower(player, pw_strength) != 0;
+    if (success && player->readyweapon != wp_fist) {
+      player->pendingweapon = wp_fist;
+    }
+    return success;
+  }
+  if (dmcp_item_is(give, "Invisibility")) {
+    return P_GivePower(player, pw_invisibility) != 0;
+  }
+  if (dmcp_item_is(give, "RadiationSuit")) {
+    return P_GivePower(player, pw_ironfeet) != 0;
+  }
+  if (dmcp_item_is(give, "ComputerMap")) {
+    player->powers[pw_allmap] = 1;
+    return true;
+  }
+  if (dmcp_item_is(give, "LightAmp")) {
+    return P_GivePower(player, pw_infrared) != 0;
   }
 
   return false;
@@ -467,7 +483,7 @@ static mobj_t* dmcp_find_enemy_by_id(int enemy_id) {
       continue;
     }
 
-    if ((mobj->flags & MF_COUNTKILL) == 0) {
+    if (((unsigned int)mobj->flags & (unsigned int)MF_COUNTKILL) == 0u) {
       continue;
     }
 
@@ -567,7 +583,7 @@ static bool dmcp_execute_set_player_health(player_t*                    player,
     return false;
   }
 
-  health = dmcp_health_points_from_command(set_health->health);
+  health = dmcp_health_points_from_command((float)set_health->health);
 
   // Validate using adapter helper
   if (!dmcp_validate_health(health)) {
@@ -642,36 +658,36 @@ static bool dmcp_execute_console(player_t* player, const dmcp_cmd_console_t* con
     return false;
   }
 
-  if (dmcp_str_equals_ci(normalized, "god") || dmcp_str_equals_ci(normalized, "godmode") ||
-      dmcp_str_equals_ci(normalized, "iddqd") || dmcp_str_equals_ci(normalized, "god on") ||
-      dmcp_str_equals_ci(normalized, "godmode on")) {
+  if (mcp_strcmp_ci(normalized, "god") == 0 || mcp_strcmp_ci(normalized, "godmode") == 0 ||
+      mcp_strcmp_ci(normalized, "iddqd") == 0 || mcp_strcmp_ci(normalized, "god on") == 0 ||
+      mcp_strcmp_ci(normalized, "godmode on") == 0) {
     player->cheats |= CF_GODMODE;
     return true;
   }
 
-  if (dmcp_str_equals_ci(normalized, "ungod") || dmcp_str_equals_ci(normalized, "god off") ||
-      dmcp_str_equals_ci(normalized, "godmode off")) {
+  if (mcp_strcmp_ci(normalized, "ungod") == 0 || mcp_strcmp_ci(normalized, "god off") == 0 ||
+      mcp_strcmp_ci(normalized, "godmode off") == 0) {
     player->cheats &= ~CF_GODMODE;
     return true;
   }
 
-  if (dmcp_str_equals_ci(normalized, "noclip") || dmcp_str_equals_ci(normalized, "noclip on") ||
-      dmcp_str_equals_ci(normalized, "idspispopd")) {
+  if (mcp_strcmp_ci(normalized, "noclip") == 0 || mcp_strcmp_ci(normalized, "noclip on") == 0 ||
+      mcp_strcmp_ci(normalized, "idspispopd") == 0) {
     player->cheats |= CF_NOCLIP;
     return true;
   }
 
-  if (dmcp_str_equals_ci(normalized, "clip") || dmcp_str_equals_ci(normalized, "noclip off")) {
+  if (mcp_strcmp_ci(normalized, "clip") == 0 || mcp_strcmp_ci(normalized, "noclip off") == 0) {
     player->cheats &= ~CF_NOCLIP;
     return true;
   }
 
-  if (dmcp_str_equals_ci(normalized, "pause")) {
+  if (mcp_strcmp_ci(normalized, "pause") == 0) {
     paused = true;
     return true;
   }
 
-  if (dmcp_str_equals_ci(normalized, "resume") || dmcp_str_equals_ci(normalized, "unpause")) {
+  if (mcp_strcmp_ci(normalized, "resume") == 0 || mcp_strcmp_ci(normalized, "unpause") == 0) {
     paused = false;
     return true;
   }
@@ -766,10 +782,6 @@ bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) 
 
     case DMCP_CMD_PAUSE_GAME:
       return dmcp_execute_pause(&cmd->data.pause);
-
-    case DMCP_CMD_SET_TIMESCALE:
-      // Doom simulation timing is fixed at 35 Hz in Crispy Doom.
-      return false;
 
     case DMCP_CMD_DAMAGE_ENTITY:
       return dmcp_execute_damage_entity(player, &cmd->data.damage);

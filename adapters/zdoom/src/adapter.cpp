@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 // ZDoom headers - these come from the engine build
 #include "common/engine/printf.h"
@@ -56,6 +57,21 @@ static uint16_t EnvPortOverride() {
   return 0;
 }
 
+static dmcp_zdoom_config_t CopyConfig(const dmcp_zdoom_config_t* config) {
+  dmcp_zdoom_config_t effective = dmcp_zdoom_config_default();
+  if (!config) {
+    return effective;
+  }
+
+  size_t copy_size = config->struct_size;
+  if (copy_size == 0 || copy_size > sizeof(dmcp_zdoom_config_t)) {
+    copy_size = sizeof(dmcp_zdoom_config_t);
+  }
+  std::memcpy(&effective, config, copy_size);
+  effective.struct_size = sizeof(dmcp_zdoom_config_t);
+  return effective;
+}
+
 static const char* ItemLabel(AActor* item) {
   if (!item) return "";
 
@@ -90,9 +106,12 @@ static void BindDefaults(dmcp_snapshot_t* snapshot) {
   snapshot->level.tic         = 0;
   snapshot->player.hp         = DMCP_PLAYER_INITIAL_HEALTH;
   snapshot->player.armor      = 0;
-  snapshot->player.ammo       = 0;
   snapshot->player.position.x = 0.f;
   snapshot->player.position.y = 0.f;
+  for (int i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
+    snapshot->player.ammo[i]    = 0;
+    snapshot->player.maxammo[i] = 0;
+  }
 }
 
 static void BindPlayerHealth(dmcp_snapshot_t* snapshot, const PlayerView& view) {
@@ -118,12 +137,14 @@ static void BindPlayerPosition(dmcp_snapshot_t* snapshot, const PlayerView& view
 
 static void BindPlayerAmmo(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   if (!view.player || view.player->ReadyWeapon == nullptr) {
-    snapshot->player.ammo = 0;
     return;
   }
 
-  auto* ammo            = view.player->ReadyWeapon->PointerVar<AActor>(NAME_Ammo1);
-  snapshot->player.ammo = ammo ? ammo->IntVar(NAME_Amount) : 0;
+  auto* ammo = view.player->ReadyWeapon->PointerVar<AActor>(NAME_Ammo1);
+  // ZDoom exposes ammo as inventory classes. Until this adapter maps each class
+  // to Doom's four canonical pools, report the ready weapon's primary ammo in
+  // slot 0 and leave the other pools unknown/zero.
+  snapshot->player.ammo[0] = ammo ? ammo->IntVar(NAME_Amount) : 0;
 }
 
 static void BindLevel(dmcp_snapshot_t* snapshot, const PlayerView& view) {
@@ -260,8 +281,8 @@ void Log(AdapterContext* ctx, int level, const char* fmt, ...) {
 extern "C" {
 
 dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
-  auto* ctx                    = new AdapterContext();
-  ctx->user_cfg                = cfg ? *cfg : dmcp_zdoom_config_default();
+  auto ctx                     = std::make_unique<AdapterContext>();
+  ctx->user_cfg                = CopyConfig(cfg);
   ctx->dmcp_cfg                = ctx->user_cfg.base;
   ctx->log_not_running_emitted = false;
 
@@ -270,31 +291,28 @@ dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
     ctx->dmcp_cfg.port = env_port;
   }
 
-  if (ctx->user_cfg.port_override != 0) {
-    ctx->dmcp_cfg.port = ctx->user_cfg.port_override;
-  }
-
   // Setup callbacks
   ctx->dmcp_cfg.on_snapshot = ZdoomSnapshotCallback;
   ctx->dmcp_cfg.on_log      = ZdoomLogCallback;
-  ctx->dmcp_cfg.user_data   = ctx;
+  ctx->dmcp_cfg.user_data   = ctx.get();
 
   // Create DMCP context
-  ctx->dmcp_ctx = dmcp_context_create(&ctx->dmcp_cfg);
-  if (!ctx->dmcp_ctx) {
-    Log(ctx, MCP_LOG_ERROR, "Failed to start DMCP server on port %u", ctx->dmcp_cfg.port);
-    delete ctx;
+  std::unique_ptr<dmcp_context_t, decltype(&dmcp_context_destroy)> dmcp_ctx(
+      dmcp_context_create(&ctx->dmcp_cfg), dmcp_context_destroy);
+  if (!dmcp_ctx) {
+    Log(ctx.get(), MCP_LOG_ERROR, "Failed to start DMCP server on port %u", ctx->dmcp_cfg.port);
     return nullptr;
   }
 
-  Log(ctx, MCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)", ctx->dmcp_cfg.port,
+  ctx->dmcp_ctx = dmcp_ctx.release();
+  Log(ctx.get(), MCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)", ctx->dmcp_cfg.port,
       ctx->dmcp_cfg.target_hz);
 
-  return reinterpret_cast<dmcp_zdoom_t*>(ctx);
+  return reinterpret_cast<dmcp_zdoom_t*>(ctx.release());
 }
 
 void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
-  auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
+  std::unique_ptr<AdapterContext> ctx(reinterpret_cast<AdapterContext*>(ctx_handle));
   if (!ctx) return;
 
   if (ctx->dmcp_ctx) {
@@ -302,22 +320,21 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
     ctx->dmcp_ctx = nullptr;
   }
 
-  Log(ctx, MCP_LOG_INFO, "DMCP server stopped");
-  delete ctx;
+  Log(ctx.get(), MCP_LOG_INFO, "DMCP server stopped");
 }
 
-mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
+mcp_status_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) {
-    mcp_result_t result = {};
-    result.code         = MCP_RESULT_CODE_INVALID_ARGS;
+    mcp_status_t result = {};
+    result.code         = MCP_STATUS_CODE_INVALID_ARGS;
     return result;
   }
 
   // Check should_tick gate
   if (ctx->user_cfg.should_tick_fn &&
       !ctx->user_cfg.should_tick_fn(ctx->user_cfg.should_tick_user)) {
-    return MCP_RESULT_OK("Success");
+    return MCP_STATUS_OK("Success");
   }
 
   // Check server health
@@ -326,8 +343,8 @@ mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
       Log(ctx, MCP_LOG_WARN, "DMCP server not running; skipping tick");
       ctx->log_not_running_emitted = true;
     }
-    mcp_result_t result = {};
-    result.code         = MCP_RESULT_CODE_DISABLED;
+    mcp_status_t result = {};
+    result.code         = MCP_STATUS_CODE_DISABLED;
     return result;
   }
   ctx->log_not_running_emitted = false;
@@ -335,7 +352,7 @@ mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   // Process tick
   dmcp_context_tick(ctx->dmcp_ctx);
 
-  return MCP_RESULT_OK("Success");
+  return MCP_STATUS_OK("Success");
 }
 
 bool dmcp_zdoom_is_running(dmcp_zdoom_t* ctx_handle) {

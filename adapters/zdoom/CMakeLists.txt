@@ -1,5 +1,4 @@
-file(GLOB ADAPTER_ZDOOM_SOURCES src/*.cpp)
-file(GLOB ADAPTER_ZDOOM_HEADERS include/*.h)
+dmcp_collect_sources(ADAPTER_ZDOOM_SOURCES src)
 
 add_library(adapter_zdoom ${DMCP_LIBRARY_TYPE} ${ADAPTER_ZDOOM_SOURCES})
 add_library(dmcp::adapter_zdoom ALIAS adapter_zdoom)
@@ -31,7 +30,7 @@ target_include_directories(adapter_zdoom
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${DMCP_ZDOOM_INCLUDE_DIRS}
-        ${CMAKE_SOURCE_DIR}/adapters/common/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
 )
 
 target_link_libraries(adapter_zdoom

@@ -14,6 +14,10 @@ namespace dmcp {
 bool parse_damage_command(const json_value& params, dmcp_command_t* out) {
   out->type = DMCP_CMD_DAMAGE_ENTITY;
 
+  if (!has_only_fields(params, {"target_tid", "damage", "damage_type"})) {
+    return false;
+  }
+
   std::int64_t target_tid = 0;
   if (!read_required_int(params, {"target_tid"}, &target_tid)) {
     return false;

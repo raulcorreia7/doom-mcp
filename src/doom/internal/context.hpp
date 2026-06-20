@@ -18,15 +18,14 @@
 
 namespace dmcp {
 
-class layer_registry;
-
 struct context {
-  dmcp_config_t                   config{};
-  mcp_server_t*                   server = nullptr;
-  std::unique_ptr<command_queue>  cmd_queue;
-  std::unique_ptr<command_queue>  input_queue;
-  std::unique_ptr<layer_registry> layers;
+  dmcp_config_t                  config{};
+  mcp_server_t*                  server = nullptr;
+  std::unique_ptr<command_queue> cmd_queue;
+  std::unique_ptr<command_queue> input_queue;
 
+  // Snapshot storage is pooled because adapters call dmcp_context_tick from the
+  // game thread. The network side only observes the copied last_snapshot.
   std::vector<pool_entry> pool;
   std::mutex              pool_mutex;
 
@@ -42,10 +41,8 @@ struct context {
   std::atomic<uint64_t> dropped_screenshots{0};
   std::atomic<bool>     drop_warning_emitted{false};
 
-  std::unordered_map<std::string, std::pair<dmcp_command_type_t, dmcp_custom_command_parser_t>>
-             custom_parsers;
-  std::mutex custom_parsers_mutex;
-
+  // Results are bounded so long-running agent sessions cannot grow memory
+  // without limit while polling historical command sequences.
   std::unordered_map<uint64_t, dmcp_command_result_t> command_results;
   std::deque<uint64_t>                                command_result_order;
   mutable std::mutex                                  command_results_mutex;

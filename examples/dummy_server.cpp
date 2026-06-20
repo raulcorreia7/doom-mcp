@@ -2,7 +2,9 @@
 #include <cmath>
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <thread>
 #include <vector>
 
@@ -11,6 +13,98 @@
 static volatile bool g_running = true;
 
 void signal_handler(int) { g_running = false; }
+
+enum class ParseResult {
+  run,
+  exit_success,
+  exit_error,
+};
+
+void PrintUsage(const char* argv0) {
+  const char* program = argv0 && argv0[0] ? argv0 : "dummy_server";
+  std::printf("Usage: %s [--port PORT] [--target-hz HZ] [--help] [--examples]\n", program);
+  std::printf("\nOptions:\n");
+  std::printf("  --port PORT       HTTP/SSE port (default: 6060)\n");
+  std::printf("  --target-hz HZ    Snapshot rate (default: 10)\n");
+  std::printf("  --examples        Print canonical MCP tool examples\n");
+  std::printf("  --help            Print this help\n");
+}
+
+void PrintExamples() {
+  std::printf("Canonical MCP tool examples:\n");
+  std::printf("  get_player:          {\"name\":\"get_player\",\"arguments\":{}}\n");
+  std::printf(
+      "  get_enemies:         "
+      "{\"name\":\"get_enemies\",\"arguments\":{\"status\":\"alive\",\"limit\":8}}\n");
+  std::printf(
+      "  get_entities:        "
+      "{\"name\":\"get_entities\",\"arguments\":{\"kind\":\"enemy\",\"status\":\"all\","
+      "\"limit\":8}}\n");
+  std::printf(
+      "  get_items:           "
+      "{\"name\":\"get_items\",\"arguments\":{\"kind\":\"armor\",\"limit\":8}}\n");
+  std::printf(
+      "  spawn_entity:        "
+      "{\"name\":\"spawn_entity\",\"arguments\":{\"entity_class\":\"DoomImp\",\"x\":160,"
+      "\"y\":96,\"angle\":0}}\n");
+  std::printf(
+      "  give_item:           "
+      "{\"name\":\"give_item\",\"arguments\":{\"item_class\":\"Shotgun\",\"amount\":1}}\n");
+  std::printf(
+      "  set_player_position: "
+      "{\"name\":\"set_player_position\",\"arguments\":{\"x\":160,\"y\":96,\"angle\":90}}\n");
+  std::printf(
+      "  player_input:        "
+      "{\"name\":\"player_input\",\"arguments\":{\"action\":\"weapon\",\"value\":3}}\n");
+}
+
+bool ParsePositiveInt(const char* text, int* out_value) {
+  if (!text || !out_value) {
+    return false;
+  }
+
+  char* end   = nullptr;
+  long  value = std::strtol(text, &end, 10);
+  if (!end || *end != '\0' || value <= 0 || value > 65535) {
+    return false;
+  }
+
+  *out_value = static_cast<int>(value);
+  return true;
+}
+
+ParseResult ParseArgs(int argc, char** argv, int* port, int* target_hz) {
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--help") == 0) {
+      PrintUsage(argv[0]);
+      return ParseResult::exit_success;
+    }
+    if (std::strcmp(argv[i], "--examples") == 0) {
+      PrintExamples();
+      return ParseResult::exit_success;
+    }
+    if (std::strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+      if (!ParsePositiveInt(argv[++i], port)) {
+        std::fprintf(stderr, "Invalid --port value\n");
+        return ParseResult::exit_error;
+      }
+      continue;
+    }
+    if (std::strcmp(argv[i], "--target-hz") == 0 && i + 1 < argc) {
+      if (!ParsePositiveInt(argv[++i], target_hz)) {
+        std::fprintf(stderr, "Invalid --target-hz value\n");
+        return ParseResult::exit_error;
+      }
+      continue;
+    }
+
+    std::fprintf(stderr, "Unknown option: %s\n", argv[i]);
+    PrintUsage(argv[0]);
+    return ParseResult::exit_error;
+  }
+
+  return ParseResult::run;
+}
 
 // Simple mock game state
 struct GameState {
@@ -84,7 +178,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
     enemy.max_hp       = 60.0f;
     enemy.position.x   = e.x;
     enemy.position.y   = e.y;
-    dmcp_strcpy(enemy.type, "Imp", sizeof(enemy.type));
+    dmcp_strcpy(enemy.type, "DoomImp", sizeof(enemy.type));
     dmcp_snapshot_add_enemy(snapshot, &enemy);
   }
 }
@@ -108,19 +202,27 @@ void LogCallback(void* /*user_data*/, int level, const char* message) {
   printf("%s %s\n", prefix, message);
 }
 
-int main() {
+int main(int argc, char** argv) {
   std::signal(SIGINT, signal_handler);
   srand(static_cast<unsigned>(time(nullptr)));
+
+  int               port         = 6060;
+  int               target_hz    = 10;
+  const ParseResult parse_result = ParseArgs(argc, argv, &port, &target_hz);
+  if (parse_result == ParseResult::exit_success) {
+    return 0;
+  }
+  if (parse_result == ParseResult::exit_error) {
+    return 1;
+  }
 
   GameState game;
   game.enemies.push_back({1, 200, 200, 60});
   game.enemies.push_back({2, -200, 200, 60});
 
-  // Configure DMCP
-  // OLD: dmcp_config_t config = dmcp_default_config();
   dmcp_config_t config = dmcp_config_default();
-  config.port          = 6060;
-  config.target_hz     = 10;
+  config.port          = static_cast<uint16_t>(port);
+  config.target_hz     = static_cast<uint32_t>(target_hz);
   config.on_snapshot   = SnapshotCallback;
   config.on_log        = LogCallback;
   config.user_data     = &game;
@@ -156,9 +258,8 @@ int main() {
              static_cast<unsigned long>(stats.dropped_snapshots));
     }
 
-    // Example: Screenshot handling with new error handling pattern
-    // OLD: if (dmcp_screenshot_requested(ctx)) { dmcp_submit_screenshot(ctx,
-    // &frame); } NEW: Check result.code and result.message for error details
+    // Screenshot integration copies submitted pixels, so engine-owned frame
+    // memory can be released immediately after dmcp_screenshot_submit returns.
     //
     // if (dmcp_screenshot_is_requested(ctx)) {
     //   uint8_t* pixels = CaptureScreenshot();
@@ -169,8 +270,8 @@ int main() {
     //       .stride = width * 4  // RGBA = 4 bytes per pixel
     //   };
     //
-    //   mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
-    //   if (result.code != MCP_RESULT_CODE_OK) {
+    //   mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+    //   if (result.code != MCP_STATUS_CODE_OK) {
     //     fprintf(stderr, "Screenshot failed: %s\n", result.message);
     //   }
     //   free(pixels);  // Safe to free after submit (data is copied)

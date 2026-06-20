@@ -16,6 +16,76 @@ extern const char* mapnames[];
 extern const char* mapnames_commercial[];
 #endif
 
+#ifdef CRISPY_DOOM_BUILD
+static void dmcp_crispy_format_map_id(char* out, size_t out_size, int episode, int map) {
+  if (!out || out_size == 0) return;
+
+  if (D_IsEpisodeMap(gamemission)) {
+    snprintf(out, out_size, "E%dM%d", episode, map);
+  } else {
+    snprintf(out, out_size, "MAP%02d", map);
+  }
+}
+
+static void dmcp_crispy_rebuild_map_catalog(dmcp_map_t* maps, uint32_t* count) {
+  int episode;
+  int map;
+
+  if (!maps || !count) return;
+
+  *count = 0;
+  if (gamemode == indetermined || gamemission == none) return;
+
+  if (D_IsEpisodeMap(gamemission)) {
+    for (episode = 1; episode <= 9 && *count < DMCP_MAX_MAPS; ++episode) {
+      for (map = 1; map <= 9 && *count < DMCP_MAX_MAPS; ++map) {
+        if (D_ValidEpisodeMap(gamemission, gamemode, episode, map)) {
+          dmcp_crispy_format_map_id(maps[*count].name, sizeof(maps[*count].name), episode, map);
+          (*count)++;
+        }
+      }
+    }
+    return;
+  }
+
+  for (map = 1; map <= 99 && *count < DMCP_MAX_MAPS; ++map) {
+    if (D_ValidEpisodeMap(gamemission, gamemode, 1, map)) {
+      dmcp_crispy_format_map_id(maps[*count].name, sizeof(maps[*count].name), 1, map);
+      (*count)++;
+    }
+  }
+}
+
+static void dmcp_crispy_populate_maps(dmcp_snapshot_t* snap) {
+  static GameMission_t cached_mission = none;
+  static GameMode_t    cached_mode    = indetermined;
+  static int           cache_ready    = 0;
+  static dmcp_map_t    cached_maps[DMCP_MAX_MAPS];
+  static uint32_t      cached_map_count = 0;
+  uint32_t             i;
+
+  if (!snap) return;
+
+  if (!cache_ready || cached_mission != gamemission || cached_mode != gamemode) {
+    dmcp_crispy_rebuild_map_catalog(cached_maps, &cached_map_count);
+    cached_mission = gamemission;
+    cached_mode    = gamemode;
+    cache_ready    = 1;
+  }
+
+  snap->map_count = 0;
+  for (i = 0; i < cached_map_count; ++i) {
+    dmcp_snapshot_add_map(snap, cached_maps[i].name);
+  }
+}
+#else
+static void dmcp_crispy_populate_maps(dmcp_snapshot_t* snap) {
+  if (snap) {
+    snap->map_count = 0;
+  }
+}
+#endif
+
 void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
   dmcp_level_t* level;
   dmcp_game_t*  game;
@@ -32,7 +102,11 @@ void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
 
   current_episode = gameepisode;
   current_map     = gamemap;
+#ifdef CRISPY_DOOM_BUILD
+  dmcp_crispy_format_map_id(level->level_id, sizeof(level->level_id), current_episode, current_map);
+#else
   snprintf(level->level_id, sizeof(level->level_id), "E%dM%d", current_episode, current_map);
+#endif
 
 #ifdef CRISPY_DOOM_BUILD
   // Get level name from mapnames array using current game mode
@@ -93,4 +167,6 @@ void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
   }
   game->respawnmonsters = respawnmonsters;
   game->consoleplayer   = consoleplayer;
+
+  dmcp_crispy_populate_maps(snap);
 }

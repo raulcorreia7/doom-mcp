@@ -57,6 +57,22 @@ extern DMCP_API const size_t      dmcp_shareware_restricted_items_count;
 // Error Message Builders
 // ============================================================================
 
+/**
+ * Build a content-unavailable error into a caller-owned buffer.
+ *
+ * Returns the number of bytes written excluding the null terminator, or -1 when
+ * the buffer is null/empty or too small.
+ */
+DMCP_API int dmcp_content_unavailable_message_copy(const char* content_type,
+                                                   const char* content_name, dmcp_gamemode_t mode,
+                                                   char* buffer, size_t buffer_size);
+
+/**
+ * Return a thread-local content-unavailable error string.
+ *
+ * The returned pointer is valid until the next call to this function on the same
+ * thread. Prefer dmcp_content_unavailable_message_copy() for stable storage.
+ */
 DMCP_API const char* dmcp_content_unavailable_message(const char*     content_type,
                                                       const char*     content_name,
                                                       dmcp_gamemode_t mode);

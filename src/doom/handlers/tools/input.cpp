@@ -20,8 +20,8 @@ bool handle_tool_input(context* ctx, const json_value& params, char* response_bu
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  mcp_result_generic_t push_result = dmcp_push_input(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
-  if (push_result.code != MCP_RESULT_CODE_OK) {
+  mcp_status_t push_result = dmcp_push_input(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
+  if (push_result.code != MCP_STATUS_CODE_OK) {
     const std::string resp = build_content_response(
         push_result.message ? push_result.message : "Failed to queue input", true);
     return write_json_response(resp, response_buffer, response_size);
@@ -53,20 +53,37 @@ json_builder build_input_schema() {
   action_prop.start_object();
   action_prop.add("type", "string");
   action_prop.add("description",
-                  "Input action: fwd, back, left, right, tleft, tright, aim, atk, use, wpn");
-  props.add("a", std::move(action_prop));
+                  "Input action: forward, backward, strafe_left, strafe_right, turn_left, "
+                  "turn_right, aim, attack, use, weapon");
+  json_builder action_enum;
+  action_enum.start_array();
+  action_enum.push("forward");
+  action_enum.push("backward");
+  action_enum.push("strafe_left");
+  action_enum.push("strafe_right");
+  action_enum.push("turn_left");
+  action_enum.push("turn_right");
+  action_enum.push("aim");
+  action_enum.push("attack");
+  action_enum.push("use");
+  action_enum.push("weapon");
+  action_prop.add("enum", std::move(action_enum));
+  props.add("action", std::move(action_prop));
 
   json_builder value_prop;
   value_prop.start_object();
   value_prop.add("type", "number");
-  value_prop.add("description", "Value for aim (angle 0-360) or wpn (slot 1-7)");
-  props.add("v", std::move(value_prop));
+  value_prop.add("description",
+                 "Required for aim (angle 0-360) or weapon slot: 1=fist/chainsaw, 2=pistol, "
+                 "3=shotgun/super-shotgun, 4=chaingun, 5=rocket-launcher, 6=plasma-rifle, "
+                 "7=BFG9000");
+  props.add("value", std::move(value_prop));
 
   schema.add("properties", std::move(props));
 
   json_builder required;
   required.start_array();
-  required.push("a");
+  required.push("action");
   schema.add("required", std::move(required));
 
   return schema;

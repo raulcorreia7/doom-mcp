@@ -18,6 +18,11 @@ struct command_tool_definition {
   const char* description;
 };
 
+/*
+ * Tool annotations are advisory MCP metadata for clients. Permission gates are
+ * enforced separately before queueing commands, so hiding a tool from
+ * tools/list is not the only protection.
+ */
 struct tool_annotation_hints {
   bool read_only   = false;
   bool destructive = false;
@@ -52,7 +57,10 @@ std::string     build_map_state_json(const dmcp_snapshot_t& snapshot);
 std::string     build_game_info_json(const dmcp_snapshot_t& snapshot);
 std::string build_enemies_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
                                      std::string_view status_filter);
-std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit);
+std::string build_entities_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                      std::string_view kind_filter, std::string_view status_filter);
+std::string build_items_state_json(const dmcp_snapshot_t& snapshot, size_t offset, size_t limit,
+                                   std::string_view kind_filter);
 std::string build_inventory_state_json(const dmcp_snapshot_t& snapshot, size_t offset,
                                        size_t limit);
 bool        build_state_section_payload(const dmcp_snapshot_t& snapshot, std::string_view section,
@@ -99,6 +107,8 @@ bool handle_tool_get_enemies(context* ctx, const json_value& params, char* respo
                              size_t response_size);
 bool handle_tool_get_entities(context* ctx, const json_value& params, char* response_buffer,
                               size_t response_size);
+bool handle_tool_get_items(context* ctx, const json_value& params, char* response_buffer,
+                           size_t response_size);
 bool handle_tool_get_inventory(context* ctx, const json_value& params, char* response_buffer,
                                size_t response_size);
 bool handle_tool_get_state(context* ctx, const json_value& params, char* response_buffer,
@@ -106,20 +116,33 @@ bool handle_tool_get_state(context* ctx, const json_value& params, char* respons
 bool handle_tool_get_state_batch(context* ctx, const json_value& params, char* response_buffer,
                                  size_t response_size);
 bool handle_tool_get_screenshot(context* ctx, char* response_buffer, size_t response_size);
-bool handle_tool_execute_command(context* ctx, const json_value& params, char* response_buffer,
-                                 size_t response_size);
 bool handle_tool_get_command_result(context* ctx, const json_value& params, char* response_buffer,
                                     size_t response_size);
 bool handle_tool_get_available_content(context* ctx, const json_value& params,
                                        char* response_buffer, size_t response_size);
+bool handle_tool_get_available_enemies(context* ctx, const json_value& params,
+                                       char* response_buffer, size_t response_size);
+bool handle_tool_get_available_entities(context* ctx, const json_value& params,
+                                        char* response_buffer, size_t response_size);
+bool handle_tool_get_available_items(context* ctx, const json_value& params, char* response_buffer,
+                                     size_t response_size);
+bool handle_tool_get_available_weapons(context* ctx, const json_value& params,
+                                       char* response_buffer, size_t response_size);
+bool handle_tool_get_available_ammo(context* ctx, const json_value& params, char* response_buffer,
+                                    size_t response_size);
+bool handle_tool_get_available_keys(context* ctx, const json_value& params, char* response_buffer,
+                                    size_t response_size);
+bool handle_tool_get_available_maps(context* ctx, const json_value& params, char* response_buffer,
+                                    size_t response_size);
+bool handle_tool_get_available_giveable(context* ctx, const json_value& params,
+                                        char* response_buffer, size_t response_size);
 bool handle_tool_execute_batch(context* ctx, const json_value& params, char* response_buffer,
                                size_t response_size);
 bool handle_tool_get_command_examples(context* ctx, char* response_buffer, size_t response_size);
 bool handle_tool_input(context* ctx, const json_value& params, char* response_buffer,
                        size_t response_size);
-bool handle_tool_command_alias(context* ctx, const command_tool_definition* command_tool,
-                               const json_value& params, char* response_buffer,
-                               size_t response_size);
+bool handle_tool_command(context* ctx, const command_tool_definition* command_tool,
+                         const json_value& params, char* response_buffer, size_t response_size);
 
 // ============================================================================
 // Schema Builders
@@ -130,11 +153,11 @@ json_builder build_get_map_schema();
 json_builder build_get_game_info_schema();
 json_builder build_get_enemies_schema();
 json_builder build_get_entities_schema();
+json_builder build_get_items_schema();
 json_builder build_get_inventory_schema();
 json_builder build_get_state_schema();
 json_builder build_get_state_batch_schema();
 json_builder build_get_screenshot_schema();
-json_builder build_execute_command_schema();
 json_builder build_get_command_result_schema();
 json_builder build_get_available_content_schema();
 json_builder build_execute_batch_schema();

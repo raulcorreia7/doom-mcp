@@ -13,8 +13,6 @@
 #include "g_game.h"
 #include "m_fixed.h"
 
-extern fixed_t forwardmove[2];
-extern fixed_t sidemove[2];
 extern fixed_t angleturn[3];
 
 #define DMCP_SCHAR_MAX 127
@@ -35,8 +33,10 @@ static short dmcp_clamp_to_short(fixed_t value) {
 }
 
 static short dmcp_degrees_to_angleturn_clamped(float degrees) {
+  float result;
+
   if (!isfinite(degrees)) return 0;
-  float result = degrees * (65536.0f / 360.0f);
+  result = degrees * (65536.0f / 360.0f);
   if (result > (float)DMCP_SHORT_MAX) return DMCP_SHORT_MAX;
   if (result < (float)DMCP_SHORT_MIN) return DMCP_SHORT_MIN;
   return (short)result;

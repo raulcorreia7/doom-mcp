@@ -4,15 +4,13 @@ project(dmcp LANGUAGES C CXX VERSION 0.6.0)
 option(DMCP_BUILD_TESTS             "Build tests"                                       OFF)
 option(DMCP_BUILD_EXAMPLES          "Build example servers"                             OFF)
 option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests"                           OFF)
-option(DMCP_BUILD_ADAPTERS          "Enable bundled adapter projects"                   OFF)
-option(DMCP_BUILD_ADAPTER_FAKE      "Build fake adapter (smoke/tests)"                  ${DMCP_BUILD_ADAPTERS})
-option(DMCP_BUILD_ADAPTER_ZDOOM     "Build ZDoom adapter"                               ${DMCP_BUILD_ADAPTERS})
-option(DMCP_BUILD_ADAPTER_CRISPY    "Build Crispy Doom adapter"                         ${DMCP_BUILD_ADAPTERS})
+option(DMCP_BUILD_ADAPTER_FAKE      "Build fake adapter (smoke/tests)"                  OFF)
+option(DMCP_BUILD_ADAPTER_ZDOOM     "Build ZDoom adapter"                               OFF)
+option(DMCP_BUILD_ADAPTER_CRISPY    "Build Crispy Doom adapter"                         OFF)
 option(DMCP_BUILD_SHARED            "Build shared libraries (.so/.dll)"                 OFF)
 option(DMCP_BUILD_SINGLE_DLL        "Build unified libdmcp artifact (dmcp.so/dmcp.dll)" ON)
 option(DMCP_ENABLE_SANITIZERS       "Enable AddressSanitizer and UBSan"                 OFF)
 option(DMCP_USE_CCACHE              "Use ccache for faster rebuilds"                    ON)
-option(DMCP_INSTALL                 "Install headers and CMake package"                 ON)
 
 set(DMCP_ZDOOM_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated include directories for ZDoom SDK headers")
 set(DMCP_CRISPY_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/src" CACHE PATH
@@ -25,7 +23,7 @@ set(DMCP_CRISPY_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/build" 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(DMCP_USE_CCACHE)
@@ -36,11 +34,23 @@ if(DMCP_USE_CCACHE)
   endif()
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CPM)
 include(Dependencies)
 include(CompilerWarnings)
 include(Sanitizers)
+
+if(TARGET yyjson)
+  get_target_property(DMCP_YYJSON_SOURCE_DIR yyjson SOURCE_DIR)
+  get_target_property(DMCP_YYJSON_INCLUDE_DIRS yyjson INTERFACE_INCLUDE_DIRECTORIES)
+  if(NOT DMCP_YYJSON_INCLUDE_DIRS)
+    set(DMCP_YYJSON_INCLUDE_DIRS "${DMCP_YYJSON_SOURCE_DIR}/src")
+  endif()
+  set(DMCP_YYJSON_SOURCE "${DMCP_YYJSON_SOURCE_DIR}/src/yyjson.c")
+  if(NOT EXISTS "${DMCP_YYJSON_SOURCE}")
+    message(FATAL_ERROR "yyjson source not found: ${DMCP_YYJSON_SOURCE}")
+  endif()
+endif()
 
 # ------------------------------------------------------------------------------
 # Derived build layout + helper functions
@@ -51,6 +61,90 @@ include(DMCPBuildConfig)
 # Source discovery
 # ------------------------------------------------------------------------------
 include(DMCPSourceLists)
+
+# ------------------------------------------------------------------------------
+# MCP core foundation (version + API + status contracts)
+# ------------------------------------------------------------------------------
+add_library(dmcp_core_foundation_objs OBJECT
+  ${MCP_CORE_FOUNDATION_SOURCES}
+)
+
+target_include_directories(dmcp_core_foundation_objs
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+
+target_compile_definitions(dmcp_core_foundation_objs
+  PUBLIC
+    MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    MCP_CORE_VERSION="${PROJECT_VERSION}"
+)
+
+set_target_properties(dmcp_core_foundation_objs PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+)
+
+if(DMCP_BUILD_SHARED)
+  target_compile_definitions(dmcp_core_foundation_objs PRIVATE MCP_CORE_BUILDING)
+endif()
+
+dmcp_enable_warnings(dmcp_core_foundation_objs)
+
+if(DMCP_BUILD_SHARED_SPLIT)
+  add_library(core_foundation SHARED $<TARGET_OBJECTS:dmcp_core_foundation_objs>)
+  target_include_directories(core_foundation
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_compile_definitions(core_foundation
+    PUBLIC
+      MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+      MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+      MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+      MCP_CORE_VERSION="${PROJECT_VERSION}"
+    PRIVATE
+      MCP_CORE_BUILDING
+  )
+  set_target_properties(core_foundation PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME mcp_core
+  )
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    target_link_options(core_foundation PRIVATE
+      "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_core_foundation.version"
+    )
+  endif()
+  dmcp_enable_warnings(core_foundation)
+endif()
+
+if(NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS OR DMCP_BUILD_SHARED_SPLIT)
+  add_library(core_foundation_static STATIC $<TARGET_OBJECTS:dmcp_core_foundation_objs>)
+  target_include_directories(core_foundation_static
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_compile_definitions(core_foundation_static
+    PUBLIC
+      MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+      MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+      MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+      MCP_CORE_VERSION="${PROJECT_VERSION}"
+      MCP_CORE_STATIC
+  )
+  set_target_properties(core_foundation_static PROPERTIES
+    OUTPUT_NAME mcp_core
+    POSITION_INDEPENDENT_CODE ON
+  )
+  dmcp_enable_warnings(core_foundation_static)
+endif()
 
 # ------------------------------------------------------------------------------
 # Generic MCP layer (protocol + HTTP/SSE transport)
@@ -65,6 +159,9 @@ target_include_directories(dmcp_generic_objs
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
+if(DMCP_YYJSON_INCLUDE_DIRS)
+  target_include_directories(dmcp_generic_objs SYSTEM PRIVATE ${DMCP_YYJSON_INCLUDE_DIRS})
+endif()
 
 target_compile_definitions(dmcp_generic_objs
   PUBLIC
@@ -84,10 +181,6 @@ if(DMCP_BUILD_SHARED)
   target_compile_definitions(dmcp_generic_objs PRIVATE MCP_BUILDING)
 endif()
 
-target_link_libraries(dmcp_generic_objs
-  PRIVATE yyjson
-)
-
 dmcp_enable_warnings(dmcp_generic_objs)
 
 if(TARGET httplib::httplib)
@@ -99,7 +192,7 @@ endif()
 
 if(DMCP_BUILD_SHARED_SPLIT)
   add_library(generic SHARED $<TARGET_OBJECTS:dmcp_generic_objs>)
-  target_link_libraries(generic PRIVATE yyjson)
+  target_link_libraries(generic PUBLIC core_foundation PRIVATE yyjson)
   target_include_directories(generic
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -131,8 +224,14 @@ if(DMCP_BUILD_SHARED_SPLIT)
 endif()
 
 if(DMCP_BUILD_GENERIC_STATIC)
-  add_library(generic_static STATIC $<TARGET_OBJECTS:dmcp_generic_objs>)
-  target_link_libraries(generic_static PRIVATE yyjson)
+  add_library(generic_static STATIC
+    $<TARGET_OBJECTS:dmcp_generic_objs>
+    ${DMCP_YYJSON_SOURCE}
+  )
+  target_link_libraries(generic_static PUBLIC core_foundation_static)
+  if(DMCP_YYJSON_INCLUDE_DIRS)
+    target_include_directories(generic_static SYSTEM PRIVATE ${DMCP_YYJSON_INCLUDE_DIRS})
+  endif()
   target_include_directories(generic_static
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -156,6 +255,77 @@ if(DMCP_BUILD_GENERIC_STATIC)
 endif()
 
 # ------------------------------------------------------------------------------
+# Generic game integration layer (game-agnostic registration helpers)
+# ------------------------------------------------------------------------------
+add_library(dmcp_game_objs OBJECT
+  ${MCP_GAME_SOURCES}
+)
+
+target_include_directories(dmcp_game_objs
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(dmcp_game_objs PUBLIC dmcp_generic_objs)
+
+set_target_properties(dmcp_game_objs PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+)
+
+if(DMCP_BUILD_SHARED)
+  target_compile_definitions(dmcp_game_objs PRIVATE MCP_GAME_BUILDING)
+endif()
+
+dmcp_enable_warnings(dmcp_game_objs)
+
+if(DMCP_BUILD_SHARED_SPLIT)
+  add_library(game SHARED $<TARGET_OBJECTS:dmcp_game_objs>)
+  target_link_libraries(game PUBLIC generic)
+  target_include_directories(game
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(game PRIVATE MCP_GAME_BUILDING)
+  set_target_properties(game PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME mcp_game
+  )
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    target_link_options(game PRIVATE
+      "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_game.version"
+    )
+  endif()
+  dmcp_enable_warnings(game)
+endif()
+
+if(DMCP_BUILD_GENERIC_STATIC)
+  add_library(game_static STATIC $<TARGET_OBJECTS:dmcp_game_objs>)
+  target_link_libraries(game_static PUBLIC generic_static)
+  target_include_directories(game_static
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(game_static PUBLIC MCP_GAME_STATIC)
+  set_target_properties(game_static PROPERTIES
+    OUTPUT_NAME mcp_game
+    POSITION_INDEPENDENT_CODE ON
+  )
+  dmcp_enable_warnings(game_static)
+endif()
+
+# ------------------------------------------------------------------------------
 # Doom MCP layer (game-specific handlers and orchestration)
 # ------------------------------------------------------------------------------
 add_library(dmcp_core_objs OBJECT ${DMCP_CORE_SOURCES})
@@ -167,7 +337,7 @@ target_include_directories(dmcp_core_objs
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
-target_link_libraries(dmcp_core_objs PUBLIC dmcp_generic_objs PRIVATE yyjson)
+target_link_libraries(dmcp_core_objs PUBLIC dmcp_game_objs)
 
 target_compile_definitions(dmcp_core_objs
   PUBLIC
@@ -182,17 +352,18 @@ set_target_properties(dmcp_core_objs PROPERTIES
   POSITION_INDEPENDENT_CODE ON
 )
 
-if(DMCP_BUILD_SHARED)
-  # Core links generic_static into the same shared object; force direct
-  # symbol references instead of importing mcp symbols from dmcp_generic.dll.
+if(DMCP_BUILD_SHARED_SINGLE)
+  # The single shared runtime embeds the lower MCP layers in libdmcp.
   target_compile_definitions(dmcp_core_objs PRIVATE DMCP_BUILDING MCP_STATIC)
+elseif(DMCP_BUILD_SHARED_SPLIT)
+  target_compile_definitions(dmcp_core_objs PRIVATE DMCP_BUILDING)
 endif()
 
 dmcp_enable_warnings(dmcp_core_objs)
 
 if(DMCP_BUILD_SHARED_SPLIT)
   add_library(core SHARED $<TARGET_OBJECTS:dmcp_core_objs>)
-  target_link_libraries(core PRIVATE generic_static yyjson)
+  target_link_libraries(core PUBLIC game)
   target_include_directories(core
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -224,7 +395,7 @@ endif()
 
 if(DMCP_BUILD_CORE_STATIC)
   add_library(core_static STATIC $<TARGET_OBJECTS:dmcp_core_objs>)
-  target_link_libraries(core_static PUBLIC generic_static)
+  target_link_libraries(core_static PUBLIC game_static)
   target_include_directories(core_static
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -252,7 +423,9 @@ endif()
 if(DMCP_BUILD_SINGLE_DLL)
   if(DMCP_BUILD_SHARED_SINGLE)
     add_library(single SHARED
+      $<TARGET_OBJECTS:dmcp_core_foundation_objs>
       $<TARGET_OBJECTS:dmcp_generic_objs>
+      $<TARGET_OBJECTS:dmcp_game_objs>
       $<TARGET_OBJECTS:dmcp_core_objs>
     )
     add_library(dmcp::single ALIAS single)
@@ -273,7 +446,12 @@ if(DMCP_BUILD_SINGLE_DLL)
         DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
         DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
         DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        MCP_CORE_VERSION="${PROJECT_VERSION}"
       PRIVATE
+        MCP_CORE_BUILDING
         MCP_BUILDING
         DMCP_BUILDING
     )
@@ -283,18 +461,28 @@ if(DMCP_BUILD_SINGLE_DLL)
       POSITION_INDEPENDENT_CODE ON
       OUTPUT_NAME dmcp
     )
+    if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+      target_link_options(single PRIVATE
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp_single.version"
+      )
+    endif()
     dmcp_enable_warnings(single)
   endif()
 
   if(DMCP_BUILD_SINGLE_STATIC)
     add_library(single_static STATIC
+      $<TARGET_OBJECTS:dmcp_core_foundation_objs>
       $<TARGET_OBJECTS:dmcp_generic_objs>
+      $<TARGET_OBJECTS:dmcp_game_objs>
       $<TARGET_OBJECTS:dmcp_core_objs>
+      ${DMCP_YYJSON_SOURCE}
     )
     if(NOT TARGET dmcp::single)
       add_library(dmcp::single ALIAS single_static)
     endif()
-    target_link_libraries(single_static PRIVATE yyjson)
+    if(DMCP_YYJSON_INCLUDE_DIRS)
+      target_include_directories(single_static SYSTEM PRIVATE ${DMCP_YYJSON_INCLUDE_DIRS})
+    endif()
     target_include_directories(single_static
       PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -311,6 +499,11 @@ if(DMCP_BUILD_SINGLE_DLL)
         DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
         DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
         DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        MCP_CORE_VERSION="${PROJECT_VERSION}"
+        MCP_CORE_STATIC
         MCP_STATIC
         DMCP_STATIC
     )
@@ -347,6 +540,32 @@ if(NOT TARGET dmcp::single)
     add_library(dmcp::single ALIAS core)
   elseif(TARGET core_static)
     add_library(dmcp::single ALIAS core_static)
+  endif()
+endif()
+
+if(DMCP_BUILD_SHARED)
+  if(DMCP_BUILD_SINGLE_DLL)
+    add_library(mcp::core ALIAS single)
+    add_library(mcp::generic ALIAS single)
+    add_library(mcp::game ALIAS single)
+    add_library(dmcp::doom ALIAS single)
+    add_library(dmcp::runtime ALIAS single)
+  else()
+    add_library(mcp::core ALIAS core_foundation)
+    add_library(mcp::generic ALIAS generic)
+    add_library(mcp::game ALIAS game)
+    add_library(dmcp::doom ALIAS core)
+    add_library(dmcp::runtime ALIAS core)
+  endif()
+else()
+  add_library(mcp::core ALIAS core_foundation_static)
+  add_library(mcp::generic ALIAS generic_static)
+  add_library(mcp::game ALIAS game_static)
+  add_library(dmcp::doom ALIAS core_static)
+  if(TARGET single_static)
+    add_library(dmcp::runtime ALIAS single_static)
+  else()
+    add_library(dmcp::runtime ALIAS core_static)
   endif()
 endif()
 
@@ -391,7 +610,9 @@ endif()
 # ------------------------------------------------------------------------------
 # Sanitizers and executable hardening
 # ------------------------------------------------------------------------------
-foreach(dmcp_sanitize_target IN ITEMS generic core single generic_static core_static single_static)
+foreach(dmcp_sanitize_target IN ITEMS
+    core_foundation generic game core single
+    core_foundation_static generic_static game_static core_static single_static)
   if(TARGET ${dmcp_sanitize_target})
     dmcp_enable_sanitizers(${dmcp_sanitize_target})
   endif()
@@ -402,93 +623,11 @@ if(DMCP_ENABLE_SANITIZERS AND DMCP_BUILD_EXAMPLES AND NOT MSVC)
   target_link_options(dummy_server PRIVATE -fsanitize=address,undefined)
 endif()
 
-# ------------------------------------------------------------------------------
-# Install/export package configuration
-# ------------------------------------------------------------------------------
-if(DMCP_INSTALL)
-  include(GNUInstallDirs)
-  include(CMakePackageConfigHelpers)
-
-  install(
-    DIRECTORY include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  )
-
-  set(dmcp_install_targets "")
-  if(DMCP_BUILD_SHARED)
-    dmcp_append_existing_targets(dmcp_install_targets single generic core)
-  else()
-    dmcp_append_existing_targets(dmcp_install_targets single_static core_static generic_static)
-  endif()
-  dmcp_append_existing_targets(dmcp_install_targets adapter_crispy adapter_fake adapter_zdoom)
-
-  foreach(dmcp_target IN LISTS dmcp_install_targets)
-    install(
-      TARGETS ${dmcp_target}
-      EXPORT dmcp-targets
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
-  endforeach()
-
-  install(
-    EXPORT dmcp-targets
-    FILE dmcp-targets.cmake
-    NAMESPACE dmcp::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
-  )
-
-  configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dmcp-config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
-  )
-
-  write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config-version.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-  )
-
-  install(
-    FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config.cmake
-      ${CMAKE_CURRENT_BINARY_DIR}/dmcp-config-version.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dmcp
-  )
-endif()
-
-# Export build-tree targets for static-only local consumers.
-# Shared builds are consumed from install tree.
-if(NOT DMCP_BUILD_SHARED)
-  if(TARGET generic_static)
-    export(TARGETS generic_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-  if(TARGET core_static)
-    export(TARGETS core_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-  if(TARGET single_static)
-    export(TARGETS single_static FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-  if(TARGET adapter_zdoom)
-    export(TARGETS adapter_zdoom FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-  if(TARGET adapter_crispy)
-    export(TARGETS adapter_crispy FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-  if(TARGET adapter_fake)
-    export(TARGETS adapter_fake FILE "${CMAKE_CURRENT_BINARY_DIR}/dmcp-targets.cmake" APPEND)
-  endif()
-endif()
-
 message(STATUS "")
 message(STATUS "DMCP ${PROJECT_VERSION}")
 message(STATUS "  Examples: ${DMCP_BUILD_EXAMPLES}")
 message(STATUS "  Tests: ${DMCP_BUILD_TESTS}")
 message(STATUS "  Integration tests: ${DMCP_BUILD_INTEGRATION_TESTS}")
-message(STATUS "  Bundled adapters: ${DMCP_BUILD_ADAPTERS}")
 message(STATUS "  Fake Adapter: ${DMCP_BUILD_ADAPTER_FAKE}")
 message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
 message(STATUS "  Crispy Adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
@@ -501,6 +640,5 @@ if(DMCP_BUILD_SHARED)
     message(STATUS "  Shared layout: split (libdmcp_generic + libdmcp_core)")
   endif()
 endif()
-message(STATUS "  Install package: ${DMCP_INSTALL}")
 message(STATUS "  Sanitizers: ${DMCP_ENABLE_SANITIZERS}")
 message(STATUS "")

@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdarg>
-#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -21,6 +20,7 @@
 #include "json/json.hpp"
 #include "mcp/generic/constants.h"
 #include "mcp/generic/transport.h"
+#include "mcp/json_rpc.hpp"
 #include "mcp/request_context.hpp"
 
 namespace mcp {
@@ -61,7 +61,8 @@ struct Server {
   mcp_server_config_t config;
 
   // Transport
-  mcp_transport_t* transport;
+  const mcp_transport_interface_t* transport_api = nullptr;
+  mcp_transport_t*                 transport     = nullptr;
 
   // Method handlers
   std::unordered_map<std::string, MethodHandler> methods;
@@ -73,9 +74,9 @@ struct Server {
 
   // Sessions (per-client lifecycle state)
   std::unordered_map<std::string, std::shared_ptr<Session>> sessions;
-  std::mutex                                                  sessions_mutex;
-  std::mt19937                                                rng;
-  std::mutex                                                  rng_mutex;
+  std::mutex                                                sessions_mutex;
+  std::mt19937                                              rng;
+  std::mutex                                                rng_mutex;
 
   // Statistics
   std::atomic<uint64_t> connected_clients{0};
@@ -86,7 +87,6 @@ struct Server {
 
   // State
   std::atomic<bool> running{false};
-  bool              allow_implicit_session{false};
 };
 
 static constexpr int kJsonRpcServerNotInitialized = -32002;
@@ -113,18 +113,6 @@ static std::shared_ptr<Session> FindSessionById(Server* server, std::string_view
   return nullptr;
 }
 
-static std::shared_ptr<Session> FindSingleSession(Server* server) {
-  if (!server) {
-    return nullptr;
-  }
-
-  std::lock_guard<std::mutex> lock(server->sessions_mutex);
-  if (server->sessions.size() != 1) {
-    return nullptr;
-  }
-  return server->sessions.begin()->second;
-}
-
 static std::shared_ptr<Session> CreateSession(Server* server, std::string& out_session_id) {
   if (!server) {
     return nullptr;
@@ -142,42 +130,13 @@ static std::shared_ptr<Session> CreateSession(Server* server, std::string& out_s
     session->id         = candidate;
     session->created_at = std::chrono::steady_clock::now();
 
-    out_session_id               = candidate;
-    server->sessions[candidate]  = session;
+    out_session_id              = candidate;
+    server->sessions[candidate] = session;
     return session;
   }
 
   out_session_id.clear();
   return nullptr;
-}
-
-static std::shared_ptr<Session> ResolveSessionForRequest(Server* server,
-                                                         std::string* inout_session_id,
-                                                         bool* out_used_implicit_lookup) {
-  if (out_used_implicit_lookup) {
-    *out_used_implicit_lookup = false;
-  }
-  if (!server || !inout_session_id) {
-    return nullptr;
-  }
-
-  if (!inout_session_id->empty()) {
-    return FindSessionById(server, *inout_session_id);
-  }
-
-  if (!server->allow_implicit_session) {
-    return nullptr;
-  }
-
-  auto session = FindSingleSession(server);
-  if (session && !session->id.empty()) {
-    *inout_session_id = session->id;
-    if (out_used_implicit_lookup) {
-      *out_used_implicit_lookup = true;
-    }
-  }
-
-  return session;
 }
 
 static std::string ExtractSessionId(const Value& params) {
@@ -213,18 +172,6 @@ static void ServerLog(const Server* server, int level, const char* fmt, ...) {
   server->config.on_log(server->config.log_user_data, level, buffer);
 }
 
-static bool ParseJsonObject(std::string_view json, Document* out_doc) {
-  if (!out_doc) {
-    return false;
-  }
-
-  if (!out_doc->parse(json)) {
-    return false;
-  }
-
-  return out_doc->root().is_object();
-}
-
 static std::string NormalizeHttpMethod(std::string_view method) {
   std::string out(method);
   for (char& c : out) {
@@ -254,181 +201,6 @@ static std::string BuildRouteKey(std::string_view method, std::string_view path)
 static bool IsReservedRouteKey(std::string_view route_key) {
   return route_key == BuildRouteKey("POST", MCP_ENDPOINT_MCP) ||
          route_key == BuildRouteKey("GET", MCP_ENDPOINT_HEALTH);
-}
-
-static std::string BuildJsonRpcResult(std::string_view id_json, std::string_view result_json) {
-  Document response_doc;
-  response_doc.create_object();
-  Value response_root = response_doc.root();
-  response_root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
-
-  Document    id_doc;
-  std::string id_envelope = "{\"id\":";
-  id_envelope += id_json.empty() ? "null" : std::string(id_json);
-  id_envelope += "}";
-
-  if (ParseJsonObject(id_envelope, &id_doc)) {
-    response_root.set_member("id", id_doc.root()["id"]);
-  } else {
-    Document null_id_doc;
-    null_id_doc.parse("{\"id\":null}");
-    response_root.set_member("id", null_id_doc.root()["id"]);
-  }
-
-  Document    result_doc;
-  std::string result_part = result_json.empty() ? "{}" : std::string(result_json);
-  if (result_doc.parse(result_part)) {
-    response_root.set_member("result", result_doc.root());
-  } else {
-    Document empty;
-    empty.create_object();
-    response_root.set_member("result", empty.root());
-  }
-
-  return response_doc.dump(false);
-}
-
-static std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_view message,
-                                     std::string_view data_json = {}) {
-  Document response_doc;
-  response_doc.create_object();
-  Value response_root = response_doc.root();
-  response_root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
-
-  Document    id_doc;
-  std::string id_envelope = "{\"id\":";
-  id_envelope += id_json.empty() ? "null" : std::string(id_json);
-  id_envelope += "}";
-
-  if (ParseJsonObject(id_envelope, &id_doc)) {
-    response_root.set_member("id", id_doc.root()["id"]);
-  } else {
-    Document null_id_doc;
-    null_id_doc.parse("{\"id\":null}");
-    response_root.set_member("id", null_id_doc.root()["id"]);
-  }
-
-  Document error_doc;
-  error_doc.create_object();
-  Value error_root = error_doc.root();
-  error_root.set_member("code", static_cast<int64_t>(code));
-  error_root.set_member("message", message);
-
-  if (!data_json.empty()) {
-    Document data_doc;
-    if (data_doc.parse(std::string(data_json))) {
-      error_root.set_member("data", data_doc.root());
-    }
-  }
-
-  response_root.set_member("error", error_root);
-
-  return response_doc.dump(false);
-}
-
-static bool IsValidJson(const std::string& json) {
-  Document doc;
-  return doc.parse(json);
-}
-
-static bool IsJsonRpcResponseEnvelope(const std::string& json) {
-  Document doc;
-  if (!doc.parse(json)) {
-    return false;
-  }
-
-  Value root = doc.root();
-  if (!root.is_object()) {
-    return false;
-  }
-
-  if (std::string(root["jsonrpc"].get_string()) != MCP_JSONRPC_VERSION) {
-    return false;
-  }
-
-  return root.has_member("result") || root.has_member("error");
-}
-
-static bool IsJsonRpcMessage(const std::string& json) {
-  Document doc;
-  if (!doc.parse(json)) {
-    return false;
-  }
-
-  Value root = doc.root();
-  if (!root.is_object()) {
-    return false;
-  }
-
-  if (std::string(root["jsonrpc"].get_string()) != MCP_JSONRPC_VERSION) {
-    return false;
-  }
-
-  if (root.has_member("method") && root["method"].is_string()) {
-    return true;
-  }
-
-  return root.has_member("result") || root.has_member("error");
-}
-
-static bool IsValidJsonRpcId(const Value& id_value) {
-  if (!id_value) return false;
-  return id_value.is_string() || id_value.is_number() || id_value.is_null();
-}
-
-static std::string FormatSseMessage(std::string_view json_payload) {
-  std::string message = "event: message\n";
-
-  if (json_payload.empty()) {
-    message += "data: {}\n\n";
-    return message;
-  }
-
-  std::string payload(json_payload);
-  {
-    Document payload_doc;
-    if (payload_doc.parse(payload)) {
-      payload = payload_doc.dump(true);
-    }
-  }
-
-  size_t start = 0;
-
-  while (start <= payload.size()) {
-    size_t end = payload.find('\n', start);
-    if (end == std::string::npos) {
-      end = payload.size();
-    }
-
-    message += "data: ";
-    message.append(payload, start, end - start);
-    message += "\n";
-
-    if (end == payload.size()) {
-      break;
-    }
-    start = end + 1;
-  }
-
-  message += "\n";
-  return message;
-}
-
-static std::string BuildJsonRpcNotification(std::string_view method, std::string_view params_json) {
-  Document notif_doc;
-  notif_doc.create_object();
-  Value root = notif_doc.root();
-  root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
-  root.set_member("method", method);
-
-  if (!params_json.empty()) {
-    Document params_doc;
-    if (params_doc.parse(std::string(params_json))) {
-      root.set_member("params", params_doc.root());
-    }
-  }
-
-  return notif_doc.dump(false);
 }
 
 static constexpr std::array<std::string_view, 4> kSupportedProtocolVersions = {
@@ -586,7 +358,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return true;
     }
 
-    Value protocol_version = params["protocolVersion"];
+    Value       protocol_version = params["protocolVersion"];
     std::string requested_version;
     if (protocol_version.is_string()) {
       requested_version = std::string(protocol_version.get_string(""));
@@ -642,7 +414,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return true;
     }
 
-    std::string            session_id;
+    std::string              session_id;
     std::shared_ptr<Session> session = CreateSession(server, session_id);
     if (!session) {
       const std::string resp = BuildJsonRpcError(id_json, -32603, "Failed to create session");
@@ -680,7 +452,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
 
     Builder info;
     info.start_object();
-    info.add("name", server->config.server_name[0] ? server->config.server_name : "doom-mcp");
+    info.add("name", server->config.server_name[0] ? server->config.server_name : "mcp-server");
     info.add("version", MCP_SERVER_VERSION);
     b.add("serverInfo", info);
 
@@ -700,9 +472,8 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   if (method == "notifications/initialized") {
     ServerLog(server, MCP_LOG_INFO, "MCP notifications/initialized received");
 
-    std::string session_id = ExtractSessionId(req["params"]);
-    const std::shared_ptr<Session> session =
-        ResolveSessionForRequest(server, &session_id, nullptr);
+    std::string                    session_id = ExtractSessionId(req["params"]);
+    const std::shared_ptr<Session> session    = FindSessionById(server, session_id);
 
     if (!session || !session->initialize_completed.load(std::memory_order_acquire)) {
       if (is_notification) {
@@ -742,10 +513,8 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     return true;
   }
 
-  std::string session_id      = ExtractSessionId(req["params"]);
-  bool        used_implicit_session = false;
-  const std::shared_ptr<Session> session =
-      ResolveSessionForRequest(server, &session_id, &used_implicit_session);
+  std::string                    session_id = ExtractSessionId(req["params"]);
+  const std::shared_ptr<Session> session    = FindSessionById(server, session_id);
 
   if (!session || !session->initialize_completed.load(std::memory_order_acquire) ||
       (session->requires_initialized_notification.load(std::memory_order_acquire) &&
@@ -773,11 +542,6 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
     return true;
   }
 
-  if (used_implicit_session) {
-    ServerLog(server, MCP_LOG_DEBUG, "Resolved request to sole active session=%s for method=%s",
-              session->id.c_str(), method.c_str());
-  }
-
   request_context::set_response_protocol_version(session->protocol_version);
   request_context::set_response_session_id(session->id);
 
@@ -799,47 +563,54 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   }
 
   // Try registered handlers
-  bool handled = false;
+  bool          handled = false;
+  MethodHandler handler{};
+  bool          found_handler = false;
   {
     std::lock_guard<std::mutex> lock(server->methods_mutex);
     auto                        it = server->methods.find(method);
     if (it != server->methods.end()) {
-      ServerLog(server, MCP_LOG_DEBUG, "Method found in registry: %s", method.c_str());
-      Value params = req["params"];
-      char  handler_response[MCP_BUFFER_SIZE_DEFAULT];
+      handler       = it->second;
+      found_handler = true;
+    }
+  }
 
-      std::string params_str = params ? params.dump() : "{}";
+  if (found_handler) {
+    ServerLog(server, MCP_LOG_DEBUG, "Method found in registry: %s", method.c_str());
+    Value params = req["params"];
+    char  handler_response[MCP_BUFFER_SIZE_DEFAULT];
 
-      if (it->second.fn(it->second.user_data, method.c_str(), params_str.c_str(), handler_response,
-                        sizeof(handler_response))) {
-        if (is_notification) {
-          *http_status       = 202;
-          response_buffer[0] = '\0';
-          server->requests_handled++;
-          return true;
-        }
+    std::string params_str = params ? params.dump() : "{}";
 
-        std::string handler_json(handler_response);
-        std::string resp;
-
-        if (IsJsonRpcResponseEnvelope(handler_json)) {
-          resp = std::move(handler_json);
-        } else if (IsValidJson(handler_json)) {
-          resp = BuildJsonRpcResult(id_json, handler_json);
-        } else {
-          ServerLog(server, MCP_LOG_ERROR, "Handler returned invalid JSON for method=%s",
-                    method.c_str());
-          resp = BuildJsonRpcError(id_json, -32603, "Internal error");
-        }
-
-        if (resp.size() >= response_size) {
-          *http_status = 500;
-          return false;
-        }
-
-        std::strcpy(response_buffer, resp.c_str());
-        handled = true;
+    if (handler.fn(handler.user_data, method.c_str(), params_str.c_str(), handler_response,
+                   sizeof(handler_response))) {
+      if (is_notification) {
+        *http_status       = 202;
+        response_buffer[0] = '\0';
+        server->requests_handled++;
+        return true;
       }
+
+      std::string handler_json(handler_response);
+      std::string resp;
+
+      if (IsJsonRpcResponseEnvelope(handler_json)) {
+        resp = std::move(handler_json);
+      } else if (IsValidJson(handler_json)) {
+        resp = BuildJsonRpcResult(id_json, handler_json);
+      } else {
+        ServerLog(server, MCP_LOG_ERROR, "Handler returned invalid JSON for method=%s",
+                  method.c_str());
+        resp = BuildJsonRpcError(id_json, -32603, "Internal error");
+      }
+
+      if (resp.size() >= response_size) {
+        *http_status = 500;
+        return false;
+      }
+
+      std::strcpy(response_buffer, resp.c_str());
+      handled = true;
     }
   }
 
@@ -934,8 +705,21 @@ static bool DispatchHttpRoute(Server* server, const char* method, const char* pa
     return false;
   }
 
-  return handler.fn(handler.user_data, method, path, body, response_buffer, response_size,
-                    http_status);
+  const bool handled = handler.fn(handler.user_data, method, path, body, response_buffer,
+                                  response_size, http_status);
+  if (!handled && *http_status >= 500) {
+    if (response_buffer[0] == '\0' && response_size > 0) {
+      const char* payload =
+          "{\"error\":{\"code\":\"internal_error\",\"message\":\"Internal "
+          "server error\"}}";
+      if (std::strlen(payload) < response_size) {
+        std::strcpy(response_buffer, payload);
+      }
+    }
+    return true;
+  }
+
+  return handled;
 }
 
 // ============================================================================
@@ -993,14 +777,16 @@ static void OnSseDisconnect(void* user_data, void* client_handle) {
 extern "C" {
 
 mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
-  auto* server = new mcp::Server();
+  auto server = std::make_unique<mcp::Server>();
 
-  server->config = config ? *config : mcp_default_config();
-  if (const char* env_allow_implicit = std::getenv("DMCP_ALLOW_IMPLICIT_SESSION");
-      env_allow_implicit && env_allow_implicit[0] == '1') {
-    server->allow_implicit_session = true;
+  server->config = mcp_default_config();
+  if (config) {
+    size_t copy_size = config->struct_size;
+    if (copy_size == 0 || copy_size > sizeof(mcp_server_config_t)) {
+      copy_size = sizeof(mcp_server_config_t);
+    }
+    std::memcpy(&server->config, config, copy_size);
   }
-
   // Seed RNG for session ID generation
   {
     std::random_device          rd;
@@ -1010,56 +796,79 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
 
   {
     std::lock_guard<std::mutex> lock(server->routes_mutex);
-    server->routes[mcp::BuildRouteKey("POST", MCP_ENDPOINT_MCP)]   = {mcp::HandleRouteMcp, server};
+    server->routes[mcp::BuildRouteKey("POST", MCP_ENDPOINT_MCP)]   = {mcp::HandleRouteMcp,
+                                                                      server.get()};
     server->routes[mcp::BuildRouteKey("GET", MCP_ENDPOINT_HEALTH)] = {mcp::HandleRouteHealth,
-                                                                      server};
+                                                                      server.get()};
+  }
+
+  if (!server->config.start_transport) {
+    mcp::ServerLog(server.get(), MCP_LOG_INFO, "MCP server created without HTTP/SSE transport");
+    return reinterpret_cast<mcp_server_t*>(server.release());
   }
 
   // Initialize transport callbacks
   mcp_transport_callbacks_t callbacks = {};
   callbacks.struct_size               = sizeof(mcp_transport_callbacks_t);
+  callbacks.max_payload_size          = server->config.max_payload_size;
   callbacks.on_http_request           = mcp::OnHttpRequest;
   callbacks.on_sse_connect            = mcp::OnSseConnect;
   callbacks.on_sse_disconnect         = mcp::OnSseDisconnect;
 
-  // Create SSE transport
-  server->transport = mcp_sse_transport.create(server->config.port, &callbacks, server);
+  const mcp_transport_interface_t* transport_api =
+      server->config.transport ? server->config.transport : &mcp_sse_transport;
 
-  if (!server->transport) {
-    mcp::ServerLog(server, MCP_LOG_ERROR, "Failed to create transport=%s port=%u",
-                   mcp_sse_transport.name, server->config.port);
-    delete server;
+  if (!transport_api->create || !transport_api->destroy || !transport_api->start ||
+      !transport_api->stop || !transport_api->is_running || !transport_api->broadcast ||
+      !transport_api->get_client_count) {
+    mcp::ServerLog(server.get(), MCP_LOG_ERROR, "Invalid MCP transport implementation");
     return nullptr;
   }
 
-  if (!mcp_sse_transport.start(server->transport)) {
-    mcp::ServerLog(server, MCP_LOG_ERROR, "Failed to start transport=%s port=%u",
-                   mcp_sse_transport.name, server->config.port);
-    mcp_sse_transport.destroy(server->transport);
-    delete server;
+  server->transport_api = transport_api;
+
+  auto transport_deleter = [transport_api](mcp_transport_t* transport) {
+    if (transport) {
+      transport_api->destroy(transport);
+    }
+  };
+  std::unique_ptr<mcp_transport_t, decltype(transport_deleter)> transport(
+      transport_api->create(server->config.port, &callbacks, server.get()), transport_deleter);
+
+  if (!transport) {
+    mcp::ServerLog(server.get(), MCP_LOG_ERROR, "Failed to create transport=%s port=%u",
+                   transport_api->name ? transport_api->name : "unknown", server->config.port);
     return nullptr;
   }
 
-  server->running = true;
-  mcp::ServerLog(server, MCP_LOG_INFO, "MCP server started on port=%u transport=%s",
-                 server->config.port, mcp_sse_transport.name);
-  return reinterpret_cast<mcp_server_t*>(server);
+  server->transport = transport.get();
+  if (!transport_api->start(server->transport)) {
+    server->transport = nullptr;
+    mcp::ServerLog(server.get(), MCP_LOG_ERROR, "Failed to start transport=%s port=%u",
+                   transport_api->name ? transport_api->name : "unknown", server->config.port);
+    return nullptr;
+  }
+
+  server->transport = transport.release();
+  server->running   = true;
+  mcp::ServerLog(server.get(), MCP_LOG_INFO, "MCP server started on port=%u transport=%s",
+                 server->config.port, transport_api->name ? transport_api->name : "unknown");
+  return reinterpret_cast<mcp_server_t*>(server.release());
 }
 
 void mcp_server_destroy(mcp_server_t* server_handle) {
   if (!server_handle) return;
-  auto* server = reinterpret_cast<mcp::Server*>(server_handle);
+  std::unique_ptr<mcp::Server> server(reinterpret_cast<mcp::Server*>(server_handle));
 
-  mcp::ServerLog(server, MCP_LOG_INFO, "MCP server shutting down");
+  mcp::ServerLog(server.get(), MCP_LOG_INFO, "MCP server shutting down");
 
   if (server->transport) {
-    mcp_sse_transport.stop(server->transport);
-    mcp_sse_transport.destroy(server->transport);
+    server->transport_api->stop(server->transport);
+    server->transport_api->destroy(server->transport);
+    server->transport = nullptr;
   }
 
   server->running.store(false, std::memory_order_release);
-
-  delete server;
 }
 
 bool mcp_server_is_running(const mcp_server_t* server_handle) {
@@ -1070,27 +879,27 @@ bool mcp_server_is_running(const mcp_server_t* server_handle) {
     return false;
   }
 
-  return mcp_sse_transport.is_running(server->transport);
+  return server->transport_api && server->transport_api->is_running(server->transport);
 }
 
-mcp_result_t mcp_server_route_register(mcp_server_t* server_handle, const char* method,
+mcp_status_t mcp_server_route_register(mcp_server_t* server_handle, const char* method,
                                        const char* path, mcp_route_handler_t handler,
                                        void* user_data) {
   if (!server_handle || !method || !path || !handler) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto*       server = reinterpret_cast<mcp::Server*>(server_handle);
   std::string key    = mcp::BuildRouteKey(method, path);
 
   if (mcp::IsReservedRouteKey(key)) {
-    return MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Reserved route");
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Reserved route");
   }
 
   std::lock_guard<std::mutex> lock(server->routes_mutex);
   server->routes[key] = {handler, user_data};
   mcp::ServerLog(server, MCP_LOG_DEBUG, "Registered route=%s %s", method, path);
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 void mcp_server_route_unregister(mcp_server_t* server_handle, const char* method,
@@ -1108,10 +917,10 @@ void mcp_server_route_unregister(mcp_server_t* server_handle, const char* method
   mcp::ServerLog(server, MCP_LOG_DEBUG, "Unregistered route=%s %s", method, path);
 }
 
-mcp_result_t mcp_server_method_register(mcp_server_t* server_handle, const char* method,
+mcp_status_t mcp_server_method_register(mcp_server_t* server_handle, const char* method,
                                         mcp_method_handler_t handler, void* user_data) {
   if (!server_handle || !method || !handler) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto*                       server = reinterpret_cast<mcp::Server*>(server_handle);
@@ -1119,30 +928,33 @@ mcp_result_t mcp_server_method_register(mcp_server_t* server_handle, const char*
 
   server->methods[method] = {handler, user_data};
   mcp::ServerLog(server, MCP_LOG_DEBUG, "Registered method=%s", method);
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
-mcp_result_t mcp_server_methods_register(mcp_server_t*                    server_handle,
+mcp_status_t mcp_server_methods_register(mcp_server_t*                    server_handle,
                                          const mcp_method_registration_t* methods, size_t count) {
   if (!server_handle || (count > 0 && !methods)) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   auto* server = reinterpret_cast<mcp::Server*>(server_handle);
 
   std::lock_guard<std::mutex> lock(server->methods_mutex);
 
+  for (size_t i = 0; i < count; ++i) {
+    if (!methods[i].method || !methods[i].handler) {
+      return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
+    }
+  }
+
   server->methods.reserve(server->methods.size() + count);
 
   for (size_t i = 0; i < count; ++i) {
-    if (!methods[i].method || !methods[i].handler) {
-      return MCP_ERROR_INVALID_ARGS;
-    }
     server->methods[methods[i].method] = {methods[i].handler, methods[i].user_data};
     mcp::ServerLog(server, MCP_LOG_DEBUG, "Registered method (batch)=%s", methods[i].method);
   }
 
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 void mcp_server_method_unregister(mcp_server_t* server_handle, const char* method) {
@@ -1168,14 +980,14 @@ void mcp_server_event_broadcast(mcp_server_t* server_handle, const char* event_t
     message_json       = mcp::BuildJsonRpcNotification(method, json_payload);
   }
 
-  std::string msg = mcp::FormatSseMessage(message_json);
-
   if (server->transport) {
-    mcp_sse_transport.broadcast(server->transport, msg.data(), msg.size());
+    if (server->transport_api) {
+      server->transport_api->broadcast(server->transport, message_json.data(), message_json.size());
+    }
   }
 
   server->events_broadcast++;
-  server->bytes_sent += msg.size();
+  server->bytes_sent += message_json.size();
 }
 
 uint64_t mcp_server_clients_count(const mcp_server_t* server_handle) {

@@ -62,28 +62,12 @@ bool parse_json_bool(const json_value& val, bool* out) {
     return false;
   }
 
-  if (val.is_bool()) {
-    *out = val.get_bool();
-    return true;
-  }
-
-  if (!val.is_string()) {
+  if (!val.is_bool()) {
     return false;
   }
 
-  const std::string_view text = val.get_string();
-  if (text == "true" || text == "True" || text == "TRUE" || text == "1" || text == "yes" ||
-      text == "Yes" || text == "on") {
-    *out = true;
-    return true;
-  }
-  if (text == "false" || text == "False" || text == "FALSE" || text == "0" || text == "no" ||
-      text == "No" || text == "off") {
-    *out = false;
-    return true;
-  }
-
-  return false;
+  *out = val.get_bool();
+  return true;
 }
 
 json_value first_present_field(const json_value& obj, std::initializer_list<const char*> keys) {
@@ -93,6 +77,27 @@ json_value first_present_field(const json_value& obj, std::initializer_list<cons
     }
   }
   return {};
+}
+
+bool has_only_fields(const json_value& obj, std::initializer_list<const char*> allowed_keys) {
+  if (!obj.is_object()) {
+    return false;
+  }
+
+  for (const auto& member : obj.members()) {
+    bool allowed = false;
+    for (const char* key : allowed_keys) {
+      if (member.first == key) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool copy_checked_string(char* dst, size_t dst_size, std::string_view value) {
@@ -118,27 +123,17 @@ bool copy_normalized_map_name(char* dst, size_t dst_size, std::string_view map_n
 }
 
 bool is_valid_map_name(std::string_view map_name) {
-  if (map_name.size() < 4 || map_name.size() > 5) {
-    return false;
+  if (map_name.size() == 4 && (map_name[0] == 'E' || map_name[0] == 'e') &&
+      std::isdigit(static_cast<unsigned char>(map_name[1])) &&
+      (map_name[2] == 'M' || map_name[2] == 'm') &&
+      std::isdigit(static_cast<unsigned char>(map_name[3]))) {
+    return true;
   }
 
-  char c0 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[0])));
-  char c2 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[2])));
-
-  if (map_name.size() == 4 && c0 == 'E' && c2 == 'M') {
-    char c1 = map_name[1];
-    char c3 = map_name[3];
-    return c1 >= '1' && c1 <= '9' && c3 >= '1' && c3 <= '9';
-  }
-
-  if (map_name.size() == 5) {
-    char c1 = static_cast<char>(std::toupper(static_cast<unsigned char>(map_name[1])));
-    char c3 = map_name[3];
-    char c4 = map_name[4];
-    return c0 == 'M' && c1 == 'A' && c2 == 'P' && c3 >= '0' && c3 <= '9' && c4 >= '0' && c4 <= '9';
-  }
-
-  return false;
+  return map_name.size() == 5 && (map_name[0] == 'M' || map_name[0] == 'm') &&
+         (map_name[1] == 'A' || map_name[1] == 'a') && (map_name[2] == 'P' || map_name[2] == 'p') &&
+         std::isdigit(static_cast<unsigned char>(map_name[3])) &&
+         std::isdigit(static_cast<unsigned char>(map_name[4]));
 }
 
 bool read_required_string(const json_value& obj, std::initializer_list<const char*> keys,
@@ -249,19 +244,14 @@ bool parse_position_coords(const json_value& params, position_coords* out) {
     return false;
   }
 
-  json_value coord_source = params;
-  json_value position     = params["position"];
   if (params.has_member("position")) {
-    if (!position.is_object()) {
-      return false;
-    }
-    coord_source = position;
+    return false;
   }
 
   double x = 0.0;
   double y = 0.0;
-  if (!read_required_number(coord_source, {"x"}, &x) ||
-      !read_required_number(coord_source, {"y"}, &y) || !std::isfinite(x) || !std::isfinite(y)) {
+  if (!read_required_number(params, {"x"}, &x) || !read_required_number(params, {"y"}, &y) ||
+      !std::isfinite(x) || !std::isfinite(y)) {
     return false;
   }
 

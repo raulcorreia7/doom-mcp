@@ -12,6 +12,7 @@
 #include "dmcp_adapter_command_queue.h"
 #include "dmcp/adapter/utils.h"
 #include "dmcp/doom/api.h"
+#include "mcp/core/string.h"
 
 #include "doomdef.h"
 #include "doomstat.h"
@@ -39,14 +40,14 @@ static int dmcp_log_threshold(void) {
     return threshold;
   }
 
-  if (dmcp_str_equals_ci(env, "debug") || strcmp(env, "0") == 0) {
+  if (mcp_strcmp_ci(env, "debug") == 0 || strcmp(env, "0") == 0) {
     threshold = MCP_LOG_DEBUG;
-  } else if (dmcp_str_equals_ci(env, "info") || strcmp(env, "1") == 0) {
+  } else if (mcp_strcmp_ci(env, "info") == 0 || strcmp(env, "1") == 0) {
     threshold = MCP_LOG_INFO;
-  } else if (dmcp_str_equals_ci(env, "warn") || dmcp_str_equals_ci(env, "warning") ||
+  } else if (mcp_strcmp_ci(env, "warn") == 0 || mcp_strcmp_ci(env, "warning") == 0 ||
              strcmp(env, "2") == 0) {
     threshold = MCP_LOG_WARN;
-  } else if (dmcp_str_equals_ci(env, "error") || strcmp(env, "3") == 0) {
+  } else if (mcp_strcmp_ci(env, "error") == 0 || strcmp(env, "3") == 0) {
     threshold = MCP_LOG_ERROR;
   }
 
@@ -140,12 +141,23 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
 }
 
 dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config) {
-  dmcp_crispy_t* ctx;
-  dmcp_config_t  dmcp_cfg;
+  dmcp_crispy_t*       ctx;
+  dmcp_config_t        dmcp_cfg;
+  dmcp_crispy_config_t effective_config;
 
   if (!config) {
     dmcp_adapter_log(MCP_LOG_ERROR, "create failed: null config");
     return NULL;
+  }
+
+  effective_config = dmcp_crispy_config_default();
+  {
+    size_t copy_size = config->struct_size;
+    if (copy_size == 0 || copy_size > sizeof(dmcp_crispy_config_t)) {
+      copy_size = sizeof(dmcp_crispy_config_t);
+    }
+    memcpy(&effective_config, config, copy_size);
+    effective_config.struct_size = sizeof(dmcp_crispy_config_t);
   }
 
   ctx = (dmcp_crispy_t*)calloc(1, sizeof(dmcp_crispy_t));
@@ -154,11 +166,11 @@ dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config) {
     return NULL;
   }
 
-  ctx->config         = *config;
+  ctx->config         = effective_config;
   ctx->last_gamestate = -1;
   ctx->last_paused    = false;
 
-  dmcp_cfg             = config->base;
+  dmcp_cfg             = effective_config.base;
   dmcp_cfg.on_snapshot = snapshot_callback;
   dmcp_cfg.on_log      = crispy_log_callback;
   dmcp_cfg.user_data   = ctx;
@@ -190,21 +202,21 @@ void dmcp_crispy_destroy(dmcp_crispy_t* ctx) {
   free(ctx);
 }
 
-mcp_result_t dmcp_crispy_tick(dmcp_crispy_t* ctx) {
+mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx) {
   if (!ctx || !ctx->dmcp_ctx || !ctx->initialized) {
-    return MCP_ERROR_INVALID_ARGS;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
 
   if (!dmcp_context_is_running(ctx->dmcp_ctx)) {
-    return MCP_ERROR_DISABLED;
+    return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
   }
 
   if (gamestate != GS_LEVEL) {
-    return MCP_OK;
+    return MCP_STATUS_OK("Success");
   }
 
   dmcp_context_tick(ctx->dmcp_ctx);
-  return MCP_OK;
+  return MCP_STATUS_OK("Success");
 }
 
 static const char* crispy_command_message(const dmcp_command_t* cmd, bool success) {
@@ -214,8 +226,8 @@ static const char* crispy_command_message(const dmcp_command_t* cmd, bool succes
 
   if (cmd && (cmd->type == DMCP_CMD_GIVE_ITEM || cmd->type == DMCP_CMD_SPAWN_ENTITY)) {
     if (gamemode == shareware) {
-      return "Content not available in shareware. Restricted: Plasma Rifle, BFG, Super "
-             "Shotgun, Cacodemon, Lost Soul, Cyberdemon, Spider Mastermind, and Doom II "
+      return "Content not available in shareware. Restricted: PlasmaRifle, BFG9000, "
+             "SuperShotgun, Cacodemon, LostSoul, Cyberdemon, SpiderMastermind, and Doom II "
              "monsters";
     }
     return "Command failed: invalid item/monster or unavailable in current mode";

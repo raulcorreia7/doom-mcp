@@ -12,7 +12,7 @@ extern "C" {
 #include <string.h>
 
 #include "mcp/generic/constants.h"
-#include "mcp/generic/result.h"
+#include "mcp/core/status.h"
 
 // ============================================================================
 // MCP Protocol Version
@@ -33,67 +33,6 @@ extern "C" {
  * Updated with each release.
  */
 #define MCP_SERVER_VERSION "0.6.0"
-
-// ============================================================================
-// Result Codes
-// ============================================================================
-
-/**
- * @brief Generic MCP result type
- *
- * @note Breaking Change (v0.5.0): Changed from enum to struct with code/message
- * fields.
- * @see mcp_result_generic_t for full documentation
- */
-typedef mcp_result_generic_t mcp_result_t;
-
-/**
- * @brief Result code constants
- *
- * These constants are used with the .code field of result structs.
- * Compare result.code against these values to check operation success.
- *
- * Values:
- * - 0 = Success
- * - Negative = Error codes (defined below)
- * - Positive = Reserved for future use
- */
-#define MCP_RESULT_CODE_OK 0
-#define MCP_RESULT_CODE_INVALID_ARGS -1
-#define MCP_RESULT_CODE_ENCODING_FAILED -2
-#define MCP_RESULT_CODE_DISABLED -3
-#define MCP_RESULT_CODE_QUEUE_FULL -4
-#define MCP_RESULT_CODE_NOT_FOUND -5
-#define MCP_RESULT_CODE_INTERNAL -6
-
-/**
- * @brief Convenience macros for creating results
- *
- * These macros create pre-configured result structs for common cases.
- * Use them when returning errors or success.
- */
-
-/** @brief Success result with "Success" message */
-#define MCP_OK MCP_RESULT_OK("Success")
-
-/** @brief Invalid arguments error */
-#define MCP_ERROR_INVALID_ARGS MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments")
-
-/** @brief JSON encoding/decoding failed */
-#define MCP_ERROR_ENCODING_FAILED \
-  MCP_RESULT_ERROR(MCP_RESULT_CODE_ENCODING_FAILED, "Encoding failed")
-
-/** @brief Operation is disabled (e.g., screenshots) */
-#define MCP_ERROR_DISABLED MCP_RESULT_ERROR(MCP_RESULT_CODE_DISABLED, "Operation disabled")
-
-/** @brief Queue is full, cannot add more items */
-#define MCP_ERROR_QUEUE_FULL MCP_RESULT_ERROR(MCP_RESULT_CODE_QUEUE_FULL, "Queue full")
-
-/** @brief Requested resource or method not found */
-#define MCP_ERROR_NOT_FOUND MCP_RESULT_ERROR(MCP_RESULT_CODE_NOT_FOUND, "Not found")
-
-/** @brief Internal error occurred */
-#define MCP_ERROR_INTERNAL MCP_RESULT_ERROR(MCP_RESULT_CODE_INTERNAL, "Internal error")
 
 // ============================================================================
 // Log Levels
@@ -144,6 +83,7 @@ typedef enum {
  * @endcode
  */
 typedef void (*mcp_log_callback_t)(void* user_data, int level, const char* message);
+typedef struct mcp_transport_interface_s mcp_transport_interface_t;
 
 /**
  * @brief JSON-RPC method handler function type
@@ -205,7 +145,13 @@ typedef struct {
   void*              log_user_data;  ///< User data passed to log callback
 
   // Server identification
-  char server_name[64];  ///< Server name for protocol identification (default: "doom-mcp")
+  char server_name[64];  ///< Server name for protocol identification (default: "mcp-server")
+
+  // Transport lifecycle
+  bool start_transport;  ///< Start HTTP/SSE transport during create (default: true)
+
+  // Optional transport implementation. NULL selects the built-in HTTP/SSE backend.
+  const mcp_transport_interface_t* transport;
 
 } mcp_server_config_t;
 
@@ -217,6 +163,7 @@ typedef struct {
  * - Max requests/sec: 100
  * - Max payload: 1MB
  * - Logging: disabled
+ * - Transport: started
  *
  * @return Configuration struct with defaults set
  *
@@ -228,15 +175,18 @@ typedef struct {
  * @endcode
  */
 static inline mcp_server_config_t mcp_default_config(void) {
-  mcp_server_config_t cfg     = {};
+  mcp_server_config_t cfg;
+  memset(&cfg, 0, sizeof(cfg));
   cfg.struct_size             = sizeof(mcp_server_config_t);
   cfg.port                    = MCP_DEFAULT_PORT;
   cfg.max_requests_per_second = 100;
   cfg.max_payload_size        = MCP_MAX_PAYLOAD_SIZE;
   cfg.on_log                  = NULL;
   cfg.log_user_data           = NULL;
-  strncpy(cfg.server_name, "doom-mcp", sizeof(cfg.server_name) - 1);
+  strncpy(cfg.server_name, "mcp-server", sizeof(cfg.server_name) - 1);
   cfg.server_name[sizeof(cfg.server_name) - 1] = '\0';
+  cfg.start_transport                          = true;
+  cfg.transport                                = NULL;
   return cfg;
 }
 

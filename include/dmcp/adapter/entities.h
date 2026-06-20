@@ -20,37 +20,43 @@ extern "C" {
 #define DMCP_ENTITY_ARACHNOTRON "Arachnotron"
 #define DMCP_ENTITY_PAINELEMENTAL "PainElemental"
 #define DMCP_ENTITY_REVENANT "Revenant"
-#define DMCP_ENTITY_MANCUBUS "Fatso"
+#define DMCP_ENTITY_MANCUBUS "Mancubus"
 #define DMCP_ENTITY_ARCHVILE "Archvile"
 #define DMCP_ENTITY_SPIDERBOSS "SpiderMastermind"
 #define DMCP_ENTITY_CYBERDEMON "Cyberdemon"
 #define DMCP_ENTITY_BOSSBRAIN "BossBrain"
 
-#define DMCP_ITEM_PISTOL "Pistol"
-#define DMCP_ITEM_SHOTGUN "Shotgun"
-#define DMCP_ITEM_CHAINGUN "Chaingun"
-#define DMCP_ITEM_ROCKETLAUNCHER "RocketLauncher"
-#define DMCP_ITEM_PLASMA "PlasmaRifle"
-#define DMCP_ITEM_BFG "BFG9000"
-#define DMCP_ITEM_CHAINSAW "Chainsaw"
-#define DMCP_ITEM_SUPERSHOTGUN "SuperShotgun"
+#define DMCP_ITEM_NAME_PISTOL "Pistol"
+#define DMCP_ITEM_NAME_SHOTGUN "Shotgun"
+#define DMCP_ITEM_NAME_CHAINGUN "Chaingun"
+#define DMCP_ITEM_NAME_ROCKETLAUNCHER "RocketLauncher"
+#define DMCP_ITEM_NAME_PLASMA "PlasmaRifle"
+#define DMCP_ITEM_NAME_BFG "BFG9000"
+#define DMCP_ITEM_NAME_CHAINSAW "Chainsaw"
+#define DMCP_ITEM_NAME_SUPERSHOTGUN "SuperShotgun"
 
-#define DMCP_ITEM_BULLETCLIP "Clip"
-#define DMCP_ITEM_BULLETBOX "BoxOfBullets"
-#define DMCP_ITEM_SHELLS "Shells"
-#define DMCP_ITEM_SHELLBOX "BoxOfShells"
-#define DMCP_ITEM_ROCKET "RocketAmmo"
-#define DMCP_ITEM_ROCKETBOX "BoxOfRockets"
-#define DMCP_ITEM_CELL "Cell"
-#define DMCP_ITEM_CELLPACK "CellPack"
+#define DMCP_ITEM_NAME_BULLETCLIP "Clip"
+#define DMCP_ITEM_NAME_BULLETBOX "BoxOfBullets"
+#define DMCP_ITEM_NAME_SHELLS "Shells"
+#define DMCP_ITEM_NAME_SHELLBOX "BoxOfShells"
+#define DMCP_ITEM_NAME_ROCKET "RocketAmmo"
+#define DMCP_ITEM_NAME_ROCKETBOX "BoxOfRockets"
+#define DMCP_ITEM_NAME_CELL "Cell"
+#define DMCP_ITEM_NAME_CELLPACK "CellPack"
 
-#define DMCP_ITEM_STIMPACK "Stimpack"
-#define DMCP_ITEM_MEDIKIT "Medikit"
-#define DMCP_ITEM_SOULSPHERE "SoulSphere"
-#define DMCP_ITEM_MEGASPHERE "MegaSphere"
-#define DMCP_ITEM_ARMORGREEN "GreenArmor"
-#define DMCP_ITEM_ARMORBLUE "BlueArmor"
-#define DMCP_ITEM_BACKPACK "Backpack"
+#define DMCP_ITEM_NAME_STIMPACK "Stimpack"
+#define DMCP_ITEM_NAME_MEDIKIT "Medikit"
+#define DMCP_ITEM_NAME_SOULSPHERE "SoulSphere"
+#define DMCP_ITEM_NAME_MEGASPHERE "MegaSphere"
+#define DMCP_ITEM_NAME_ARMORGREEN "GreenArmor"
+#define DMCP_ITEM_NAME_ARMORBLUE "BlueArmor"
+#define DMCP_ITEM_NAME_BACKPACK "Backpack"
+#define DMCP_ITEM_NAME_BLUE_KEYCARD "BlueKeycard"
+#define DMCP_ITEM_NAME_YELLOW_KEYCARD "YellowKeycard"
+#define DMCP_ITEM_NAME_RED_KEYCARD "RedKeycard"
+#define DMCP_ITEM_NAME_BLUE_SKULL_KEY "BlueSkullKey"
+#define DMCP_ITEM_NAME_YELLOW_SKULL_KEY "YellowSkullKey"
+#define DMCP_ITEM_NAME_RED_SKULL_KEY "RedSkullKey"
 
 static inline bool dmcp_entity_is_monster(const char* name) {
   if (!name) return false;
@@ -72,9 +78,10 @@ static inline bool dmcp_entity_is_monster(const char* name) {
 static inline bool dmcp_item_is_weapon(const char* name) {
   if (!name) return false;
 
-  const char* weapons[] = {DMCP_ITEM_PISTOL,         DMCP_ITEM_SHOTGUN,     DMCP_ITEM_CHAINGUN,
-                           DMCP_ITEM_ROCKETLAUNCHER, DMCP_ITEM_PLASMA,      DMCP_ITEM_BFG,
-                           DMCP_ITEM_CHAINSAW,       DMCP_ITEM_SUPERSHOTGUN};
+  const char* weapons[] = {DMCP_ITEM_NAME_PISTOL,   DMCP_ITEM_NAME_SHOTGUN,
+                           DMCP_ITEM_NAME_CHAINGUN, DMCP_ITEM_NAME_ROCKETLAUNCHER,
+                           DMCP_ITEM_NAME_PLASMA,   DMCP_ITEM_NAME_BFG,
+                           DMCP_ITEM_NAME_CHAINSAW, DMCP_ITEM_NAME_SUPERSHOTGUN};
 
   for (int i = 0; i < 8; i++) {
     if (strcmp(name, weapons[i]) == 0) return true;
