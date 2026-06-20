@@ -97,6 +97,10 @@ Adapter-specific examples and build requirements live next to the adapter source
 Consuming engine repositories own game builds, release packaging, and runtime
 assets. DMCP CI builds and packages the SDK only.
 
+Static SDK archives expose the same C99 API, but the implementation is C++ and
+therefore requires a C++ toolchain at link time. The packaged CMake target
+declares that requirement for consumers.
+
 ## Documentation
 
 | Document | Purpose |

@@ -29,16 +29,16 @@ static inline dmcp_crispy_config_t dmcp_crispy_config_default(void) {
   return cfg;
 }
 
-DMCP_API dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config);
-DMCP_API void           dmcp_crispy_destroy(dmcp_crispy_t* ctx);
+dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config);
+void           dmcp_crispy_destroy(dmcp_crispy_t* ctx);
 
-DMCP_API mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx);
-DMCP_API void         dmcp_crispy_commands_process(dmcp_crispy_t* ctx);
-DMCP_API void         dmcp_crispy_inputs_process(dmcp_crispy_t* ctx);
+mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx);
+void         dmcp_crispy_commands_process(dmcp_crispy_t* ctx);
+void         dmcp_crispy_inputs_process(dmcp_crispy_t* ctx);
 
-DMCP_API bool            dmcp_crispy_is_running(const dmcp_crispy_t* ctx);
-DMCP_API void            dmcp_crispy_stats_get(dmcp_crispy_t* ctx, dmcp_stats_t* stats);
-DMCP_API dmcp_context_t* dmcp_crispy_context_get(dmcp_crispy_t* ctx);
+bool            dmcp_crispy_is_running(const dmcp_crispy_t* ctx);
+void            dmcp_crispy_stats_get(dmcp_crispy_t* ctx, dmcp_stats_t* stats);
+dmcp_context_t* dmcp_crispy_context_get(dmcp_crispy_t* ctx);
 
 #ifdef __cplusplus
 }

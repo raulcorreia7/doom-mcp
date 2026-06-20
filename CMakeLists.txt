@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(dmcp LANGUAGES C CXX VERSION 0.7.2)
+project(dmcp LANGUAGES C CXX VERSION 0.7.3)
 
 option(DMCP_BUILD_TESTS             "Build tests"                                       OFF)
 option(DMCP_BUILD_EXAMPLES          "Build example servers"                             OFF)

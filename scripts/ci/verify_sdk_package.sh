@@ -48,6 +48,10 @@ die_usage() {
   exit 2
 }
 
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
 parse_args() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -110,9 +114,88 @@ assert_file() {
   [[ -f "$1" ]] || die "missing package file: $1"
 }
 
+sdk_version_from_info() {
+  local info_file="$1"
+  local release_tag
+  release_tag="$(sed -n 's/^release_tag=//p' "$info_file" | head -n 1)"
+
+  if [[ "$release_tag" == dmcp-v* ]]; then
+    printf '%s\n' "${release_tag#dmcp-v}"
+  fi
+}
+
+write_consumer_project() {
+  local consumer_dir="$1"
+  local sdk_version="$2"
+  local find_package_line="find_package(dmcp REQUIRED CONFIG)"
+
+  if [[ -n "$sdk_version" ]]; then
+    find_package_line="find_package(dmcp ${sdk_version} REQUIRED CONFIG)"
+  fi
+
+  mkdir -p "$consumer_dir"
+  cat >"$consumer_dir/CMakeLists.txt" <<CMAKE
+cmake_minimum_required(VERSION 3.25)
+project(dmcp_package_consumer LANGUAGES C)
+
+${find_package_line}
+
+add_executable(consumer main.c)
+target_link_libraries(consumer PRIVATE dmcp::runtime)
+CMAKE
+
+  cat >"$consumer_dir/main.c" <<'C'
+#include "dmcp/doom/api.h"
+
+int main(void) {
+  dmcp_config_t config = dmcp_config_default();
+  dmcp_context_t* ctx = 0;
+
+  config.start_transport = false;
+  ctx = dmcp_context_create(&config);
+  if (ctx == 0) {
+    return 1;
+  }
+
+  dmcp_context_destroy(ctx);
+  return 0;
+}
+C
+}
+
+run_consumer_project() {
+  local root="$1"
+  local consumer_dir="$2"
+  local out_dir="$consumer_dir/out"
+  local -a candidates=(
+    "$out_dir/consumer"
+    "$out_dir/Release/consumer.exe"
+    "$out_dir/Debug/consumer.exe"
+  )
+  local executable=""
+
+  cmake -S "$consumer_dir" -B "$out_dir" -Ddmcp_DIR="$root/cmake"
+  cmake --build "$out_dir" --parallel
+
+  export PATH="$root/bin:$root/lib:$PATH"
+  export LD_LIBRARY_PATH="$root/lib:${LD_LIBRARY_PATH:-}"
+  export DYLD_LIBRARY_PATH="$root/lib:${DYLD_LIBRARY_PATH:-}"
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      executable="$candidate"
+      break
+    fi
+  done
+
+  [[ -n "$executable" ]] || die "package consumer executable was not produced"
+  "$executable"
+}
+
 main() {
   parse_args "$@"
   validate_args
+  require_command cmake
 
   rm -rf "$smoke_dir"
   mkdir -p "$smoke_dir"
@@ -125,12 +208,14 @@ main() {
 
   local root="$smoke_dir/$artifact_name"
   [[ -d "$root" ]] || die "archive root directory not found: $root"
+  root="$(cd "$root" && pwd)"
 
   assert_file "$root/include/dmcp/doom/api.h"
   assert_file "$root/include/mcp/generic/server.h"
   assert_file "$root/include/mcp/core/core.h"
   assert_file "$root/include/mcp/core/version_config.h"
   assert_file "$root/cmake/dmcp-config.cmake"
+  assert_file "$root/cmake/dmcp-config-version.cmake"
   assert_file "$root/SDK_INFO.txt"
   assert_file "$root/README.md"
   assert_file "$root/examples/agents/python/README.md"
@@ -162,6 +247,11 @@ main() {
       -print -quit | grep -q .; then
     die "SDK package contains Python virtualenvs or bytecode caches"
   fi
+
+  local sdk_version
+  sdk_version="$(sdk_version_from_info "$root/SDK_INFO.txt")"
+  write_consumer_project "$smoke_dir/consumer" "$sdk_version"
+  run_consumer_project "$root" "$smoke_dir/consumer"
 }
 
 main "$@"

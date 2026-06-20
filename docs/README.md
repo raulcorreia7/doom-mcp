@@ -95,6 +95,10 @@ target_link_libraries(myengine PRIVATE dmcp::runtime)
 Packaged SDK archives provide `cmake/dmcp-config.cmake` and the imported
 `dmcp::runtime` target.
 
+Static archives still expose the C99 public API, but the implementation is C++.
+Keep a C++ toolchain available for static links; the packaged CMake target
+declares the required link language and thread runtime.
+
 ## Generic MCP API
 
 ```c

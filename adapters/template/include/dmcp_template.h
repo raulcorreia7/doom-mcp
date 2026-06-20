@@ -60,19 +60,18 @@ static inline dmcp_template_config_t dmcp_template_config_default(void) {
   return cfg;
 }
 
-DMCP_API dmcp_template_t* dmcp_template_create(const dmcp_template_config_t* config);
-DMCP_API void             dmcp_template_destroy(dmcp_template_t* adapter);
+dmcp_template_t* dmcp_template_create(const dmcp_template_config_t* config);
+void             dmcp_template_destroy(dmcp_template_t* adapter);
 
-DMCP_API mcp_status_t dmcp_template_tick(dmcp_template_t* adapter);
-DMCP_API void         dmcp_template_commands_process(dmcp_template_t* adapter);
-DMCP_API void         dmcp_template_inputs_process(dmcp_template_t* adapter);
-DMCP_API bool         dmcp_template_command_execute(dmcp_template_t*      adapter,
-                                                    const dmcp_command_t* command);
-DMCP_API mcp_status_t dmcp_template_capture_frame(dmcp_template_t* adapter);
+mcp_status_t dmcp_template_tick(dmcp_template_t* adapter);
+void         dmcp_template_commands_process(dmcp_template_t* adapter);
+void         dmcp_template_inputs_process(dmcp_template_t* adapter);
+bool         dmcp_template_command_execute(dmcp_template_t* adapter, const dmcp_command_t* command);
+mcp_status_t dmcp_template_capture_frame(dmcp_template_t* adapter);
 
-DMCP_API bool            dmcp_template_is_running(const dmcp_template_t* adapter);
-DMCP_API dmcp_context_t* dmcp_template_context_get(dmcp_template_t* adapter);
-DMCP_API void            dmcp_template_stats_get(dmcp_template_t* adapter, dmcp_stats_t* out_stats);
+bool            dmcp_template_is_running(const dmcp_template_t* adapter);
+dmcp_context_t* dmcp_template_context_get(dmcp_template_t* adapter);
+void            dmcp_template_stats_get(dmcp_template_t* adapter, dmcp_stats_t* out_stats);
 
 #ifdef __cplusplus
 }

@@ -227,6 +227,8 @@ write_cmake_config() {
   local imported_location=""
   local imported_implib=""
   local static_defs=""
+  local package_version=""
+  local package_major=""
 
   if [[ "$linkage" == "static" ]]; then
     runtime_kind="STATIC"
@@ -248,10 +250,35 @@ write_cmake_config() {
     imported_location='${DMCP_SDK_ROOT}/lib/libdmcp.so'
   fi
 
+  if [[ "$release_tag" == dmcp-v* ]]; then
+    package_version="${release_tag#dmcp-v}"
+  else
+    package_version="$(sed -nE 's/^project\(dmcp .* VERSION ([0-9]+(\.[0-9]+){1,2}).*/\1/p' "$REPO_ROOT/CMakeLists.txt" | head -n 1)"
+  fi
+  [[ -n "$package_version" ]] || die "unable to derive package version"
+  package_major="${package_version%%.*}"
+
   mkdir -p "$root/cmake"
   cat >"$root/cmake/dmcp-config.cmake" <<EOF
 get_filename_component(DMCP_SDK_ROOT "\${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
+EOF
+
+  if [[ "$linkage" == "static" ]]; then
+    cat >>"$root/cmake/dmcp-config.cmake" <<'EOF'
+include(CMakeFindDependencyMacro)
+
+if(NOT CMAKE_CXX_COMPILER_LOADED)
+  enable_language(CXX)
+endif()
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_dependency(Threads)
+
+EOF
+  fi
+
+  cat >>"$root/cmake/dmcp-config.cmake" <<EOF
 add_library(dmcp::runtime ${runtime_kind} IMPORTED)
 set_target_properties(dmcp::runtime PROPERTIES
   IMPORTED_LOCATION "${imported_location}"
@@ -268,7 +295,12 @@ EOF
   if [[ -n "$static_defs" ]]; then
     cat >>"$root/cmake/dmcp-config.cmake" <<EOF
 set_target_properties(dmcp::runtime PROPERTIES
+  IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
   INTERFACE_COMPILE_DEFINITIONS "${static_defs}")
+target_link_libraries(dmcp::runtime INTERFACE Threads::Threads)
+if(WIN32)
+  target_link_libraries(dmcp::runtime INTERFACE ws2_32)
+endif()
 EOF
   fi
 
@@ -281,6 +313,27 @@ foreach(_dmcp_alias IN ITEMS dmcp::doom dmcp::core dmcp::generic mcp::core mcp::
   endif()
 endforeach()
 unset(_dmcp_alias)
+EOF
+
+  cat >"$root/cmake/dmcp-config-version.cmake" <<EOF
+set(PACKAGE_VERSION "${package_version}")
+
+if(PACKAGE_FIND_VERSION_RANGE)
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+elseif(NOT PACKAGE_FIND_VERSION)
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+else()
+  if(PACKAGE_FIND_VERSION_MAJOR STREQUAL "${package_major}" AND
+     PACKAGE_FIND_VERSION VERSION_LESS_EQUAL PACKAGE_VERSION)
+    set(PACKAGE_VERSION_COMPATIBLE TRUE)
+  else()
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+  endif()
+
+  if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)
+    set(PACKAGE_VERSION_EXACT TRUE)
+  endif()
+endif()
 EOF
 }
 

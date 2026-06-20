@@ -12,10 +12,11 @@ extern "C" {
 
 /**
  * @file zdoom.h
- * @brief ZDoom/GZDoom adapter public API
+ * @brief ZDoom/GZDoom source-level adapter API
  *
- * Public API for integrating DMCP with ZDoom-based engines.
- * Include this header for the stable C API.
+ * Source-level adapter API for integrating DMCP with ZDoom-based engines.
+ * Compile the adapter into the engine or an engine-owned module; libdmcp
+ * exports the game-agnostic DMCP runtime API.
  */
 
 typedef struct dmcp_zdoom_s dmcp_zdoom_t;
@@ -49,16 +50,16 @@ static inline dmcp_zdoom_config_t dmcp_zdoom_config_default(void) {
   return cfg;
 }
 
-DMCP_API dmcp_zdoom_t*   dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
-DMCP_API void            dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
-DMCP_API mcp_status_t    dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
-DMCP_API bool            dmcp_zdoom_is_running(dmcp_zdoom_t* ctx);
-DMCP_API void            dmcp_zdoom_stats_get(dmcp_zdoom_t* ctx, dmcp_stats_t* out_stats);
-DMCP_API dmcp_context_t* dmcp_zdoom_context_get(dmcp_zdoom_t* ctx);
+dmcp_zdoom_t*   dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
+void            dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
+mcp_status_t    dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+bool            dmcp_zdoom_is_running(dmcp_zdoom_t* ctx);
+void            dmcp_zdoom_stats_get(dmcp_zdoom_t* ctx, dmcp_stats_t* out_stats);
+dmcp_context_t* dmcp_zdoom_context_get(dmcp_zdoom_t* ctx);
 
-DMCP_API bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx, const dmcp_command_t* cmd);
-DMCP_API void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
-DMCP_API void dmcp_zdoom_inputs_process(dmcp_zdoom_t* ctx);
+bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx, const dmcp_command_t* cmd);
+void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx);
+void dmcp_zdoom_inputs_process(dmcp_zdoom_t* ctx);
 
 #ifdef __cplusplus
 }

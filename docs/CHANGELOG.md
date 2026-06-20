@@ -11,6 +11,17 @@ history.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-06-20
+
+### Fixed
+- Packaged static SDK archives now declare their C++ link-language and thread
+  runtime requirements so C consumers can link the C99 public API target.
+- SDK archives now include `dmcp-config-version.cmake`, and package
+  verification builds a versioned `find_package(dmcp ...)` consumer from the
+  extracted archive.
+- Crispy, ZDoom, and template adapter lifecycle declarations are source-level
+  adapter glue instead of exported `libdmcp` symbols.
+
 ## [0.7.2] - 2026-06-20
 
 ### Fixed

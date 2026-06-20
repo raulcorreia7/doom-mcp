@@ -20,7 +20,7 @@ adapters/template/
   CMakeLists.txt              # standalone/copyable adapter build
   dmcp_template.version       # Linux symbol exports for shared builds
   include/
-    dmcp_template.h           # example stable C adapter API
+    dmcp_template.h           # example source-level C adapter API
     engine_hooks.h            # small engine-facing hook API
   src/
     adapter.cpp               # C API over private C++ implementation
@@ -56,8 +56,7 @@ Then rename:
 - `DMCP_TEMPLATE_*` include guards or constants to your adapter prefix
 - `dmcp_adapter_template` CMake target to `adapter_my_engine`
 - `dmcp_template.version` exports to your adapter prefix
-- `include/dmcp_template.h` to `include/dmcp/adapters/my_engine.h` when the
-  adapter is promoted into the SDK public headers
+- `include/dmcp_template.h` to the adapter header name used by your engine
 
 After the rename, add the new adapter option and `add_subdirectory()` entry in
 the SDK root build. Keep the template itself out of the root build.
