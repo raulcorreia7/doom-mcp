@@ -31,7 +31,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 int main() {
     dmcp_config_t config = dmcp_config_default();
     config.port = 6060;
-    config.target_hz = 10;  // 10 snapshots per second
+    config.target_hz = 10;  // sample the latest snapshot up to 10 times per second
     config.on_snapshot = SnapshotCallback;
     
     dmcp_context_t* ctx = dmcp_context_create(&config);

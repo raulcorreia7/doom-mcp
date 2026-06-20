@@ -43,16 +43,7 @@ dmcp_gamemode_t parse_game_mode_from_string(std::string_view mode_name) {
 
 namespace {
 
-dmcp_snapshot_t snapshot_for_validation(context* ctx) {
-  dmcp_snapshot_t snapshot{};
-  if (!ctx) {
-    return snapshot;
-  }
-
-  std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-  snapshot = ctx->last_snapshot;
-  return snapshot;
-}
+dmcp_snapshot_t snapshot_for_validation(context* ctx) { return copy_latest_snapshot(ctx); }
 
 bool validate_command_for_mode(context* ctx, const dmcp_command_t& cmd, std::string* out_error) {
   if (!ctx || !out_error) {
@@ -186,9 +177,24 @@ dmcp_snapshot_t copy_latest_snapshot(context* ctx) {
     return snapshot_copy;
   }
 
-  std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-  snapshot_copy = ctx->last_snapshot;
-  return snapshot_copy;
+  for (;;) {
+    const uint64_t token = ctx->published_snapshot_token.load(std::memory_order_acquire);
+    const int      index = snapshot_slot_from_token(token);
+    if (index < 0 || static_cast<size_t>(index) >= k_snapshot_buffer_slots) {
+      return snapshot_copy;
+    }
+
+    auto& readers = ctx->snapshot_readers[static_cast<size_t>(index)];
+    readers.fetch_add(1, std::memory_order_acq_rel);
+
+    if (ctx->published_snapshot_token.load(std::memory_order_acquire) == token) {
+      snapshot_copy = ctx->snapshot_buffers[static_cast<size_t>(index)];
+      readers.fetch_sub(1, std::memory_order_release);
+      return snapshot_copy;
+    }
+
+    readers.fetch_sub(1, std::memory_order_release);
+  }
 }
 
 bool parse_sequence_field(const json_value& value, uint64_t* out_sequence) {

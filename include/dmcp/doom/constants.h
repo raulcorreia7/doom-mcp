@@ -10,13 +10,9 @@ extern "C" {
 // Doom MCP Runtime Defaults
 // ============================================================================
 
-// Default Doom state capture rate. Adapters can override this in
-// dmcp_config_t without changing the generic MCP server behavior.
+// Default rate for sampling game state into DMCP's latest snapshot.
+// Engines can call dmcp_context_tick every frame; DMCP samples at this rate.
 #define DMCP_DEFAULT_TARGET_HZ 10
-
-// Snapshot storage is preallocated because adapters usually tick from the game
-// thread. The network side reads the last copied snapshot.
-#define DMCP_DEFAULT_SNAPSHOT_POOL_SIZE 16
 
 // Number of pending mutating commands accepted from agent/MCP clients.
 #define DMCP_DEFAULT_QUEUE_SLOTS 64

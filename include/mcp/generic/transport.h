@@ -34,7 +34,7 @@ typedef struct mcp_transport_s mcp_transport_t;
  * @note Implementations must be thread-safe
  */
 typedef struct {
-  size_t struct_size;  ///< Must be sizeof(mcp_transport_callbacks_t)
+  size_t struct_size;       ///< Must be sizeof(mcp_transport_callbacks_t)
   size_t max_payload_size;  ///< Maximum accepted request body size; 0 uses default
 
   /**
@@ -174,7 +174,7 @@ struct mcp_transport_interface_s {
    * @brief Broadcast to all connected SSE clients
    *
    * Send data to all currently connected SSE clients.
-   * Used to push real-time updates to all connected agents.
+   * Used by custom clients that explicitly consume server-pushed events.
    *
    * @param transport Transport handle
    * @param data Data to broadcast
@@ -191,7 +191,6 @@ struct mcp_transport_interface_s {
    * @return Number of connected clients
    */
   size_t (*get_client_count)(const mcp_transport_t* transport);
-
 };
 
 // SSE transport over HTTP (built-in implementation)

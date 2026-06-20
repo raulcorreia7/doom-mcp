@@ -13,11 +13,18 @@ from .errors import DMCPError
 from .output import write
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="DMCP MCP helper for agentic CLIs")
+class ShellArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise DMCPError(message)
+
+
+def build_parser(
+    parser_class: type[argparse.ArgumentParser] = argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    parser = parser_class(description="DMCP MCP helper for agentic CLIs")
     parser.add_argument("--url", default="http://127.0.0.1:6060/mcp")
     parser.add_argument("--pretty", action="store_true")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=True, parser_class=parser_class)
 
     add_content_parser(sub)
     add_read_parser(sub)
@@ -210,20 +217,22 @@ async def async_main(argv: Optional[List[str]] = None) -> int:
 
 
 async def run_shell(client: DMCPClient, args: argparse.Namespace) -> int:
-    parser = build_parser()
-    prompt = "" if args.no_prompt or not sys.stdin.isatty() else "dmcp> "
+    parser = build_parser(ShellArgumentParser)
+    interactive = sys.stdin.isatty() and not args.no_prompt
+    prompt = "dmcp> " if interactive else ""
+    had_error = False
 
     while True:
         try:
             line = input(prompt)
         except EOFError:
-            return 0
+            return 1 if had_error and not interactive else 0
 
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         if line in {"exit", "quit"}:
-            return 0
+            return 1 if had_error and not interactive else 0
 
         try:
             line_args = parser.parse_args(shlex.split(line))
@@ -231,9 +240,13 @@ async def run_shell(client: DMCPClient, args: argparse.Namespace) -> int:
                 raise DMCPError("nested shell sessions are not supported")
             value = await line_args.func(client, line_args)
             write(value, args.pretty or line_args.pretty)
+            if workflows.result_failed(value):
+                had_error = True
         except SystemExit:
+            had_error = True
             continue
         except (DMCPError, ValueError, json.JSONDecodeError, OSError) as exc:
+            had_error = True
             print(f"dmcp-agent: {exc}", file=sys.stderr)
 
 

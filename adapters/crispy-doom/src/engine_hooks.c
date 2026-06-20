@@ -22,9 +22,13 @@ void DMCP_Init(dmcp_engine_config_t cfg) {
 #if !DMCP_CRISPY_ENABLE_FRAME_CAPTURE
   cfg.screenshot_enabled = false;
 #endif
-  adapter_cfg.base.port              = (uint16_t)(cfg.port > 0 ? cfg.port : 6060);
-  adapter_cfg.base.target_hz         = (uint32_t)(cfg.target_hz > 0 ? cfg.target_hz : 35);
-  adapter_cfg.base.screenshot.enable = cfg.screenshot_enabled;
+  if (cfg.port > 0) {
+    adapter_cfg.base.port = (uint16_t)cfg.port;
+  }
+  if (cfg.target_hz > 0) {
+    adapter_cfg.base.target_hz = (uint32_t)cfg.target_hz;
+  }
+  adapter_cfg.base.screenshot.enable                  = cfg.screenshot_enabled;
   adapter_cfg.base.permissions.allow_console_commands = cfg.allow_console_commands;
   adapter_cfg.base.permissions.allow_cheats           = cfg.allow_cheats;
 

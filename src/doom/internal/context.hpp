@@ -1,6 +1,9 @@
 #pragma once
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -13,10 +16,26 @@
 #include "dmcp/doom/config.h"
 #include "dmcp/doom/types.h"
 #include "mcp/generic/server.h"
-#include "pool.hpp"
 #include "screenshot.hpp"
 
 namespace dmcp {
+
+constexpr size_t   k_snapshot_buffer_slots  = 3;
+constexpr uint64_t k_snapshot_token_invalid = ~uint64_t{0};
+constexpr uint64_t k_snapshot_slot_mask     = 0xFFu;
+
+inline uint64_t make_snapshot_token(size_t slot, uint64_t generation) {
+  return (generation << 8u) | static_cast<uint64_t>(slot);
+}
+
+inline int snapshot_slot_from_token(uint64_t token) {
+  if (token == k_snapshot_token_invalid) {
+    return -1;
+  }
+
+  const uint64_t slot = token & k_snapshot_slot_mask;
+  return slot < k_snapshot_buffer_slots ? static_cast<int>(slot) : -1;
+}
 
 struct context {
   dmcp_config_t                  config{};
@@ -24,22 +43,21 @@ struct context {
   std::unique_ptr<command_queue> cmd_queue;
   std::unique_ptr<command_queue> input_queue;
 
-  // Snapshot storage is pooled because adapters call dmcp_context_tick from the
-  // game thread. The network side only observes the copied last_snapshot.
-  std::vector<pool_entry> pool;
-  std::mutex              pool_mutex;
-
-  dmcp_snapshot_t last_snapshot{};
-  std::mutex      last_snapshot_mutex;
-
-  std::chrono::nanoseconds              min_interval{};
+  // Writer-priority snapshot handoff:
+  // - the game thread writes only to an inactive slot with no readers;
+  // - publishing is a single atomic index store;
+  // - readers copy from the published slot and retry if a newer slot appears.
+  std::array<dmcp_snapshot_t, k_snapshot_buffer_slots>       snapshot_buffers{};
+  std::array<std::atomic<uint32_t>, k_snapshot_buffer_slots> snapshot_readers{};
+  std::atomic<uint64_t>                 published_snapshot_token{k_snapshot_token_invalid};
+  uint64_t                              next_snapshot_generation = 1;
+  size_t                                next_snapshot_slot       = 0;
+  std::chrono::nanoseconds              snapshot_min_interval{};
   std::chrono::steady_clock::time_point last_snapshot_time;
 
   screenshot_state screenshot;
 
-  std::atomic<uint64_t> dropped_snapshots{0};
   std::atomic<uint64_t> dropped_screenshots{0};
-  std::atomic<bool>     drop_warning_emitted{false};
 
   // Results are bounded so long-running agent sessions cannot grow memory
   // without limit while polling historical command sequences.

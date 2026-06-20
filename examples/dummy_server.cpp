@@ -12,6 +12,8 @@
 
 static volatile bool g_running = true;
 
+constexpr int k_stats_log_interval_ticks = 35;
+
 void signal_handler(int) { g_running = false; }
 
 enum class ParseResult {
@@ -24,8 +26,9 @@ void PrintUsage(const char* argv0) {
   const char* program = argv0 && argv0[0] ? argv0 : "dummy_server";
   std::printf("Usage: %s [--port PORT] [--target-hz HZ] [--help] [--examples]\n", program);
   std::printf("\nOptions:\n");
-  std::printf("  --port PORT       HTTP/SSE port (default: 6060)\n");
-  std::printf("  --target-hz HZ    Snapshot rate (default: 10)\n");
+  std::printf("  --port PORT       HTTP/SSE port (default: %d)\n", MCP_DEFAULT_PORT);
+  std::printf("  --target-hz HZ    DMCP snapshot sampling rate (default: %d)\n",
+              DMCP_DEFAULT_TARGET_HZ);
   std::printf("  --examples        Print canonical MCP tool examples\n");
   std::printf("  --help            Print this help\n");
 }
@@ -206,8 +209,8 @@ int main(int argc, char** argv) {
   std::signal(SIGINT, signal_handler);
   srand(static_cast<unsigned>(time(nullptr)));
 
-  int               port         = 6060;
-  int               target_hz    = 10;
+  int               port         = MCP_DEFAULT_PORT;
+  int               target_hz    = DMCP_DEFAULT_TARGET_HZ;
   const ParseResult parse_result = ParseArgs(argc, argv, &port, &target_hz);
   if (parse_result == ParseResult::exit_success) {
     return 0;
@@ -237,7 +240,6 @@ int main(int argc, char** argv) {
   printf("Dummy server running on port %d. Press Ctrl+C to stop.\n", config.port);
   printf("Endpoints:\n");
   printf("  POST /mcp       - MCP JSON-RPC endpoint\n");
-  printf("  GET /mcp        - Server-Sent Events stream\n");
   printf("  GET /health     - Health check\n\n");
   printf("  GET /game/state - Current game snapshot\n");
   printf("  GET /game/screenshot - Screenshot JSON (if enabled)\n\n");
@@ -250,12 +252,10 @@ int main(int argc, char** argv) {
     dmcp_context_tick(ctx);
 
     // Log stats periodically
-    if (game.tic % 35 == 0) {
+    if (game.tic % k_stats_log_interval_ticks == 0) {
       dmcp_stats_t stats;
       dmcp_stats_get(ctx, &stats);
-      printf("Stats: clients=%lu, dropped=%lu\n",
-             static_cast<unsigned long>(stats.connected_clients),
-             static_cast<unsigned long>(stats.dropped_snapshots));
+      printf("Stats: clients=%lu\n", static_cast<unsigned long>(stats.connected_clients));
     }
 
     // Screenshot integration copies submitted pixels, so engine-owned frame

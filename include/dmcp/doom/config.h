@@ -31,9 +31,7 @@ typedef struct {
 
   uint16_t port;
   uint32_t target_hz;
-
-  size_t snapshot_pool_size;
-  size_t command_queue_slots;
+  size_t   command_queue_slots;
 
   struct {
     bool     enable;
@@ -72,7 +70,6 @@ static inline dmcp_config_t dmcp_config_default(void) {
   cfg.struct_size                        = sizeof(dmcp_config_t);
   cfg.port                               = MCP_DEFAULT_PORT;
   cfg.target_hz                          = DMCP_DEFAULT_TARGET_HZ;
-  cfg.snapshot_pool_size                 = DMCP_DEFAULT_SNAPSHOT_POOL_SIZE;
   cfg.command_queue_slots                = DMCP_DEFAULT_QUEUE_SLOTS;
   cfg.screenshot.enable                  = false;
   cfg.screenshot.width                   = DMCP_DEFAULT_SCREENSHOT_WIDTH;

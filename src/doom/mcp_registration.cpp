@@ -52,12 +52,4 @@ bool register_mcp_surface(context* ctx) {
   return true;
 }
 
-void broadcast_state_event(context* ctx, const std::string& json) {
-  if (!ctx || !ctx->server || json.empty()) {
-    return;
-  }
-
-  mcp_server_event_broadcast(ctx->server, "state", json.c_str());
-}
-
 }  // namespace dmcp

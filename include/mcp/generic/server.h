@@ -263,13 +263,12 @@ MCP_API mcp_status_t mcp_server_methods_register(mcp_server_t*                  
  * @brief Broadcast an event to all connected SSE clients
  *
  * Sends an event message to all currently connected Server-Sent Events (SSE)
- * clients. Events are typically used to push real-time state updates like
- * game state changes or notifications.
+ * clients. Use this only for clients that explicitly consume server-pushed
+ * events; portable MCP clients should prefer request/response methods.
  *
  * Common event types:
- * - "state" - Game state snapshot
- * - "screenshot" - Screenshot available notification
- * - "notification" - General notifications
+ * - "progress" - Long-running task progress
+ * - "notification" - General notifications for custom clients
  *
  * @param server Server handle
  * @param event_type Event type string
@@ -280,11 +279,9 @@ MCP_API mcp_status_t mcp_server_methods_register(mcp_server_t*                  
  * @note The json_payload must be valid JSON (not validated by this function)
  * Example:
  * @code
- * // In game loop, broadcast state to all clients
  * char json[256];
- * snprintf(json, sizeof(json), "{\"hp\":%d,\"ammo\":%d}",
- *          player->health, player->ammo);
- * mcp_server_event_broadcast(server, "state", json);
+ * snprintf(json, sizeof(json), "{\"percent\":%d}", percent_complete);
+ * mcp_server_event_broadcast(server, "progress", json);
  * @endcode
  */
 MCP_API void mcp_server_event_broadcast(mcp_server_t* server, const char* event_type,

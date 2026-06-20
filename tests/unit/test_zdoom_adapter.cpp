@@ -542,7 +542,6 @@ TEST_CASE("Adapter: Statistics tracking", "[adapter][stats]") {
     dmcp_stats_t stats = {};
     dmcp_zdoom_get_stats(mcp, &stats);
 
-    REQUIRE(stats.dropped_snapshots == 0);
     REQUIRE(stats.dropped_screenshots == 0);
     REQUIRE(stats.connected_clients == 0);
   }

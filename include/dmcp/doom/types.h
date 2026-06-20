@@ -137,7 +137,6 @@ typedef struct {
 
 typedef struct {
   size_t   struct_size;
-  uint64_t dropped_snapshots;
   uint64_t dropped_screenshots;
   uint64_t connected_clients;
 } dmcp_stats_t;

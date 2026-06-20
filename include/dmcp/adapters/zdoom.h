@@ -20,6 +20,8 @@ extern "C" {
 
 typedef struct dmcp_zdoom_s dmcp_zdoom_t;
 
+#define DMCP_ZDOOM_DEFAULT_TARGET_HZ 35u
+
 /**
  * @brief ZDoom adapter configuration
  */
@@ -39,7 +41,7 @@ static inline dmcp_zdoom_config_t dmcp_zdoom_config_default(void) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.struct_size      = sizeof(dmcp_zdoom_config_t);
   cfg.base             = dmcp_config_default();
-  cfg.base.target_hz   = 35;
+  cfg.base.target_hz   = DMCP_ZDOOM_DEFAULT_TARGET_HZ;
   cfg.log_fn           = NULL;
   cfg.log_user         = NULL;
   cfg.should_tick_fn   = NULL;

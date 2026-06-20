@@ -14,8 +14,7 @@
 #include "support/network.hpp"
 #include "test_utils.hpp"
 
-static int              snapshot_call_count = 0;
-static dmcp_snapshot_t* last_snapshot       = nullptr;
+static int snapshot_call_count = 0;
 
 static void test_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   snapshot_call_count++;
@@ -24,8 +23,6 @@ static void test_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
     int* counter = static_cast<int*>(user_data);
     (*counter)++;
   }
-
-  last_snapshot = snapshot;
 
   snapshot->player.hp         = 100;
   snapshot->player.armor      = 50;
@@ -199,6 +196,24 @@ TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
     }
 
     REQUIRE(snapshot_call_count >= 1);
+  }
+
+  SECTION("Target Hz limits snapshot sampling") {
+    snapshot_call_count = 0;
+
+    dmcp_config_t slow_config = TestConfig();
+    slow_config.target_hz     = 1;
+    slow_config.on_snapshot   = test_snapshot_callback;
+
+    dmcp_context_t* slow_ctx = dmcp_context_create(&slow_config);
+    REQUIRE(slow_ctx != nullptr);
+
+    dmcp_context_tick(slow_ctx);
+    dmcp_context_tick(slow_ctx);
+
+    REQUIRE(snapshot_call_count == 1);
+
+    dmcp_context_destroy(slow_ctx);
   }
 
   SECTION("Tick with null context is safe") { dmcp_context_tick(nullptr); }
@@ -398,14 +413,13 @@ TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
     dmcp_stats_get(ctx, &stats);
 
     REQUIRE(stats.struct_size == sizeof(dmcp_stats_t));
-    REQUIRE(stats.dropped_snapshots == 0);
     REQUIRE(stats.dropped_screenshots == 0);
     REQUIRE(stats.connected_clients == 0);
   }
 
   SECTION("Get stats with null context zeros structure") {
-    dmcp_stats_t stats      = {};
-    stats.dropped_snapshots = 999;
+    dmcp_stats_t stats        = {};
+    stats.dropped_screenshots = 999;
 
     dmcp_stats_get(nullptr, &stats);
   }
@@ -623,7 +637,6 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
     REQUIRE(config.struct_size == sizeof(dmcp_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
     REQUIRE(config.target_hz == DMCP_DEFAULT_TARGET_HZ);
-    REQUIRE(config.snapshot_pool_size == DMCP_DEFAULT_SNAPSHOT_POOL_SIZE);
     REQUIRE(config.command_queue_slots == DMCP_DEFAULT_QUEUE_SLOTS);
     REQUIRE(config.screenshot.enable == false);
     REQUIRE(config.screenshot.width == DMCP_DEFAULT_SCREENSHOT_WIDTH);
@@ -637,7 +650,6 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
   SECTION("Custom config values") {
     dmcp_config_t config       = TestConfig();
     config.target_hz           = 30;
-    config.snapshot_pool_size  = 32;
     config.command_queue_slots = 8;
     config.screenshot.width    = 1920;
     config.screenshot.height   = 1080;

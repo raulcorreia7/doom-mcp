@@ -53,7 +53,6 @@ headers over the C API, not a replacement for the stable C boundary.
 
 mcp_server_t* server = mcp_server_create(&config);
 mcp_server_method_register(server, "tools/call", handler, user_data);
-mcp_server_event_broadcast(server, "state", state_json);
 mcp_server_destroy(server);
 ```
 

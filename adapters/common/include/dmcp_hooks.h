@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+#define DMCP_ENGINE_DEFAULT_PORT 6060
+#define DMCP_ENGINE_DEFAULT_TARGET_HZ 35
+
 typedef struct {
   int  port;
   int  target_hz;
@@ -20,8 +23,8 @@ typedef struct {
 static inline dmcp_engine_config_t dmcp_engine_config_default(void) {
   dmcp_engine_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
-  cfg.port                   = 6060;
-  cfg.target_hz              = 35;
+  cfg.port                   = DMCP_ENGINE_DEFAULT_PORT;
+  cfg.target_hz              = DMCP_ENGINE_DEFAULT_TARGET_HZ;
   cfg.screenshot_enabled     = false;
   cfg.allow_console_commands = true;
   cfg.allow_cheats           = true;

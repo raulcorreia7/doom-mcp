@@ -23,11 +23,7 @@ bool handle_route_game_state(void* user_data, const char* method, const char* pa
   }
 
   dmcp_log(ctx, MCP_LOG_DEBUG, "route GET /game/state");
-  dmcp_snapshot_t snapshot_copy;
-  {
-    std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-    snapshot_copy = ctx->last_snapshot;
-  }
+  const dmcp_snapshot_t snapshot_copy = copy_latest_snapshot(ctx);
 
   const std::string payload = dmcp::snapshot_to_json(snapshot_copy);
   return write_route_response(payload.empty() ? "{}" : payload, 200, response_buffer, response_size,

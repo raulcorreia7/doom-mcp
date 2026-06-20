@@ -29,11 +29,10 @@ cmake --build build
 The server will:
 - Listen on port 6060
 - Accept MCP protocol connections at `/mcp`
-- Stream server-sent events at `/mcp`
 - Provide health checks at `/health`
-- Serve game snapshot at `/game/state`
+- Serve the latest sampled game snapshot at `/game/state`
 - Serve screenshot JSON at `/game/screenshot`
-- Broadcast snapshots at 10 Hz (configurable via `target_hz`)
+- Sample snapshots at 10 Hz by default (configurable via `target_hz`)
 
 ## Code Patterns
 
@@ -83,8 +82,7 @@ if (dmcp_screenshot_is_requested(ctx)) {
 ```c
 dmcp_stats_t stats;
 dmcp_stats_get(ctx, &stats);
-printf("Clients: %llu, Dropped: %llu\n", 
-       stats.connected_clients, stats.dropped_snapshots);
+printf("Clients: %llu\n", stats.connected_clients);
 ```
 
 ### Error Handling

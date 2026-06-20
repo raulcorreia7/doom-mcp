@@ -17,6 +17,31 @@
 // Bring dmcp_log into scope for use inside extern "C" block
 using dmcp::dmcp_log;
 
+namespace dmcp {
+
+int find_snapshot_write_slot(context* ctx) {
+  if (!ctx) {
+    return -1;
+  }
+
+  const int published =
+      snapshot_slot_from_token(ctx->published_snapshot_token.load(std::memory_order_acquire));
+  for (size_t attempt = 0; attempt < k_snapshot_buffer_slots; ++attempt) {
+    const size_t candidate = (ctx->next_snapshot_slot + attempt) % k_snapshot_buffer_slots;
+    if (static_cast<int>(candidate) == published) {
+      continue;
+    }
+    if (ctx->snapshot_readers[candidate].load(std::memory_order_acquire) == 0) {
+      ctx->next_snapshot_slot = (candidate + 1) % k_snapshot_buffer_slots;
+      return static_cast<int>(candidate);
+    }
+  }
+
+  return -1;
+}
+
+}  // namespace dmcp
+
 extern "C" {
 
 dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
@@ -31,30 +56,19 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
     mcp_memcpy_safe(&ctx->config, sizeof(ctx->config), config, copy_size);
   }
 
-  if (ctx->config.target_hz == 0) {
-    dmcp_log(ctx.get(), MCP_LOG_ERROR, "Invalid DMCP config: target_hz must be greater than zero");
-    return nullptr;
-  }
-  if (ctx->config.snapshot_pool_size == 0) {
-    dmcp_log(ctx.get(), MCP_LOG_ERROR,
-             "Invalid DMCP config: snapshot_pool_size must be greater than zero");
-    return nullptr;
-  }
   if (ctx->config.command_queue_slots == 0 ||
       ctx->config.command_queue_slots > std::numeric_limits<uint32_t>::max()) {
     dmcp_log(ctx.get(), MCP_LOG_ERROR,
              "Invalid DMCP config: command_queue_slots must be in range 1..UINT32_MAX");
     return nullptr;
   }
-
-  ctx->pool.resize(ctx->config.snapshot_pool_size);
-  for (auto& entry : ctx->pool) {
-    entry.in_use = false;
-    dmcp_snapshot_clear(&entry.data);
+  if (ctx->config.target_hz == 0) {
+    dmcp_log(ctx.get(), MCP_LOG_ERROR, "Invalid DMCP config: target_hz must be greater than zero");
+    return nullptr;
   }
 
-  ctx->min_interval       = std::chrono::nanoseconds{1'000'000'000ull / ctx->config.target_hz};
-  ctx->last_snapshot_time = std::chrono::steady_clock::now() - ctx->min_interval;
+  ctx->snapshot_min_interval = std::chrono::nanoseconds{1'000'000'000ull / ctx->config.target_hz};
+  ctx->last_snapshot_time    = std::chrono::steady_clock::now() - ctx->snapshot_min_interval;
 
   ctx->screenshot.enabled.store(ctx->config.screenshot.enable);
 
@@ -119,36 +133,26 @@ void dmcp_context_tick(dmcp_context_t* ctx_handle) {
   auto* ctx = reinterpret_cast<dmcp::context*>(ctx_handle);
 
   const auto now = std::chrono::steady_clock::now();
-  if (now - ctx->last_snapshot_time < ctx->min_interval) {
+  if (now - ctx->last_snapshot_time < ctx->snapshot_min_interval) {
     return;
   }
 
-  dmcp::pool_entry* snapshot = dmcp::acquire_snapshot(ctx->pool);
-  if (!snapshot) {
-    ctx->dropped_snapshots.fetch_add(1);
-    if (!ctx->drop_warning_emitted.exchange(true)) {
-      if (ctx->config.on_log) {
-        ctx->config.on_log(ctx->config.user_data, MCP_LOG_WARN,
-                           "DMCP: Snapshot pool exhausted, dropping frames");
-      }
-    }
+  const int slot = dmcp::find_snapshot_write_slot(ctx);
+  if (slot < 0) {
+    ctx->last_snapshot_time = now;
     return;
   }
+
+  dmcp_snapshot_t* snapshot = &ctx->snapshot_buffers[static_cast<size_t>(slot)];
+  dmcp_snapshot_clear(snapshot);
 
   if (ctx->config.on_snapshot) {
-    ctx->config.on_snapshot(ctx->config.user_data, &snapshot->data);
+    ctx->config.on_snapshot(ctx->config.user_data, snapshot);
   }
 
-  {
-    std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-    ctx->last_snapshot = snapshot->data;
-  }
-
-  const std::string json = dmcp::snapshot_to_json(snapshot->data);
-  dmcp::broadcast_state_event(ctx, json);
-
-  dmcp::release_snapshot(ctx->pool, snapshot);
-
+  const uint64_t token =
+      dmcp::make_snapshot_token(static_cast<size_t>(slot), ctx->next_snapshot_generation++);
+  ctx->published_snapshot_token.store(token, std::memory_order_release);
   ctx->last_snapshot_time = now;
 }
 
@@ -334,7 +338,6 @@ void dmcp_stats_get(const dmcp_context_t* ctx_handle, dmcp_stats_t* stats) {
   auto* ctx = reinterpret_cast<const dmcp::context*>(ctx_handle);
 
   stats->struct_size         = sizeof(dmcp_stats_t);
-  stats->dropped_snapshots   = ctx->dropped_snapshots.load();
   stats->dropped_screenshots = ctx->dropped_screenshots.load();
 
   mcp_server_stats_t server_stats{};

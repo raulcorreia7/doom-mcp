@@ -121,7 +121,7 @@ static std::string GetHeaderValue(const httplib::Request& req, const char* key) 
 
 static void SetCommonHeaders(httplib::Response& res) {
   res.set_header("Access-Control-Allow-Origin", "*");
-  res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+  res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.set_header("Access-Control-Allow-Headers",
                  "Content-Type, Accept, MCP-Session-Id, MCP-Protocol-Version");
   res.set_header("Cache-Control", "no-store");
@@ -273,12 +273,6 @@ static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req,
   client->connected_at = std::chrono::steady_clock::now();
 
   {
-    std::lock_guard<std::mutex> lock(client->mutex);
-    client->pending.emplace_back("event: connected\ndata: {\"client_id\":\"" + client->id +
-                                 "\"}\n\n");
-  }
-
-  {
     std::lock_guard<std::mutex> lock(ctx->clients_mutex);
     ctx->clients.push_back(client);
   }
@@ -407,6 +401,7 @@ static void TransportThreadMain(TransportContext* ctx) {
   ctx->server->Post(R"(.*)", handler);
   ctx->server->Put(R"(.*)", handler);
   ctx->server->Patch(R"(.*)", handler);
+  ctx->server->Delete(R"(.*)", handler);
   ctx->server->Options(R"(.*)", handler);
 
   bool bind_ok = ctx->server->bind_to_port("0.0.0.0", static_cast<int>(ctx->port));

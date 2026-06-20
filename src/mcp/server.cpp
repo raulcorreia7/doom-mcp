@@ -141,6 +141,15 @@ static std::shared_ptr<Session> CreateSession(Server* server, std::string& out_s
   return nullptr;
 }
 
+static bool DeleteSessionById(Server* server, std::string_view session_id) {
+  if (!server || session_id.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(server->sessions_mutex);
+  return server->sessions.erase(std::string(session_id)) > 0;
+}
+
 static std::string ExtractSessionId(const Value& params) {
   const auto& request_meta = request_context::current();
   if (!request_meta.session_id.empty()) {
@@ -202,6 +211,7 @@ static std::string BuildRouteKey(std::string_view method, std::string_view path)
 
 static bool IsReservedRouteKey(std::string_view route_key) {
   return route_key == BuildRouteKey("POST", MCP_ENDPOINT_MCP) ||
+         route_key == BuildRouteKey("DELETE", MCP_ENDPOINT_MCP) ||
          route_key == BuildRouteKey("GET", MCP_ENDPOINT_HEALTH);
 }
 
@@ -335,7 +345,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
 
   // Handle built-in methods
   if (method == "initialize") {
-    ServerLog(server, MCP_LOG_INFO, "MCP initialize request received");
+    ServerLog(server, MCP_LOG_DEBUG, "MCP initialize request received");
 
     if (is_notification) {
       std::string resp = BuildJsonRpcError("null", -32600, "initialize must be a request");
@@ -472,7 +482,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
   }
 
   if (method == "notifications/initialized") {
-    ServerLog(server, MCP_LOG_INFO, "MCP notifications/initialized received");
+    ServerLog(server, MCP_LOG_DEBUG, "MCP notifications/initialized received");
 
     std::string                    session_id = ExtractSessionId(req["params"]);
     const std::shared_ptr<Session> session    = FindSessionById(server, session_id);
@@ -667,9 +677,23 @@ static bool HandleRouteMcp(void* user_data, const char* method, const char* path
                            char* response_buffer, size_t response_size, int* http_status) {
   (void)path;
   auto* server = static_cast<Server*>(user_data);
-  if (!server || !method || std::strcmp(method, "POST") != 0) {
+  if (!server || !method) {
     return false;
   }
+
+  if (std::strcmp(method, "DELETE") == 0) {
+    const std::string session_id = request_context::current().session_id;
+    (void)DeleteSessionById(server, session_id);
+    response_buffer[0] = '\0';
+    *http_status       = 204;
+    server->requests_handled++;
+    return true;
+  }
+
+  if (std::strcmp(method, "POST") != 0) {
+    return false;
+  }
+
   return HandleMCPRequest(server, body ? body : "", response_buffer, response_size, http_status);
 }
 
@@ -748,7 +772,7 @@ static void* OnSseConnect(void* user_data, void** client_handle) {
   auto* server = static_cast<Server*>(user_data);
   if (server) {
     uint64_t clients = server->connected_clients.fetch_add(1, std::memory_order_relaxed) + 1;
-    ServerLog(server, MCP_LOG_INFO, "SSE client connected (clients=%llu)",
+    ServerLog(server, MCP_LOG_DEBUG, "SSE client connected (clients=%llu)",
               static_cast<unsigned long long>(clients));
   }
   return nullptr;
@@ -763,7 +787,7 @@ static void OnSseDisconnect(void* user_data, void* client_handle) {
   while (current > 0) {
     if (server->connected_clients.compare_exchange_weak(
             current, current - 1, std::memory_order_relaxed, std::memory_order_relaxed)) {
-      ServerLog(server, MCP_LOG_INFO, "SSE client disconnected (clients=%llu)",
+      ServerLog(server, MCP_LOG_DEBUG, "SSE client disconnected (clients=%llu)",
                 static_cast<unsigned long long>(current - 1));
       return;
     }
@@ -799,6 +823,8 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
   {
     std::lock_guard<std::mutex> lock(server->routes_mutex);
     server->routes[mcp::BuildRouteKey("POST", MCP_ENDPOINT_MCP)]   = {mcp::HandleRouteMcp,
+                                                                      server.get()};
+    server->routes[mcp::BuildRouteKey("DELETE", MCP_ENDPOINT_MCP)] = {mcp::HandleRouteMcp,
                                                                       server.get()};
     server->routes[mcp::BuildRouteKey("GET", MCP_ENDPOINT_HEALTH)] = {mcp::HandleRouteHealth,
                                                                       server.get()};

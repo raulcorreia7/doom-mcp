@@ -186,8 +186,8 @@ dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config) {
   }
 
   ctx->initialized = true;
-  dmcp_adapter_log(MCP_LOG_INFO, "adapter created (port=%d, target_hz=%d)", dmcp_cfg.port,
-                   dmcp_cfg.target_hz);
+  dmcp_adapter_log(MCP_LOG_INFO, "adapter created (port=%d target_hz=%u)", dmcp_cfg.port,
+                   (unsigned)dmcp_cfg.target_hz);
   return ctx;
 }
 

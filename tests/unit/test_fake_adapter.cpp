@@ -35,7 +35,6 @@ constexpr std::array<int32_t, DMCP_MAX_AMMO_TYPES> kExpectedInitialAmmo    = {50
 dmcp_fake_config_t make_fake_config(void) {
   dmcp_fake_config_t cfg   = dmcp_fake_config_default();
   cfg.base.port            = kFakeAdapterPort;
-  cfg.base.target_hz       = DMCP_DEFAULT_TARGET_HZ;
   cfg.base.start_transport = false;
   return cfg;
 }

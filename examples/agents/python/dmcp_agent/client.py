@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from contextlib import AsyncExitStack
 from typing import Any, Dict, Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
@@ -25,6 +28,7 @@ class DMCPClient:
         self._exit_stack = AsyncExitStack()
 
     async def __aenter__(self) -> "DMCPClient":
+        self._check_server_health()
         read_stream, write_stream, _session_id = await self._exit_stack.enter_async_context(
             streamable_http_client(self.url)
         )
@@ -58,6 +62,20 @@ class DMCPClient:
         if self.session is None:
             raise DMCPError("MCP session is not connected")
         return self.session
+
+    def _check_server_health(self) -> None:
+        health_url = dmcp_health_url(self.url)
+        request = Request(health_url, method="GET")
+        try:
+            with urlopen(request, timeout=2.0):
+                return
+        except (HTTPError, OSError, TimeoutError, URLError) as exc:
+            raise DMCPError(f"cannot reach DMCP server at {self.url}") from exc
+
+
+def dmcp_health_url(mcp_url: str) -> str:
+    parts = urlsplit(mcp_url)
+    return urlunsplit((parts.scheme, parts.netloc, "/health", "", ""))
 
 
 def model_to_json(value: Any) -> Any:

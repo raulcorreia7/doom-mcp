@@ -40,7 +40,7 @@ Complete feature overview of the Doom Model Context Protocol SDK.
 
 | Feature | Description |
 |---------|-------------|
-| HTTP/SSE | POST for JSON-RPC, GET for real-time SSE stream |
+| HTTP | MCP JSON-RPC endpoint plus health/game routes |
 | JSON-RPC 2.0 | Full protocol compliance with error handling |
 | MCP 2025-11-25 | Model Context Protocol specification compliant |
 | Per-session state | Multiple clients with independent lifecycles |
@@ -49,8 +49,8 @@ Complete feature overview of the Doom Model Context Protocol SDK.
 
 | Feature | Benefit |
 |---------|---------|
-| Object pooling | Reuses snapshot objects to minimize allocations |
-| Rate limiting | Configurable snapshot rate (target_hz) |
+| Writer-priority snapshots | Game thread publishes latest state without waiting on readers |
+| Snapshot sampling | Configurable latest-snapshot rate (`target_hz`) |
 | Batch operations | Multiple commands/queries in single request |
 | Async commands | Non-blocking command queue with completion polling |
 

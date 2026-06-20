@@ -109,14 +109,14 @@ DMCP_API bool dmcp_context_is_running(const dmcp_context_t* ctx);
  * Call this function at your game's frame rate to update DMCP state.
  * This function:
  *   1. Calls the on_snapshot callback to fill snapshot data
- *   2. Queues the snapshot for broadcasting (rate-limited by target_hz)
- *   3. Processes any pending commands from agents
+ *   2. Publishes the latest sampled snapshot for MCP readers
  *
  * @param ctx Context handle
  *
  * @note Should be called from your game's main loop/thread
- * @note Snapshot rate is controlled by config.target_hz
- * @note Commands from agents are processed during this call
+ * @note Snapshot sampling rate is controlled by config.target_hz
+ * @note Command processing is adapter-owned so engines can apply changes on
+ *       the correct game-thread boundary.
  * Example:
  * @code
  * // In your game loop
@@ -267,9 +267,8 @@ DMCP_API int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t b
 /**
  * @brief Get current statistics
  *
- * Retrieves statistics about DMCP context operation, including
- * dropped snapshots, dropped screenshots, and client connections.
- * Useful for monitoring and debugging.
+ * Retrieves statistics about DMCP context operation, including screenshot
+ * drops and client connections. Useful for monitoring and debugging.
  *
  * @param ctx Context handle
  * @param stats Output structure to receive statistics
@@ -280,7 +279,6 @@ DMCP_API int dmcp_screenshot_to_json(dmcp_context_t* ctx, char* buffer, size_t b
  * @code
  * dmcp_stats_t stats;
  * dmcp_stats_get(ctx, &stats);
- * printf("Dropped snapshots: %llu\n", stats.dropped_snapshots);
  * printf("Dropped screenshots: %llu\n", stats.dropped_screenshots);
  * printf("Connected clients: %llu\n", stats.connected_clients);
  * @endcode

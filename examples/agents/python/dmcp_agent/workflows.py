@@ -164,6 +164,7 @@ async def weapon(client: DMCPClient, args: argparse.Namespace) -> Any:
 
 async def input_plan(client: DMCPClient, args: argparse.Namespace) -> Any:
     validate_input_value(args.action, args.value)
+    require_minimum_int(args.ticks, 1, "ticks")
     results: List[Any] = []
     for _ in range(args.ticks):
         results.append(
@@ -333,7 +334,12 @@ def command_results_complete(result: Any, sequences: List[int]) -> bool:
 
 def result_failed(value: Any) -> bool:
     if isinstance(value, dict):
-        if value.get("status") in {"failed", "timeout"} or value.get("success") is False:
+        if (
+            value.get("status") in {"failed", "timeout", "error"}
+            or value.get("success") is False
+            or value.get("rejected", 0)
+            or value.get("rejected_commands")
+        ):
             return True
         return any(result_failed(nested) for nested in value.values())
     if isinstance(value, list):
@@ -479,6 +485,8 @@ def require_minimum_int(value: int, minimum: int, label: str) -> None:
 def validate_input_value(action: str, value: Any) -> None:
     if action in {"aim", "weapon"} and value is None:
         raise DMCPError(f"input action {action!r} requires --value")
+    if action not in {"aim", "weapon"} and value is not None:
+        raise DMCPError(f"input action {action!r} does not accept --value")
     if action == "weapon" and value is not None:
         slot = int(value)
         if float(slot) != float(value) or slot < 1 or slot > 7:
