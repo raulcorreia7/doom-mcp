@@ -1,17 +1,27 @@
 #include "engine_hooks.h"
 #include "i_system.h"
-#include "i_video.h"
 #include <stdlib.h>
 #include <string.h>
+
+#if DMCP_CRISPY_ENABLE_FRAME_CAPTURE
+#include "i_video.h"
+#endif
 
 static dmcp_crispy_t* g_dmcp_ctx = NULL;
 
 dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv) {
-  return dmcp_engine_config_from_argv(argc, argv);
+  dmcp_engine_config_t cfg = dmcp_engine_config_from_argv(argc, argv);
+#if !DMCP_CRISPY_ENABLE_FRAME_CAPTURE
+  cfg.screenshot_enabled = false;
+#endif
+  return cfg;
 }
 
 void DMCP_Init(dmcp_engine_config_t cfg) {
-  dmcp_crispy_config_t adapter_cfg   = dmcp_crispy_config_default();
+  dmcp_crispy_config_t adapter_cfg = dmcp_crispy_config_default();
+#if !DMCP_CRISPY_ENABLE_FRAME_CAPTURE
+  cfg.screenshot_enabled = false;
+#endif
   adapter_cfg.base.port              = (uint16_t)(cfg.port > 0 ? cfg.port : 6060);
   adapter_cfg.base.target_hz         = (uint32_t)(cfg.target_hz > 0 ? cfg.target_hz : 35);
   adapter_cfg.base.screenshot.enable = cfg.screenshot_enabled;
@@ -37,6 +47,7 @@ void DMCP_Tick(void) {
   }
 }
 
+#if DMCP_CRISPY_ENABLE_FRAME_CAPTURE
 static int DMCP_CopyFrameToRgba(const byte* src, int width, int height, int pitch,
                                 unsigned char* dst) {
   int bytes_per_pixel;
@@ -61,8 +72,10 @@ static int DMCP_CopyFrameToRgba(const byte* src, int width, int height, int pitc
 
   return 1;
 }
+#endif
 
 void DMCP_CaptureFrame(void) {
+#if DMCP_CRISPY_ENABLE_FRAME_CAPTURE
   dmcp_context_t* ctx;
   byte*           pixels = NULL;
   unsigned char*  rgba   = NULL;
@@ -103,4 +116,7 @@ void DMCP_CaptureFrame(void) {
 
   free(rgba);
   free(pixels);
+#else
+  /* Frame capture is intentionally compiled out for this engine build. */
+#endif
 }

@@ -100,7 +100,8 @@ Console commands are enabled automatically when cheats are enabled.
 - `DMCP_Init(config)` creates the adapter and registers shutdown cleanup.
 - `DMCP_Tick()` publishes snapshots and drains queued commands/input.
 - `DMCP_CaptureFrame()` submits a screenshot only when the MCP layer requested
-  one.
+  one and `DMCP_CRISPY_ENABLE_FRAME_CAPTURE=1` was set by the engine build. It
+  is an empty hook when frame capture is off.
 - `DMCP_Shutdown()` destroys the adapter context and is safe to call during
   engine shutdown.
 
