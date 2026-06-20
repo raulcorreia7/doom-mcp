@@ -12,12 +12,12 @@ Run from this directory:
 
 ```bash
 uv run dmcp-agent --help
-uv run dmcp-agent brief --pretty
-uv run dmcp-agent read player --pretty
-uv run dmcp-agent read enemies --status alive --limit 8 --pretty
-uv run dmcp-agent content --pretty
-uv run dmcp-agent content enemies --pretty
-uv run dmcp-agent content maps --pretty
+uv run dmcp-agent --pretty brief
+uv run dmcp-agent --pretty read player
+uv run dmcp-agent --pretty read enemies --status alive --limit 8
+uv run dmcp-agent --pretty content
+uv run dmcp-agent --pretty content enemies
+uv run dmcp-agent --pretty content maps
 uv run dmcp-agent spawn DoomImp --x 160 --y 96
 uv run dmcp-agent spawn-many --spawns-json '[{"entity_class":"DoomImp","x":160,"y":96,"angle":0}]'
 uv run dmcp-agent give-many --items-json '[{"item_class":"Shotgun","amount":1},{"item_class":"Shells","amount":20}]'
