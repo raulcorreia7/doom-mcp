@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-static inline const char* dmcp_skill_to_string(skill_t skill) {
+static inline const char* dmcp_crispy_skill_to_string(skill_t skill) {
   switch (skill) {
     case sk_baby:
       return "I'm Too Young To Die";
@@ -35,7 +35,7 @@ static inline const char* dmcp_skill_to_string(skill_t skill) {
   }
 }
 
-static inline const char* dmcp_playerstate_to_string(playerstate_t state) {
+static inline const char* dmcp_crispy_playerstate_to_string(playerstate_t state) {
   switch (state) {
     case PST_LIVE:
       return "alive";
@@ -48,7 +48,7 @@ static inline const char* dmcp_playerstate_to_string(playerstate_t state) {
   }
 }
 
-static inline const char* dmcp_gamestate_to_string(gamestate_t state) {
+static inline const char* dmcp_crispy_gamestate_to_string(gamestate_t state) {
   switch (state) {
     case GS_LEVEL:
       return "in_level";
@@ -63,7 +63,7 @@ static inline const char* dmcp_gamestate_to_string(gamestate_t state) {
   }
 }
 
-static inline const char* dmcp_weapon_to_string(weapontype_t weapon) {
+static inline const char* dmcp_crispy_weapon_to_string(weapontype_t weapon) {
   switch (weapon) {
     case wp_fist:
       return "Fist";
@@ -88,7 +88,7 @@ static inline const char* dmcp_weapon_to_string(weapontype_t weapon) {
   }
 }
 
-static inline const char* dmcp_armortype_to_string(int armortype) {
+static inline const char* dmcp_crispy_armortype_to_string(int armortype) {
   switch (armortype) {
     case 0:
       return "None";
@@ -101,7 +101,7 @@ static inline const char* dmcp_armortype_to_string(int armortype) {
   }
 }
 
-static inline const char* dmcp_gamemode_to_string(boolean is_netgame, int deathmatch_mode) {
+static inline const char* dmcp_crispy_gamemode_to_string(boolean is_netgame, int deathmatch_mode) {
   if (!is_netgame) {
     return "single_player";
   }
@@ -117,7 +117,7 @@ static inline const char* dmcp_gamemode_to_string(boolean is_netgame, int deathm
   }
 }
 
-static inline dmcp_gamemode_t dmcp_to_gamemode(GameMode_t mode) {
+static inline dmcp_gamemode_t dmcp_crispy_gamemode_from_engine(GameMode_t mode) {
   switch (mode) {
     case shareware:
       return DMCP_GAMEMODE_SHAREWARE;

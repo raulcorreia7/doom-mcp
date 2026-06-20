@@ -25,16 +25,16 @@ using namespace dmcp::zdoom;
 
 namespace {
 
-static void CopyCommandMessage(char* out, size_t out_size, const char* message) {
+static void copy_command_message(char* out, size_t out_size, const char* message) {
   mcp_strcpy_safe(out, out_size, message ? message : "");
 }
 
-static player_t* GetConsolePlayer() {
+static player_t* get_console_player() {
   if (consoleplayer < 0 || consoleplayer >= MAXPLAYERS) return nullptr;
   return &players[consoleplayer];
 }
 
-static AActor* FindActorByTid(int tid) {
+static AActor* find_actor_by_tid(int tid) {
   TThinkerIterator<AActor> it;
   while (AActor* actor = it.Next()) {
     if (actor->tid == tid) {
@@ -45,7 +45,7 @@ static AActor* FindActorByTid(int tid) {
 }
 
 // Helper to execute console commands
-static void ExecuteConsoleCommand(const char* cmd) {
+static void execute_console_command(const char* cmd) {
   if (!cmd || !cmd[0]) return;
 
   // Add command to console buffer
@@ -53,7 +53,7 @@ static void ExecuteConsoleCommand(const char* cmd) {
 }
 
 // Helper to spawn an entity
-static bool SpawnEntity(const dmcp_cmd_spawn_t* spawn) {
+static bool spawn_entity(const dmcp_cmd_spawn_t* spawn) {
   if (!spawn) return false;
 
   // Build spawn command
@@ -61,12 +61,12 @@ static bool SpawnEntity(const dmcp_cmd_spawn_t* spawn) {
   snprintf(cmd, sizeof(cmd), "summon %s %f %f %f", spawn->entity_class, spawn->position.x,
            spawn->position.y, spawn->angle);
 
-  ExecuteConsoleCommand(cmd);
+  execute_console_command(cmd);
   return true;
 }
 
 // Helper to change level
-static bool ChangeLevel(const dmcp_cmd_change_level_t* change) {
+static bool change_level(const dmcp_cmd_change_level_t* change) {
   if (!change || !change->map_name[0]) return false;
 
   char cmd[128];
@@ -76,40 +76,40 @@ static bool ChangeLevel(const dmcp_cmd_change_level_t* change) {
     snprintf(cmd, sizeof(cmd), "changemap %s", change->map_name);
   }
 
-  ExecuteConsoleCommand(cmd);
+  execute_console_command(cmd);
   return true;
 }
 
 // Helper to give item
-static bool GiveItem(const dmcp_cmd_give_item_t* give) {
+static bool give_item(const dmcp_cmd_give_item_t* give) {
   if (!give || !give->item_class[0]) return false;
 
   char cmd[256];
   snprintf(cmd, sizeof(cmd), "give %s", give->item_class);
-  ExecuteConsoleCommand(cmd);
+  execute_console_command(cmd);
 
   // If amount > 1, we might need additional handling depending on the item
   return true;
 }
 
 // Helper to set player health
-static bool SetPlayerHealth(AdapterContext* ctx, const dmcp_cmd_set_health_t* health) {
+static bool set_player_health(AdapterContext* ctx, const dmcp_cmd_set_health_t* health) {
   if (!health) {
-    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: null command");
+    adapter_log(ctx, MCP_LOG_WARN, "set_player_health: null command");
     return false;
   }
 
   // Validate health value using adapter helper
   int health_value = static_cast<int>(health->health);
   if (!dmcp_validate_health(health_value)) {
-    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: health %d out of range (1-%d)", health_value,
-        DMCP_PLAYER_MAX_HEALTH);
+    adapter_log(ctx, MCP_LOG_WARN, "set_player_health: health %d out of range (1-%d)", health_value,
+                DMCP_PLAYER_MAX_HEALTH);
     return false;
   }
 
-  player_t* player = GetConsolePlayer();
+  player_t* player = get_console_player();
   if (!player || !player->mo) {
-    Log(ctx, MCP_LOG_WARN, "SetPlayerHealth: no player or mobj");
+    adapter_log(ctx, MCP_LOG_WARN, "set_player_health: no player or mobj");
     return false;
   }
 
@@ -121,10 +121,10 @@ static bool SetPlayerHealth(AdapterContext* ctx, const dmcp_cmd_set_health_t* he
 }
 
 // Helper to set player position
-static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
+static bool set_player_position(const dmcp_cmd_set_position_t* pos) {
   if (!pos) return false;
 
-  player_t* player = GetConsolePlayer();
+  player_t* player = get_console_player();
   if (!player || !player->mo) return false;
 
   // Teleport player to new position
@@ -137,33 +137,33 @@ static bool SetPlayerPosition(const dmcp_cmd_set_position_t* pos) {
 }
 
 // Helper to pause/unpause game
-static bool PauseGame(const dmcp_cmd_pause_t* pause) {
+static bool pause_game(const dmcp_cmd_pause_t* pause) {
   if (!pause) return false;
 
   if (paused != pause->paused) {
-    ExecuteConsoleCommand("pause");
+    execute_console_command("pause");
   }
   return true;
 }
 
 // Helper to damage entity
-static bool DamageEntity(AdapterContext* ctx, const dmcp_cmd_damage_t* damage) {
+static bool damage_entity(AdapterContext* ctx, const dmcp_cmd_damage_t* damage) {
   if (!damage) {
-    Log(ctx, MCP_LOG_WARN, "DamageEntity: null command");
+    adapter_log(ctx, MCP_LOG_WARN, "damage_entity: null command");
     return false;
   }
 
   // Validate damage amount using adapter helper
   int damage_value = static_cast<int>(damage->damage);
   if (!dmcp_validate_damage(damage_value)) {
-    Log(ctx, MCP_LOG_WARN, "DamageEntity: damage %d out of range (1-%d)", damage_value,
-        DMCP_DAMAGE_MAX);
+    adapter_log(ctx, MCP_LOG_WARN, "damage_entity: damage %d out of range (1-%d)", damage_value,
+                DMCP_DAMAGE_MAX);
     return false;
   }
 
-  AActor* actor = FindActorByTid(damage->target_tid);
+  AActor* actor = find_actor_by_tid(damage->target_tid);
   if (!actor) {
-    Log(ctx, MCP_LOG_WARN, "DamageEntity: target tid %d not found", damage->target_tid);
+    adapter_log(ctx, MCP_LOG_WARN, "damage_entity: target tid %d not found", damage->target_tid);
     return false;
   }
 
@@ -172,10 +172,10 @@ static bool DamageEntity(AdapterContext* ctx, const dmcp_cmd_damage_t* damage) {
 }
 
 // Helper to kill entity
-static bool KillEntity(const dmcp_cmd_kill_t* kill) {
+static bool kill_entity(const dmcp_cmd_kill_t* kill) {
   if (!kill) return false;
 
-  AActor* actor = FindActorByTid(kill->target_tid);
+  AActor* actor = find_actor_by_tid(kill->target_tid);
   if (!actor) {
     return false;
   }
@@ -186,35 +186,35 @@ static bool KillEntity(const dmcp_cmd_kill_t* kill) {
   return true;
 }
 
-static bool ExecuteQueuedCommand(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
-                                 size_t out_message_size) {
+static bool execute_queued_command(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
+                                   size_t out_message_size) {
   auto* ctx = static_cast<AdapterContext*>(adapter_ctx);
   bool  success;
 
   if (!ctx || !cmd) {
-    CopyCommandMessage(out_message, out_message_size, "Invalid command");
+    copy_command_message(out_message, out_message_size, "Invalid command");
     return false;
   }
 
   success = dmcp_zdoom_command_execute(reinterpret_cast<dmcp_zdoom_t*>(ctx), cmd);
   if (success) {
-    CopyCommandMessage(out_message, out_message_size, "Command executed");
+    copy_command_message(out_message, out_message_size, "Command executed");
   } else {
-    CopyCommandMessage(out_message, out_message_size, "Command failed in engine");
-    Log(ctx, MCP_LOG_WARN, "Command %d failed", cmd->type);
+    copy_command_message(out_message, out_message_size, "Command failed in engine");
+    adapter_log(ctx, MCP_LOG_WARN, "Command %d failed", cmd->type);
   }
   return success;
 }
 
-static bool ExecuteQueuedInput(void* adapter_ctx, const dmcp_command_t* input_cmd,
-                               char* out_message, size_t out_message_size) {
+static bool execute_queued_input(void* adapter_ctx, const dmcp_command_t* input_cmd,
+                                 char* out_message, size_t out_message_size) {
   auto* ctx = static_cast<AdapterContext*>(adapter_ctx);
   (void)input_cmd;
 
-  CopyCommandMessage(out_message, out_message_size,
-                     "player_input is not supported by zdoom adapter");
+  copy_command_message(out_message, out_message_size,
+                       "player_input is not supported by zdoom adapter");
   if (ctx) {
-    Log(ctx, MCP_LOG_DEBUG, "player_input not supported");
+    adapter_log(ctx, MCP_LOG_DEBUG, "player_input not supported");
   }
   return false;
 }
@@ -231,32 +231,32 @@ bool dmcp_zdoom_command_execute(dmcp_zdoom_t* ctx_handle, const dmcp_command_t* 
 
   switch (cmd->type) {
     case DMCP_CMD_SPAWN_ENTITY:
-      return SpawnEntity(&cmd->data.spawn);
+      return spawn_entity(&cmd->data.spawn);
 
     case DMCP_CMD_CHANGE_LEVEL:
-      return ChangeLevel(&cmd->data.change_level);
+      return change_level(&cmd->data.change_level);
 
     case DMCP_CMD_GIVE_ITEM:
-      return GiveItem(&cmd->data.give_item);
+      return give_item(&cmd->data.give_item);
 
     case DMCP_CMD_SET_PLAYER_HEALTH:
-      return SetPlayerHealth(ctx, &cmd->data.set_health);
+      return set_player_health(ctx, &cmd->data.set_health);
 
     case DMCP_CMD_SET_PLAYER_POSITION:
-      return SetPlayerPosition(&cmd->data.set_position);
+      return set_player_position(&cmd->data.set_position);
 
     case DMCP_CMD_EXECUTE_CONSOLE:
-      ExecuteConsoleCommand(cmd->data.console.command);
+      execute_console_command(cmd->data.console.command);
       return true;
 
     case DMCP_CMD_PAUSE_GAME:
-      return PauseGame(&cmd->data.pause);
+      return pause_game(&cmd->data.pause);
 
     case DMCP_CMD_DAMAGE_ENTITY:
-      return DamageEntity(ctx, &cmd->data.damage);
+      return damage_entity(ctx, &cmd->data.damage);
 
     case DMCP_CMD_KILL_ENTITY:
-      return KillEntity(&cmd->data.kill);
+      return kill_entity(&cmd->data.kill);
 
     default:
       return false;
@@ -271,9 +271,9 @@ void dmcp_zdoom_commands_process(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) return;
 
-  int processed = dmcp_adapter_process_command_queue(ctx->dmcp_ctx, ctx, ExecuteQueuedCommand, 0);
+  int processed = dmcp_adapter_process_command_queue(ctx->dmcp_ctx, ctx, execute_queued_command, 0);
   if (processed > 0) {
-    Log(ctx, MCP_LOG_INFO, "processed %d command(s)", processed);
+    adapter_log(ctx, MCP_LOG_DEBUG, "processed %d command(s)", processed);
   }
 }
 
@@ -281,5 +281,5 @@ void dmcp_zdoom_inputs_process(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx) return;
 
-  dmcp_adapter_process_input_queue(ctx->dmcp_ctx, ctx, ExecuteQueuedInput, 0);
+  dmcp_adapter_process_input_queue(ctx->dmcp_ctx, ctx, execute_queued_input, 0);
 }

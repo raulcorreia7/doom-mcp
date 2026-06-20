@@ -102,6 +102,7 @@ Packaged SDK archives provide `cmake/dmcp-config.cmake` and the imported
 ```c
 #include "mcp/generic/server.h"
 
+mcp_server_config_t mcp_server_config_default(void);
 mcp_server_t* mcp_server_create(const mcp_server_config_t* config);
 void          mcp_server_destroy(mcp_server_t* server);
 mcp_status_t mcp_server_method_register(mcp_server_t* server,
@@ -135,6 +136,18 @@ void            dmcp_context_tick(dmcp_context_t* ctx);
 bool         dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
 mcp_status_t dmcp_screenshot_submit(dmcp_context_t* ctx,
                                     const dmcp_screenshot_frame_t* frame);
+
+mcp_status_t dmcp_command_push(dmcp_context_t* ctx, dmcp_command_t* cmd);
+bool         dmcp_command_pop(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+bool         dmcp_command_has_pending(const dmcp_context_t* ctx);
+uint32_t     dmcp_command_count(const dmcp_context_t* ctx);
+void         dmcp_command_clear(dmcp_context_t* ctx);
+
+mcp_status_t dmcp_input_push(dmcp_context_t* ctx, dmcp_command_t* cmd);
+bool         dmcp_input_pop(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+bool         dmcp_input_has_pending(const dmcp_context_t* ctx);
+uint32_t     dmcp_input_count(const dmcp_context_t* ctx);
+void         dmcp_input_clear(dmcp_context_t* ctx);
 
 void dmcp_stats_get(const dmcp_context_t* ctx, dmcp_stats_t* stats);
 int  dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot,

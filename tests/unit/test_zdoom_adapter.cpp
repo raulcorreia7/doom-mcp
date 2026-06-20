@@ -205,17 +205,17 @@ TEST_CASE("Adapter: State queries", "[adapter][state]") {
 
   SECTION("Get stats returns valid structure") {
     dmcp_stats_t stats = {};
-    dmcp_zdoom_get_stats(mcp, &stats);
+    dmcp_zdoom_stats_get(mcp, &stats);
 
     REQUIRE(stats.connected_clients >= 0);
   }
 
   SECTION("Get stats with null context") {
     dmcp_stats_t stats = {};
-    dmcp_zdoom_get_stats(nullptr, &stats);
+    dmcp_zdoom_stats_get(nullptr, &stats);
   }
 
-  SECTION("Get stats with null stats pointer") { dmcp_zdoom_get_stats(mcp, nullptr); }
+  SECTION("Get stats with null stats pointer") { dmcp_zdoom_stats_get(mcp, nullptr); }
 
   dmcp_zdoom_destroy(mcp);
 }
@@ -540,7 +540,7 @@ TEST_CASE("Adapter: Statistics tracking", "[adapter][stats]") {
 
   SECTION("Initial stats are zero") {
     dmcp_stats_t stats = {};
-    dmcp_zdoom_get_stats(mcp, &stats);
+    dmcp_zdoom_stats_get(mcp, &stats);
 
     REQUIRE(stats.dropped_screenshots == 0);
     REQUIRE(stats.connected_clients == 0);
@@ -548,14 +548,14 @@ TEST_CASE("Adapter: Statistics tracking", "[adapter][stats]") {
 
   SECTION("Stats update after ticks") {
     dmcp_stats_t stats_before = {};
-    dmcp_zdoom_get_stats(mcp, &stats_before);
+    dmcp_zdoom_stats_get(mcp, &stats_before);
 
     for (int i = 0; i < 10; i++) {
       dmcp_zdoom_tick(mcp);
     }
 
     dmcp_stats_t stats_after = {};
-    dmcp_zdoom_get_stats(mcp, &stats_after);
+    dmcp_zdoom_stats_get(mcp, &stats_after);
   }
 
   dmcp_zdoom_destroy(mcp);

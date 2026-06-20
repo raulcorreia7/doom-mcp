@@ -15,8 +15,8 @@
 
 static int call_count = 0;
 
-static mcp_server_config_t TestServerConfig() {
-  mcp_server_config_t config = mcp_default_config();
+static mcp_server_config_t test_server_config() {
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = dmcp::test::allocate_loopback_port();
   config.start_transport     = false;
   return config;
@@ -75,7 +75,7 @@ static bool route_handler(void* user_data, const char* method, const char* path,
 
 TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
   SECTION("Create and destroy server without starting transport") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     mcp_server_t*       server = mcp_server_create(&config);
 
     REQUIRE(server != nullptr);
@@ -85,7 +85,7 @@ TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
   }
 
   SECTION("Create server with custom port") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.port                = dmcp::test::allocate_loopback_port();
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -95,7 +95,7 @@ TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
   }
 
   SECTION("Default config helper provides sane defaults") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = mcp_server_config_default();
     REQUIRE(config.struct_size == sizeof(mcp_server_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
     REQUIRE(config.max_payload_size == MCP_MAX_PAYLOAD_SIZE);
@@ -103,7 +103,7 @@ TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
   }
 
   SECTION("Create server with custom max payload size") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.max_payload_size    = 2048;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -120,7 +120,7 @@ TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
 }
 
 TEST_CASE("Generic MCP: Single method registration", "[api][server][method]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -174,7 +174,7 @@ TEST_CASE("Generic MCP: Single method registration", "[api][server][method]") {
 }
 
 TEST_CASE("Generic MCP: Batch method registration", "[api][server][batch]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -257,7 +257,7 @@ TEST_CASE("Generic MCP: Batch method registration", "[api][server][batch]") {
 }
 
 TEST_CASE("Generic MCP: Route registration", "[api][server][route]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -312,7 +312,7 @@ TEST_CASE("Generic MCP: Route registration", "[api][server][route]") {
 }
 
 TEST_CASE("Generic MCP: Event broadcasting", "[api][server][events]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -355,7 +355,7 @@ TEST_CASE("Generic MCP: Event broadcasting", "[api][server][events]") {
 }
 
 TEST_CASE("Generic MCP: Client count", "[api][server][clients]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -373,7 +373,7 @@ TEST_CASE("Generic MCP: Client count", "[api][server][clients]") {
 }
 
 TEST_CASE("Generic MCP: Statistics", "[api][server][stats]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -540,7 +540,7 @@ TEST_CASE("Generic MCP: Result codes", "[api][result]") {
 
 TEST_CASE("Generic MCP: Server configuration", "[api][config]") {
   SECTION("Default config has correct values") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = mcp_server_config_default();
 
     REQUIRE(config.struct_size == sizeof(mcp_server_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
@@ -552,7 +552,7 @@ TEST_CASE("Generic MCP: Server configuration", "[api][config]") {
   }
 
   SECTION("Custom config values") {
-    mcp_server_config_t config     = TestServerConfig();
+    mcp_server_config_t config     = test_server_config();
     config.max_requests_per_second = 50;
     config.max_payload_size        = 512 * 1024;
 
@@ -564,7 +564,7 @@ TEST_CASE("Generic MCP: Server configuration", "[api][config]") {
 }
 
 TEST_CASE("Generic MCP: Error messages", "[api][error]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -587,7 +587,7 @@ TEST_CASE("Generic MCP: Error messages", "[api][error]") {
 }
 
 TEST_CASE("Generic MCP: Thread safety", "[api][thread]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 
@@ -672,7 +672,7 @@ TEST_CASE("Generic MCP: Thread safety", "[api][thread]") {
 
 TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error]") {
   SECTION("Port zero - implementation allows (auto-assign)") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.port                = 0;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -681,7 +681,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Negative port - implementation behavior") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.port                = -1;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -690,7 +690,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Port out of range - implementation behavior") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.port                = 65535;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -699,7 +699,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Zero max payload size - implementation behavior") {
-    mcp_server_config_t config = TestServerConfig();
+    mcp_server_config_t config = test_server_config();
     config.max_payload_size    = 0;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -727,7 +727,7 @@ static bool overflow_handler(void* user_data, const char* method, const char* re
 }
 
 TEST_CASE("Generic MCP: Response buffer overflow", "[api][server][error][buffer]") {
-  mcp_server_config_t config = TestServerConfig();
+  mcp_server_config_t config = test_server_config();
   mcp_server_t*       server = mcp_server_create(&config);
   REQUIRE(server != nullptr);
 

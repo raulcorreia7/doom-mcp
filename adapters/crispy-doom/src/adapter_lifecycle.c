@@ -246,7 +246,7 @@ void dmcp_crispy_commands_process(dmcp_crispy_t* ctx) {
       dmcp_adapter_process_command_queue(ctx->dmcp_ctx, ctx, crispy_execute_command_for_queue, 0);
 
   if (cmd_count > 0) {
-    dmcp_adapter_log(MCP_LOG_INFO, "processed %d command(s)", cmd_count);
+    dmcp_adapter_log(MCP_LOG_DEBUG, "processed %d command(s)", cmd_count);
   }
 }
 
@@ -255,12 +255,12 @@ bool dmcp_crispy_is_running(const dmcp_crispy_t* ctx) {
   return dmcp_context_is_running(ctx->dmcp_ctx);
 }
 
-void dmcp_crispy_get_stats(dmcp_crispy_t* ctx, dmcp_stats_t* stats) {
+void dmcp_crispy_stats_get(dmcp_crispy_t* ctx, dmcp_stats_t* stats) {
   if (!ctx || !ctx->dmcp_ctx || !stats) return;
   dmcp_stats_get(ctx->dmcp_ctx, stats);
 }
 
-dmcp_context_t* dmcp_crispy_get_context(dmcp_crispy_t* ctx) {
+dmcp_context_t* dmcp_crispy_context_get(dmcp_crispy_t* ctx) {
   if (!ctx) return NULL;
   return ctx->dmcp_ctx;
 }

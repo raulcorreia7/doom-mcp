@@ -71,8 +71,8 @@ DMCP_API bool         dmcp_template_command_execute(dmcp_template_t*      adapte
 DMCP_API mcp_status_t dmcp_template_capture_frame(dmcp_template_t* adapter);
 
 DMCP_API bool            dmcp_template_is_running(const dmcp_template_t* adapter);
-DMCP_API dmcp_context_t* dmcp_template_get_context(dmcp_template_t* adapter);
-DMCP_API void            dmcp_template_get_stats(dmcp_template_t* adapter, dmcp_stats_t* out_stats);
+DMCP_API dmcp_context_t* dmcp_template_context_get(dmcp_template_t* adapter);
+DMCP_API void            dmcp_template_stats_get(dmcp_template_t* adapter, dmcp_stats_t* out_stats);
 
 #ifdef __cplusplus
 }

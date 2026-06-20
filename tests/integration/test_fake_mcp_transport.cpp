@@ -62,8 +62,8 @@ bool string_equals(std::string_view actual, const char* expected) {
 std::string call_jsonrpc(uint16_t port, const std::string& session_id, int id, const char* method,
                          const char* params) {
   const std::string body = dmcp::test::jsonrpc_request(id, method, params);
-  const auto        res  = dmcp::test::HttpPost(port, MCP_ENDPOINT_MCP, body.c_str(),
-                                                dmcp::test::SessionHeaders(session_id));
+  const auto        res  = dmcp::test::http_post(port, MCP_ENDPOINT_MCP, body.c_str(),
+                                                 dmcp::test::session_headers(session_id));
   REQUIRE(res.status == 200);
   return res.body;
 }

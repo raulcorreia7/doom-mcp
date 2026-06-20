@@ -77,7 +77,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   ctx->cmd_queue->max_size   = static_cast<uint32_t>(ctx->config.command_queue_slots);
   ctx->input_queue->max_size = static_cast<uint32_t>(ctx->config.command_queue_slots);
 
-  mcp_server_config_t server_config = mcp_default_config();
+  mcp_server_config_t server_config = mcp_server_config_default();
   server_config.port                = ctx->config.port;
   server_config.on_log              = ctx->config.on_log;
   server_config.log_user_data       = ctx->config.user_data;

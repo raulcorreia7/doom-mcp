@@ -24,7 +24,7 @@ constexpr const char* kFallbackLevelName = "Adapter Template";
 constexpr const char* kCommandMissing    = "Command callback not configured";
 constexpr const char* kInputMissing      = "Input callback not configured";
 
-dmcp_template_config_t CopyConfig(const dmcp_template_config_t* config) {
+dmcp_template_config_t copy_config(const dmcp_template_config_t* config) {
   dmcp_template_config_t effective = dmcp_template_config_default();
   if (config == nullptr) {
     return effective;
@@ -40,7 +40,7 @@ dmcp_template_config_t CopyConfig(const dmcp_template_config_t* config) {
   return effective;
 }
 
-void FillFallbackSnapshot(dmcp_snapshot_t* snapshot) {
+void fill_fallback_snapshot(dmcp_snapshot_t* snapshot) {
   dmcp_snapshot_clear(snapshot);
   mcp_strcpy_safe(snapshot->game.mode, sizeof(snapshot->game.mode), kFallbackMode);
   mcp_strcpy_safe(snapshot->game.version, sizeof(snapshot->game.version), kFallbackVersion);
@@ -51,7 +51,7 @@ void FillFallbackSnapshot(dmcp_snapshot_t* snapshot) {
   mcp_strcpy_safe(snapshot->player.playerstate, sizeof(snapshot->player.playerstate), "unknown");
 }
 
-void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
+void snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   if (user_data == nullptr || snapshot == nullptr) {
     return;
   }
@@ -64,11 +64,11 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
     return;
   }
 
-  FillFallbackSnapshot(snapshot);
+  fill_fallback_snapshot(snapshot);
 }
 
-bool ExecuteCommandCallback(void* adapter_ctx, const dmcp_command_t* command, char* out_message,
-                            size_t out_message_size) {
+bool execute_command_callback(void* adapter_ctx, const dmcp_command_t* command, char* out_message,
+                              size_t out_message_size) {
   auto* adapter = static_cast<dmcp_template_t*>(adapter_ctx);
   if (adapter == nullptr || command == nullptr) {
     mcp_strcpy_safe(out_message, out_message_size, "Invalid command");
@@ -85,8 +85,8 @@ bool ExecuteCommandCallback(void* adapter_ctx, const dmcp_command_t* command, ch
                                          out_message_size);
 }
 
-bool ExecuteInputCallback(void* adapter_ctx, const dmcp_command_t* command, char* out_message,
-                          size_t out_message_size) {
+bool execute_input_callback(void* adapter_ctx, const dmcp_command_t* command, char* out_message,
+                            size_t out_message_size) {
   auto* adapter = static_cast<dmcp_template_t*>(adapter_ctx);
   if (adapter == nullptr || command == nullptr || command->type != DMCP_CMD_PLAYER_INPUT) {
     mcp_strcpy_safe(out_message, out_message_size, "Invalid input");
@@ -115,9 +115,9 @@ dmcp_template_t* dmcp_template_create(const dmcp_template_config_t* config) {
     return nullptr;
   }
 
-  adapter->config                  = CopyConfig(config);
+  adapter->config                  = copy_config(config);
   adapter->config.base.struct_size = sizeof(dmcp_config_t);
-  adapter->config.base.on_snapshot = SnapshotCallback;
+  adapter->config.base.on_snapshot = snapshot_callback;
   adapter->config.base.user_data   = adapter.get();
 
   std::unique_ptr<dmcp_context_t, decltype(&dmcp_context_destroy)> dmcp_ctx(
@@ -160,7 +160,7 @@ void dmcp_template_commands_process(dmcp_template_t* adapter) {
     return;
   }
 
-  dmcp_adapter_process_command_queue(adapter->dmcp_ctx, adapter, ExecuteCommandCallback, 0);
+  dmcp_adapter_process_command_queue(adapter->dmcp_ctx, adapter, execute_command_callback, 0);
 }
 
 void dmcp_template_inputs_process(dmcp_template_t* adapter) {
@@ -168,12 +168,12 @@ void dmcp_template_inputs_process(dmcp_template_t* adapter) {
     return;
   }
 
-  dmcp_adapter_process_input_queue(adapter->dmcp_ctx, adapter, ExecuteInputCallback, 0);
+  dmcp_adapter_process_input_queue(adapter->dmcp_ctx, adapter, execute_input_callback, 0);
 }
 
 bool dmcp_template_command_execute(dmcp_template_t* adapter, const dmcp_command_t* command) {
   char message[128] = {0};
-  return ExecuteCommandCallback(adapter, command, message, sizeof(message));
+  return execute_command_callback(adapter, command, message, sizeof(message));
 }
 
 mcp_status_t dmcp_template_capture_frame(dmcp_template_t* adapter) {
@@ -212,14 +212,14 @@ bool dmcp_template_is_running(const dmcp_template_t* adapter) {
   return dmcp_context_is_running(adapter->dmcp_ctx);
 }
 
-dmcp_context_t* dmcp_template_get_context(dmcp_template_t* adapter) {
+dmcp_context_t* dmcp_template_context_get(dmcp_template_t* adapter) {
   if (adapter == nullptr) {
     return nullptr;
   }
   return adapter->dmcp_ctx;
 }
 
-void dmcp_template_get_stats(dmcp_template_t* adapter, dmcp_stats_t* out_stats) {
+void dmcp_template_stats_get(dmcp_template_t* adapter, dmcp_stats_t* out_stats) {
   if (adapter == nullptr || adapter->dmcp_ctx == nullptr || out_stats == nullptr) {
     return;
   }

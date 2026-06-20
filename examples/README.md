@@ -40,7 +40,7 @@ The server will:
 ```c
 #include "dmcp/doom/dmcp.h"  // Convenience header (includes all DMCP headers)
 
-void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
+void snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
     snapshot->player.hp = player->health;
     snapshot->player.position.x = player->x;
     snapshot->player.position.y = player->y;
@@ -49,7 +49,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 dmcp_config_t config = dmcp_config_default();
 config.port = 6060;
 config.target_hz = 10;
-config.on_snapshot = SnapshotCallback;
+config.on_snapshot = snapshot_callback;
 
 dmcp_context_t* ctx = dmcp_context_create(&config);
 ```
@@ -87,7 +87,7 @@ printf("Clients: %llu\n", stats.connected_clients);
 
 ### Error Handling
 ```c
-mcp_status_t result = dmcp_push_command(ctx, &cmd);
+mcp_status_t result = dmcp_command_push(ctx, &cmd);
 if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }

@@ -62,7 +62,7 @@ bool dmcp_crispy_input_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) {
     return false;
   }
 
-  player = dmcp_get_player();
+  player = dmcp_crispy_player_get();
   if (!player || !player->mo) {
     return false;
   }
@@ -149,11 +149,11 @@ static bool crispy_execute_input_for_queue(void* adapter_ctx, const dmcp_command
 }
 
 void dmcp_crispy_inputs_process(dmcp_crispy_t* ctx) {
-  if (!ctx || !dmcp_crispy_get_context(ctx)) {
+  if (!ctx || !dmcp_crispy_context_get(ctx)) {
     return;
   }
 
   // Process one input per tick to preserve current Crispy control semantics.
-  dmcp_adapter_process_input_queue(dmcp_crispy_get_context(ctx), ctx,
+  dmcp_adapter_process_input_queue(dmcp_crispy_context_get(ctx), ctx,
                                    crispy_execute_input_for_queue, 1);
 }

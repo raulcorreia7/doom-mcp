@@ -52,8 +52,8 @@ void DMCP_Tick(void) {
 }
 
 #if DMCP_CRISPY_ENABLE_FRAME_CAPTURE
-static int DMCP_CopyFrameToRgba(const byte* src, int width, int height, int pitch,
-                                unsigned char* dst) {
+static int dmcp_copy_frame_to_rgba(const byte* src, int width, int height, int pitch,
+                                   unsigned char* dst) {
   int bytes_per_pixel;
 
   if (!src || !dst || width <= 0 || height <= 0 || pitch < width * 3) {
@@ -91,7 +91,7 @@ void DMCP_CaptureFrame(void) {
     return;
   }
 
-  ctx = dmcp_crispy_get_context(g_dmcp_ctx);
+  ctx = dmcp_crispy_context_get(g_dmcp_ctx);
   if (!ctx || !dmcp_screenshot_is_requested(ctx)) {
     return;
   }
@@ -108,7 +108,7 @@ void DMCP_CaptureFrame(void) {
     return;
   }
 
-  if (DMCP_CopyFrameToRgba(pixels, width, height, pitch, rgba)) {
+  if (dmcp_copy_frame_to_rgba(pixels, width, height, pitch, rgba)) {
     dmcp_screenshot_frame_t frame;
     memset(&frame, 0, sizeof(frame));
     frame.pixels = rgba;

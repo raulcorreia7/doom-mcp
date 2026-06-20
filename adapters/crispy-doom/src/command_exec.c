@@ -45,7 +45,7 @@ static bool dmcp_float_to_fixed_checked(float value, fixed_t* out) {
   return true;
 }
 
-player_t* dmcp_get_player(void) {
+player_t* dmcp_crispy_player_get(void) {
   if (!playeringame[consoleplayer]) {
     return NULL;
   }
@@ -183,8 +183,9 @@ static bool dmcp_fail_command(char* out_message, size_t out_message_size, const 
 
 static bool dmcp_fail_unavailable_content(char* out_message, size_t out_message_size,
                                           const char* content_type, const char* content_name) {
-  if (dmcp_content_unavailable_message_copy(content_type, content_name, dmcp_to_gamemode(gamemode),
-                                            out_message, out_message_size) < 0) {
+  if (dmcp_content_unavailable_message_copy(content_type, content_name,
+                                            dmcp_crispy_gamemode_from_engine(gamemode), out_message,
+                                            out_message_size) < 0) {
     dmcp_set_command_message(out_message, out_message_size,
                              "Command failed: content unavailable in current game mode");
   }
@@ -330,7 +331,7 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give, c
                              "Give failed: player is not in a level");
   }
 
-  if (!dmcp_is_item_available(give->item_class, dmcp_to_gamemode(gamemode))) {
+  if (!dmcp_is_item_available(give->item_class, dmcp_crispy_gamemode_from_engine(gamemode))) {
     return dmcp_fail_unavailable_content(out_message, out_message_size, "Item", give->item_class);
   }
 
@@ -563,12 +564,12 @@ static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn, char* out_m
   }
 
   if (kind == DMCP_SPAWN_KIND_ENEMY) {
-    if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
+    if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_crispy_gamemode_from_engine(gamemode))) {
       return dmcp_fail_unavailable_content(out_message, out_message_size, "Enemy",
                                            spawn->entity_class);
     }
   } else {
-    if (!dmcp_is_item_available(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
+    if (!dmcp_is_item_available(spawn->entity_class, dmcp_crispy_gamemode_from_engine(gamemode))) {
       return dmcp_fail_unavailable_content(out_message, out_message_size, "Item",
                                            spawn->entity_class);
     }
@@ -819,7 +820,7 @@ bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd, 
     return false;
   }
 
-  player = dmcp_get_player();
+  player = dmcp_crispy_player_get();
   dmcp_set_command_message(out_message, out_message_size, "");
 
   switch (cmd->type) {

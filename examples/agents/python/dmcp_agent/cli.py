@@ -90,7 +90,7 @@ def add_command_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]
         help='JSON array: [{"item_class":"Shotgun","amount":1},{"item_class":"Shells","amount":20}]',
     )
     add_wait_options(p_give_many)
-    p_give_many.set_defaults(func=workflows.batch_give)
+    p_give_many.set_defaults(func=workflows.give_batch)
 
     p_level = sub.add_parser("level", help="change level after content validation")
     p_level.add_argument("map_name")
@@ -176,7 +176,9 @@ def add_utility_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]
     p_result.add_argument("--sequences-json", required=True, help="JSON array of command sequence ids")
     p_result.set_defaults(func=workflows.command_result)
 
-    p_screenshot = sub.add_parser("screenshot", help="print ASCII screenshot")
+    p_screenshot = sub.add_parser(
+        "screenshot", help="print ASCII screenshot when get_screenshot is exposed"
+    )
     p_screenshot.set_defaults(func=workflows.screenshot)
 
     p_tools = sub.add_parser("tools", help="list MCP tools")

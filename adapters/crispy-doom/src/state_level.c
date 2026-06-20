@@ -150,12 +150,12 @@ void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
   level->totalsecrets = totalsecret;
 
   // Get current game state and settings
-  mcp_strcpy_safe(level->skill, DMCP_MAX_STRING, dmcp_skill_to_string(gameskill));
-  mcp_strcpy_safe(level->gamestate, DMCP_MAX_STRING, dmcp_gamestate_to_string(gamestate));
+  mcp_strcpy_safe(level->skill, DMCP_MAX_STRING, dmcp_crispy_skill_to_string(gameskill));
+  mcp_strcpy_safe(level->gamestate, DMCP_MAX_STRING, dmcp_crispy_gamestate_to_string(gamestate));
   level->paused = paused;
 
   game = &snap->game;
-  mcp_strcpy_safe(game->mode, DMCP_MAX_STRING, dmcp_gamemode_to_string(netgame, deathmatch));
+  mcp_strcpy_safe(game->mode, DMCP_MAX_STRING, dmcp_crispy_gamemode_to_string(netgame, deathmatch));
   if (gamemode == shareware) {
     mcp_strcpy_safe(game->version, DMCP_MAX_STRING, "shareware");
   } else if (gamemode == registered) {

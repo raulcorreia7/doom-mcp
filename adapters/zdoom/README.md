@@ -134,7 +134,7 @@ embeds.
   context.
 - `dmcp_zdoom_inputs_process()` is present for API symmetry; unsupported input
   actions should fail cleanly rather than being silently accepted.
-- `dmcp_zdoom_get_context()` exposes the underlying `dmcp_context_t` for advanced
+- `dmcp_zdoom_context_get()` exposes the underlying `dmcp_context_t` for advanced
   engine integration.
 
 ## Notes

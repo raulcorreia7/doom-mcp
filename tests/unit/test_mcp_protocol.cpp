@@ -9,23 +9,24 @@
 #include "support/network.hpp"
 #include "test_utils.hpp"
 
-using dmcp::test::ExtractSessionId;
-using dmcp::test::HttpPost;
+using dmcp::test::extract_session_id;
+using dmcp::test::http_post;
 using dmcp::test::HttpResponse;
-using dmcp::test::PerformFullLifecycle;
+using dmcp::test::perform_full_lifecycle;
+using dmcp::test::session_headers;
 using dmcp::test::SessionContext;
-using dmcp::test::SessionHeaders;
 
 TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
   REQUIRE(dmcp::test::wait_for_server_running(server, std::chrono::milliseconds(2000)));
 
   SECTION("Missing jsonrpc field returns Invalid Request") {
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, R"({"id":1,"method":"ping","params":{}})");
+    HttpResponse resp =
+        http_post(port, MCP_ENDPOINT_MCP, R"({"id":1,"method":"ping","params":{}})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -36,8 +37,8 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
   }
 
   SECTION("Invalid jsonrpc value returns Invalid Request") {
-    HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"1.0","id":1,"method":"ping","params":{}})");
+    HttpResponse resp = http_post(port, MCP_ENDPOINT_MCP,
+                                  R"({"jsonrpc":"1.0","id":1,"method":"ping","params":{}})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -48,7 +49,8 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
   }
 
   SECTION("Missing method field returns Invalid Request") {
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"params":{}})");
+    HttpResponse resp =
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"params":{}})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -60,7 +62,7 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
 
   SECTION("Empty method returns Invalid Request") {
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"","params":{}})");
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"","params":{}})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -71,7 +73,7 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
   }
 
   SECTION("Invalid JSON returns Parse error") {
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, "{not valid json}");
+    HttpResponse resp = http_post(port, MCP_ENDPOINT_MCP, "{not valid json}");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -83,7 +85,7 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
 
   SECTION("Fractional numeric id returns Invalid Request") {
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1.5,"method":"ping"})");
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1.5,"method":"ping"})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -94,7 +96,7 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
   }
 
   SECTION("Non-object root returns Invalid Request") {
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, R"("just a string")");
+    HttpResponse resp = http_post(port, MCP_ENDPOINT_MCP, R"("just a string")");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -109,7 +111,7 @@ TEST_CASE("MCP Protocol: JSON-RPC envelope validation", "[protocol][jsonrpc]") {
 
 TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initialize]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
@@ -117,7 +119,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
 
   SECTION("Initialize without params returns Invalid Params") {
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"initialize"})");
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"initialize"})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -128,7 +130,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Initialize without protocolVersion returns Invalid Params") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
     REQUIRE(resp.status == 200);
@@ -141,7 +143,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Initialize without capabilities returns Invalid Params") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","clientInfo":{"name":"test","version":"1.0"}}})");
     REQUIRE(resp.status == 200);
@@ -154,7 +156,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Initialize without clientInfo returns Invalid Params") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{}}})");
     REQUIRE(resp.status == 200);
@@ -167,7 +169,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Initialize with unsupported protocol returns error with supported versions") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-01-01","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
     REQUIRE(resp.status == 200);
@@ -182,7 +184,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Valid initialize returns result with required fields including sessionId") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
     REQUIRE(resp.status == 200);
@@ -200,16 +202,16 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
   }
 
   SECTION("Each initialize creates a new session") {
-    HttpResponse resp1 = HttpPost(
+    HttpResponse resp1 = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
 
-    HttpResponse resp2 = HttpPost(
+    HttpResponse resp2 = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test2","version":"1.0"}}})");
 
-    std::string sid1 = ExtractSessionId(resp1.body);
-    std::string sid2 = ExtractSessionId(resp2.body);
+    std::string sid1 = extract_session_id(resp1.body);
+    std::string sid2 = extract_session_id(resp2.body);
 
     REQUIRE_FALSE(sid1.empty());
     REQUIRE_FALSE(sid2.empty());
@@ -221,7 +223,7 @@ TEST_CASE("MCP Protocol: Initialize parameter validation", "[protocol][initializ
 
 TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
@@ -229,7 +231,7 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
 
   SECTION("Request without session returns ServerNotInitialized") {
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})");
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})");
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -241,8 +243,8 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
 
   SECTION("Request with invalid session returns ServerNotInitialized") {
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})",
-                 SessionHeaders("invalid123"));
+        http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})",
+                  session_headers("invalid123"));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -253,15 +255,15 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   }
 
   SECTION("Request after initialize but before initialized returns ServerNotInitialized") {
-    HttpResponse init = HttpPost(
+    HttpResponse init = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
 
-    std::string sid = ExtractSessionId(init.body);
+    std::string sid = extract_session_id(init.body);
     REQUIRE_FALSE(sid.empty());
 
     std::string  req  = R"({"jsonrpc":"2.0","id":2,"method":"ping"})";
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(sid));
+    HttpResponse resp = http_post(port, MCP_ENDPOINT_MCP, req.c_str(), session_headers(sid));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -272,11 +274,11 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   }
 
   SECTION("Full lifecycle allows requests") {
-    SessionContext ctx = PerformFullLifecycle(port);
+    SessionContext ctx = perform_full_lifecycle(port);
 
     std::string  req = R"({"jsonrpc":"2.0","id":3,"method":"ping"})";
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
+        http_post(port, MCP_ENDPOINT_MCP, req.c_str(), session_headers(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -286,7 +288,7 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
   }
 
   SECTION("Initialize as notification returns error") {
-    HttpResponse resp = HttpPost(
+    HttpResponse resp = http_post(
         port, MCP_ENDPOINT_MCP,
         R"({"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})");
     REQUIRE(resp.status == 200);
@@ -302,18 +304,18 @@ TEST_CASE("MCP Protocol: Lifecycle gating", "[protocol][lifecycle]") {
 
 TEST_CASE("MCP Protocol: Method not found", "[protocol][method]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
   REQUIRE(dmcp::test::wait_for_server_running(server, std::chrono::milliseconds(2000)));
 
-  SessionContext ctx = PerformFullLifecycle(port);
+  SessionContext ctx = perform_full_lifecycle(port);
 
   SECTION("Unknown method returns Method not found") {
     std::string  req = R"({"jsonrpc":"2.0","id":2,"method":"unknown_method"})";
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
+        http_post(port, MCP_ENDPOINT_MCP, req.c_str(), session_headers(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -328,18 +330,18 @@ TEST_CASE("MCP Protocol: Method not found", "[protocol][method]") {
 
 TEST_CASE("MCP Protocol: Ping method", "[protocol][ping]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
   REQUIRE(dmcp::test::wait_for_server_running(server, std::chrono::milliseconds(2000)));
 
-  SessionContext ctx = PerformFullLifecycle(port);
+  SessionContext ctx = perform_full_lifecycle(port);
 
   SECTION("Ping returns empty result") {
     std::string  req = R"({"jsonrpc":"2.0","id":2,"method":"ping"})";
     HttpResponse resp =
-        HttpPost(port, MCP_ENDPOINT_MCP, req.c_str(), SessionHeaders(ctx.session_id));
+        http_post(port, MCP_ENDPOINT_MCP, req.c_str(), session_headers(ctx.session_id));
     REQUIRE(resp.status == 200);
 
     mcp::json::Document doc;
@@ -349,7 +351,7 @@ TEST_CASE("MCP Protocol: Ping method", "[protocol][ping]") {
   }
 
   SECTION("Ping notification returns empty response") {
-    HttpResponse resp = HttpPost(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","method":"ping"})");
+    HttpResponse resp = http_post(port, MCP_ENDPOINT_MCP, R"({"jsonrpc":"2.0","method":"ping"})");
     REQUIRE(resp.status == 202);
     REQUIRE(resp.body.empty());
   }
@@ -359,15 +361,15 @@ TEST_CASE("MCP Protocol: Ping method", "[protocol][ping]") {
 
 TEST_CASE("MCP Protocol: Multiple sessions", "[protocol][session]") {
   uint16_t            port   = dmcp::test::allocate_loopback_port();
-  mcp_server_config_t config = mcp_default_config();
+  mcp_server_config_t config = mcp_server_config_default();
   config.port                = port;
   mcp_server_t* server       = mcp_server_create(&config);
   REQUIRE(server != nullptr);
   REQUIRE(dmcp::test::wait_for_server_running(server, std::chrono::milliseconds(2000)));
 
   SECTION("Two clients can initialize independently") {
-    SessionContext ctx1 = PerformFullLifecycle(port);
-    SessionContext ctx2 = PerformFullLifecycle(port);
+    SessionContext ctx1 = perform_full_lifecycle(port);
+    SessionContext ctx2 = perform_full_lifecycle(port);
 
     REQUIRE_FALSE(ctx1.session_id.empty());
     REQUIRE_FALSE(ctx2.session_id.empty());
@@ -377,9 +379,9 @@ TEST_CASE("MCP Protocol: Multiple sessions", "[protocol][session]") {
     std::string req2 = R"({"jsonrpc":"2.0","id":11,"method":"ping"})";
 
     HttpResponse resp1 =
-        HttpPost(port, MCP_ENDPOINT_MCP, req1.c_str(), SessionHeaders(ctx1.session_id));
+        http_post(port, MCP_ENDPOINT_MCP, req1.c_str(), session_headers(ctx1.session_id));
     HttpResponse resp2 =
-        HttpPost(port, MCP_ENDPOINT_MCP, req2.c_str(), SessionHeaders(ctx2.session_id));
+        http_post(port, MCP_ENDPOINT_MCP, req2.c_str(), session_headers(ctx2.session_id));
 
     mcp::json::Document doc1, doc2;
     REQUIRE(doc1.parse(resp1.body));

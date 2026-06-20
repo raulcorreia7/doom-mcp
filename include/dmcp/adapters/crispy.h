@@ -37,8 +37,8 @@ DMCP_API void         dmcp_crispy_commands_process(dmcp_crispy_t* ctx);
 DMCP_API void         dmcp_crispy_inputs_process(dmcp_crispy_t* ctx);
 
 DMCP_API bool            dmcp_crispy_is_running(const dmcp_crispy_t* ctx);
-DMCP_API void            dmcp_crispy_get_stats(dmcp_crispy_t* ctx, dmcp_stats_t* stats);
-DMCP_API dmcp_context_t* dmcp_crispy_get_context(dmcp_crispy_t* ctx);
+DMCP_API void            dmcp_crispy_stats_get(dmcp_crispy_t* ctx, dmcp_stats_t* stats);
+DMCP_API dmcp_context_t* dmcp_crispy_context_get(dmcp_crispy_t* ctx);
 
 #ifdef __cplusplus
 }

@@ -16,26 +16,26 @@ struct SessionContext {
   std::string session_id;
 };
 
-inline HttpHeaders InitializeHeaders() {
+inline HttpHeaders initialize_headers() {
   return {{"Accept", "application/json, text/event-stream"}};
 }
 
-inline HttpHeaders SessionHeaders(const std::string& session_id) {
+inline HttpHeaders session_headers(const std::string& session_id) {
   return {{"MCP-Session-Id", session_id},
           {"MCP-Protocol-Version", MCP_PROTOCOL_VERSION},
           {"Accept", "application/json, text/event-stream"}};
 }
 
-inline HttpResponse HttpPost(uint16_t port, const char* path, const char* body,
-                             const HttpHeaders& headers = InitializeHeaders()) {
+inline HttpResponse http_post(uint16_t port, const char* path, const char* body,
+                              const HttpHeaders& headers = initialize_headers()) {
   return post_json(port, path, body, headers);
 }
 
 inline std::string jsonrpc_request(int id, const char* method, const char* params) {
-  return mcp::BuildJsonRpcRequest(id, method ? method : "", params ? params : "");
+  return mcp::build_json_rpc_request(id, method ? method : "", params ? params : "");
 }
 
-inline std::string ExtractSessionId(const std::string& json_body) {
+inline std::string extract_session_id(const std::string& json_body) {
   mcp::json::Document doc;
   if (!doc.parse(json_body)) {
     return {};
@@ -54,25 +54,25 @@ inline std::string ExtractSessionId(const std::string& json_body) {
   return std::string(result["sessionId"].get_string(""));
 }
 
-inline SessionContext PerformFullLifecycle(uint16_t port) {
+inline SessionContext perform_full_lifecycle(uint16_t port) {
   SessionContext ctx;
   ctx.port = port;
 
-  const std::string initialize = mcp::BuildJsonRpcRequest(
+  const std::string initialize = mcp::build_json_rpc_request(
       1, "initialize",
       R"({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"dmcp-test","version":"1.0"}})");
-  const HttpResponse init = HttpPost(port, MCP_ENDPOINT_MCP, initialize.c_str());
+  const HttpResponse init = http_post(port, MCP_ENDPOINT_MCP, initialize.c_str());
 
-  ctx.session_id = ExtractSessionId(init.body);
+  ctx.session_id = extract_session_id(init.body);
 
-  const std::string initialized = mcp::BuildJsonRpcNotification("notifications/initialized");
-  (void)HttpPost(port, MCP_ENDPOINT_MCP, initialized.c_str(), SessionHeaders(ctx.session_id));
+  const std::string initialized = mcp::build_json_rpc_notification("notifications/initialized");
+  (void)http_post(port, MCP_ENDPOINT_MCP, initialized.c_str(), session_headers(ctx.session_id));
 
   return ctx;
 }
 
 inline std::string initialize_session(uint16_t port) {
-  return PerformFullLifecycle(port).session_id;
+  return perform_full_lifecycle(port).session_id;
 }
 
 inline bool jsonrpc_result(const std::string& body, mcp::json::Document* out_doc) {

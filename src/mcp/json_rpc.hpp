@@ -7,17 +7,18 @@
 
 namespace mcp {
 
-std::string BuildJsonRpcRequest(int id, std::string_view method, std::string_view params_json = {});
-std::string BuildJsonRpcNotification(std::string_view method, std::string_view params_json = {});
-std::string BuildJsonRpcResult(std::string_view id_json, std::string_view result_json);
-std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_view message,
-                              std::string_view data_json = {});
+std::string build_json_rpc_request(int id, std::string_view method,
+                                   std::string_view params_json = {});
+std::string build_json_rpc_notification(std::string_view method, std::string_view params_json = {});
+std::string build_json_rpc_result(std::string_view id_json, std::string_view result_json);
+std::string build_json_rpc_error(std::string_view id_json, int code, std::string_view message,
+                                 std::string_view data_json = {});
 
-bool IsValidJson(std::string_view json);
-bool IsJsonRpcResponseEnvelope(std::string_view json);
-bool IsJsonRpcMessage(std::string_view json);
-bool IsValidJsonRpcId(const json::Value& id_value);
+bool is_valid_json(std::string_view json);
+bool is_json_rpc_response_envelope(std::string_view json);
+bool is_json_rpc_message(std::string_view json);
+bool is_valid_json_rpc_id(const json::Value& id_value);
 
-std::string FormatSseMessage(std::string_view json_payload);
+std::string format_sse_message(std::string_view json_payload);
 
 }  // namespace mcp

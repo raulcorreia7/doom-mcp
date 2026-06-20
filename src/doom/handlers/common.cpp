@@ -304,7 +304,7 @@ bool queue_command_from_json(context* ctx, std::string_view command_json, dmcp_c
     return false;
   }
 
-  mcp_status_t push_result = dmcp_push_command(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
+  mcp_status_t push_result = dmcp_command_push(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
   if (push_result.code != MCP_STATUS_CODE_OK) {
     if (push_result.message && push_result.message[0] != '\0') {
       *error_message = push_result.message;
@@ -344,7 +344,7 @@ bool queue_command_and_respond(context* ctx, std::string_view command_json,
   std::string    error_message = "Invalid command";
   if (queue_command_from_json(ctx, command_json, &cmd, &error_message)) {
     if (!command_name.empty()) {
-      dmcp_log(ctx, MCP_LOG_INFO, "Command queued via %.*s (type=%d)",
+      dmcp_log(ctx, MCP_LOG_DEBUG, "Command queued via %.*s (type=%d)",
                static_cast<int>(command_name.size()), command_name.data(), cmd.type);
     }
 

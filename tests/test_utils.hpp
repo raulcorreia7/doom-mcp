@@ -18,7 +18,7 @@ class ServerFixture {
   mcp_server_config_t config{};
 
   ServerFixture() {
-    config                 = mcp_default_config();
+    config                 = mcp_server_config_default();
     config.port            = TEST_PORT;
     config.start_transport = false;
     server                 = mcp_server_create(&config);

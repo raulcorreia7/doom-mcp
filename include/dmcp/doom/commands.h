@@ -140,13 +140,13 @@ typedef struct {
 // ============================================================================
 
 // Push a command from agent to game
-DMCP_API mcp_status_t dmcp_push_command(dmcp_context_t* ctx, dmcp_command_t* cmd);
+DMCP_API mcp_status_t dmcp_command_push(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
 // Pop a command for execution (call from game thread)
-DMCP_API bool dmcp_pop_command(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+DMCP_API bool dmcp_command_pop(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
 
 // Check if commands are pending
-DMCP_API bool dmcp_has_commands(const dmcp_context_t* ctx);
+DMCP_API bool dmcp_command_has_pending(const dmcp_context_t* ctx);
 
 // Get number of pending commands
 DMCP_API uint32_t dmcp_command_count(const dmcp_context_t* ctx);
@@ -164,21 +164,21 @@ DMCP_API mcp_status_t dmcp_command_result_get(const dmcp_context_t* ctx, uint64_
                                               dmcp_command_result_t* out_result);
 
 // Clear all pending commands
-DMCP_API void dmcp_clear_commands(dmcp_context_t* ctx);
+DMCP_API void dmcp_command_clear(dmcp_context_t* ctx);
 
 // ============================================================================
 // Player Input Queue API (tick-based, one per tick)
 // ============================================================================
 
-DMCP_API mcp_status_t dmcp_push_input(dmcp_context_t* ctx, dmcp_command_t* cmd);
+DMCP_API mcp_status_t dmcp_input_push(dmcp_context_t* ctx, dmcp_command_t* cmd);
 
-DMCP_API bool dmcp_pop_input(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
+DMCP_API bool dmcp_input_pop(dmcp_context_t* ctx, dmcp_command_t* out_cmd);
 
-DMCP_API bool dmcp_has_input(const dmcp_context_t* ctx);
+DMCP_API bool dmcp_input_has_pending(const dmcp_context_t* ctx);
 
 DMCP_API uint32_t dmcp_input_count(const dmcp_context_t* ctx);
 
-DMCP_API void dmcp_clear_inputs(dmcp_context_t* ctx);
+DMCP_API void dmcp_input_clear(dmcp_context_t* ctx);
 
 // ============================================================================
 // JSON Command Parsing

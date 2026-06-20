@@ -79,7 +79,7 @@ typedef enum {
  *     printf("[%s] %s\n", level_str, message);
  * }
  *
- * mcp_server_config_t cfg = mcp_default_config();
+ * mcp_server_config_t cfg = mcp_server_config_default();
  * cfg.on_log = OnLog;
  * @endcode
  */
@@ -127,7 +127,7 @@ typedef bool (*mcp_method_handler_t)(void* user_data, const char* method, const 
  * @brief Server configuration structure
  *
  * Configures MCP server behavior including network settings, rate limiting,
- * and logging. Use mcp_default_config() to get sensible defaults.
+ * and logging. Use mcp_server_config_default() to get sensible defaults.
  *
  * @note Always set struct_size to sizeof(mcp_server_config_t) before use
  */
@@ -170,12 +170,12 @@ typedef struct {
  *
  * Example:
  * @code
- * mcp_server_config_t config = mcp_default_config();
+ * mcp_server_config_t config = mcp_server_config_default();
  * config.port = 8080;  // Override default port
  * mcp_server_t* server = mcp_server_create(&config);
  * @endcode
  */
-static inline mcp_server_config_t mcp_default_config(void) {
+static inline mcp_server_config_t mcp_server_config_default(void) {
   mcp_server_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
   cfg.struct_size             = sizeof(mcp_server_config_t);

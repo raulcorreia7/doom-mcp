@@ -15,12 +15,18 @@ history.
 - Public MCP command execution now uses direct `tools/call` tool names with structured `arguments`.
 - Removed the public `execute_command` MCP tool and native JSON-RPC method aliases.
 - Removed public content-name aliases and input shorthand fields. Use canonical names from `get_available_*` content tools.
+- Renamed public C helpers for one naming convention:
+  `mcp_server_config_default()`, `dmcp_command_push/pop/clear/has_pending()`,
+  `dmcp_input_push/pop/clear/has_pending()`, and adapter
+  `*_context_get()` / `*_stats_get()` accessors.
 
 ### Changed
 - `execute_batch` now accepts `calls: [{name, arguments}]`.
 - `player_input` now uses `action` and optional `value`.
 - `get_available_content` returns available-only canonical content for the active game mode, including enemies, entities, weapons, ammo, keys, items, giveable content, maps, and weapon-slot metadata.
 - Added granular available-content tools: `get_available_enemies`, `get_available_entities`, `get_available_items`, `get_available_weapons`, `get_available_ammo`, `get_available_keys`, `get_available_maps`, and `get_available_giveable`.
+- Internal C++ helpers now use lower-snake function names; C ABI/API names stay
+  lower-snake and macro/enum constants stay upper-snake.
 
 ## [0.7.0] - 2026-02-24
 

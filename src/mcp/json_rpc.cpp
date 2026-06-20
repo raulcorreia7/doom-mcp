@@ -11,7 +11,7 @@ namespace {
 using json::Document;
 using json::Value;
 
-bool ParseJsonObject(std::string_view json, Document* out_doc) {
+bool parse_json_object(std::string_view json, Document* out_doc) {
   if (!out_doc) {
     return false;
   }
@@ -23,13 +23,13 @@ bool ParseJsonObject(std::string_view json, Document* out_doc) {
   return out_doc->root().is_object();
 }
 
-void SetJsonRpcId(Value response_root, std::string_view id_json) {
+void set_json_rpc_id(Value response_root, std::string_view id_json) {
   Document    id_doc;
   std::string id_envelope = "{\"id\":";
   id_envelope += id_json.empty() ? "null" : std::string(id_json);
   id_envelope += "}";
 
-  if (ParseJsonObject(id_envelope, &id_doc)) {
+  if (parse_json_object(id_envelope, &id_doc)) {
     response_root.set_member("id", id_doc.root()["id"]);
     return;
   }
@@ -41,7 +41,7 @@ void SetJsonRpcId(Value response_root, std::string_view id_json) {
 
 }  // namespace
 
-std::string BuildJsonRpcRequest(int id, std::string_view method, std::string_view params_json) {
+std::string build_json_rpc_request(int id, std::string_view method, std::string_view params_json) {
   Document request_doc;
   request_doc.create_object();
 
@@ -60,7 +60,7 @@ std::string BuildJsonRpcRequest(int id, std::string_view method, std::string_vie
   return request_doc.dump(false);
 }
 
-std::string BuildJsonRpcNotification(std::string_view method, std::string_view params_json) {
+std::string build_json_rpc_notification(std::string_view method, std::string_view params_json) {
   Document notif_doc;
   notif_doc.create_object();
 
@@ -78,13 +78,13 @@ std::string BuildJsonRpcNotification(std::string_view method, std::string_view p
   return notif_doc.dump(false);
 }
 
-std::string BuildJsonRpcResult(std::string_view id_json, std::string_view result_json) {
+std::string build_json_rpc_result(std::string_view id_json, std::string_view result_json) {
   Document response_doc;
   response_doc.create_object();
 
   Value response_root = response_doc.root();
   response_root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
-  SetJsonRpcId(response_root, id_json);
+  set_json_rpc_id(response_root, id_json);
 
   Document    result_doc;
   std::string result_part = result_json.empty() ? "{}" : std::string(result_json);
@@ -99,14 +99,14 @@ std::string BuildJsonRpcResult(std::string_view id_json, std::string_view result
   return response_doc.dump(false);
 }
 
-std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_view message,
-                              std::string_view data_json) {
+std::string build_json_rpc_error(std::string_view id_json, int code, std::string_view message,
+                                 std::string_view data_json) {
   Document response_doc;
   response_doc.create_object();
 
   Value response_root = response_doc.root();
   response_root.set_member("jsonrpc", MCP_JSONRPC_VERSION);
-  SetJsonRpcId(response_root, id_json);
+  set_json_rpc_id(response_root, id_json);
 
   Document error_doc;
   error_doc.create_object();
@@ -125,12 +125,12 @@ std::string BuildJsonRpcError(std::string_view id_json, int code, std::string_vi
   return response_doc.dump(false);
 }
 
-bool IsValidJson(std::string_view json) {
+bool is_valid_json(std::string_view json) {
   Document doc;
   return doc.parse(json);
 }
 
-bool IsJsonRpcResponseEnvelope(std::string_view json) {
+bool is_json_rpc_response_envelope(std::string_view json) {
   Document doc;
   if (!doc.parse(json)) {
     return false;
@@ -150,7 +150,7 @@ bool IsJsonRpcResponseEnvelope(std::string_view json) {
   return has_result != has_error;
 }
 
-bool IsJsonRpcMessage(std::string_view json) {
+bool is_json_rpc_message(std::string_view json) {
   Document doc;
   if (!doc.parse(json)) {
     return false;
@@ -174,7 +174,7 @@ bool IsJsonRpcMessage(std::string_view json) {
   return has_result != has_error;
 }
 
-bool IsValidJsonRpcId(const json::Value& id_value) {
+bool is_valid_json_rpc_id(const json::Value& id_value) {
   if (!id_value) {
     return false;
   }
@@ -190,7 +190,7 @@ bool IsValidJsonRpcId(const json::Value& id_value) {
          id_text.find('E') == std::string::npos;
 }
 
-std::string FormatSseMessage(std::string_view json_payload) {
+std::string format_sse_message(std::string_view json_payload) {
   std::string message = "event: message\n";
 
   if (json_payload.empty()) {

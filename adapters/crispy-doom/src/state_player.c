@@ -34,7 +34,8 @@ void dmcp_crispy_populate_player(dmcp_snapshot_t* snap) {
   // Get current player health and armor
   player->hp    = p->health;
   player->armor = p->armorpoints;
-  mcp_strcpy_safe(player->armortype, DMCP_MAX_STRING, dmcp_armortype_to_string(p->armortype));
+  mcp_strcpy_safe(player->armortype, DMCP_MAX_STRING,
+                  dmcp_crispy_armortype_to_string(p->armortype));
 
   // Get current player position and angle
   player->position.x = dmcp_fixed_to_float(p->mo->x);
@@ -42,10 +43,11 @@ void dmcp_crispy_populate_player(dmcp_snapshot_t* snap) {
   player->angle      = dmcp_angle_to_radians(p->mo->angle);
 
   // Get current weapon states
-  mcp_strcpy_safe(player->readyweapon, DMCP_MAX_STRING, dmcp_weapon_to_string(p->readyweapon));
+  mcp_strcpy_safe(player->readyweapon, DMCP_MAX_STRING,
+                  dmcp_crispy_weapon_to_string(p->readyweapon));
   if (p->pendingweapon >= 0 && p->pendingweapon < NUMWEAPONS) {
     mcp_strcpy_safe(player->pendingweapon, DMCP_MAX_STRING,
-                    dmcp_weapon_to_string(p->pendingweapon));
+                    dmcp_crispy_weapon_to_string(p->pendingweapon));
   } else {
     mcp_strcpy_safe(player->pendingweapon, DMCP_MAX_STRING, "None");
   }
@@ -69,7 +71,8 @@ void dmcp_crispy_populate_player(dmcp_snapshot_t* snap) {
   }
 
   // Get current player state
-  mcp_strcpy_safe(player->playerstate, DMCP_MAX_STRING, dmcp_playerstate_to_string(p->playerstate));
+  mcp_strcpy_safe(player->playerstate, DMCP_MAX_STRING,
+                  dmcp_crispy_playerstate_to_string(p->playerstate));
   player->cheats      = p->cheats;
   player->damagecount = p->damagecount;
 }

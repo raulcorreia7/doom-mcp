@@ -27,7 +27,6 @@ uv run dmcp-agent level E1M2 --skill-level 3
 uv run dmcp-agent weapon 3
 uv run dmcp-agent input-plan forward --ticks 8
 uv run dmcp-agent result --sequences-json '[1,2]'
-uv run dmcp-agent screenshot
 ```
 
 For one-off execution without creating a local environment:
@@ -41,7 +40,8 @@ The helper keeps output compact but readable:
 - `brief` returns selected state sections, content availability, and agent rules.
 - `read` maps to granular read tools: `get_player`, `get_map`, `get_game_info`, `get_enemies`, `get_entities`, `get_items`, and `get_inventory`.
 - `content` calls `get_available_content` by default, or a granular `get_available_*` tool when given `enemies`, `entities`, `items`, `weapons`, `ammo`, `keys`, `maps`, or `giveable`.
-- `screenshot` calls `get_screenshot`.
+- `screenshot` calls optional `get_screenshot`; use it only when `tools --compact`
+  lists that tool. Some game packages compile frame capture out by default.
 - Mutating commands use the current direct tool names: `spawn_entity`, `give_item`, `change_level`, `set_player_health`, `set_player_position`, `pause_game`, `damage_entity`, `kill_entity`, `execute_console`, and `player_input`.
 - Mutating one-shot commands wait for `get_command_result` by default and exit nonzero when the completed command fails. Add `--no-wait` to return raw queued sequence ids.
 - `shell` keeps one MCP connection open and accepts the same commands, one per line. Use it for agentic sessions that need cached MCP session state and repeated commands without reconnecting.

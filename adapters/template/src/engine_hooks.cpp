@@ -4,7 +4,7 @@ namespace {
 
 dmcp_template_t* g_dmcp_ctx = nullptr;
 
-dmcp_template_config_t ToAdapterConfig(dmcp_engine_config_t config) {
+dmcp_template_config_t to_adapter_config(dmcp_engine_config_t config) {
   dmcp_template_config_t adapter_config = dmcp_template_config_default();
   adapter_config.base.port =
       static_cast<uint16_t>(config.port > 0 ? config.port : adapter_config.base.port);
@@ -23,7 +23,7 @@ extern "C" dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv) {
 }
 
 extern "C" void DMCP_Init(dmcp_engine_config_t config) {
-  dmcp_template_config_t adapter_config = ToAdapterConfig(config);
+  dmcp_template_config_t adapter_config = to_adapter_config(config);
 
   DMCP_Shutdown();
   g_dmcp_ctx = dmcp_template_create(&adapter_config);

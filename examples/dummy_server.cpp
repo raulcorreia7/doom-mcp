@@ -22,7 +22,7 @@ enum class ParseResult {
   exit_error,
 };
 
-void PrintUsage(const char* argv0) {
+void print_usage(const char* argv0) {
   const char* program = argv0 && argv0[0] ? argv0 : "dummy_server";
   std::printf("Usage: %s [--port PORT] [--target-hz HZ] [--help] [--examples]\n", program);
   std::printf("\nOptions:\n");
@@ -33,7 +33,7 @@ void PrintUsage(const char* argv0) {
   std::printf("  --help            Print this help\n");
 }
 
-void PrintExamples() {
+void print_examples() {
   std::printf("Canonical MCP tool examples:\n");
   std::printf("  get_player:          {\"name\":\"get_player\",\"arguments\":{}}\n");
   std::printf(
@@ -61,7 +61,7 @@ void PrintExamples() {
       "{\"name\":\"player_input\",\"arguments\":{\"action\":\"weapon\",\"value\":3}}\n");
 }
 
-bool ParsePositiveInt(const char* text, int* out_value) {
+bool parse_positive_int(const char* text, int* out_value) {
   if (!text || !out_value) {
     return false;
   }
@@ -76,25 +76,25 @@ bool ParsePositiveInt(const char* text, int* out_value) {
   return true;
 }
 
-ParseResult ParseArgs(int argc, char** argv, int* port, int* target_hz) {
+ParseResult parse_args(int argc, char** argv, int* port, int* target_hz) {
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--help") == 0) {
-      PrintUsage(argv[0]);
+      print_usage(argv[0]);
       return ParseResult::exit_success;
     }
     if (std::strcmp(argv[i], "--examples") == 0) {
-      PrintExamples();
+      print_examples();
       return ParseResult::exit_success;
     }
     if (std::strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
-      if (!ParsePositiveInt(argv[++i], port)) {
+      if (!parse_positive_int(argv[++i], port)) {
         std::fprintf(stderr, "Invalid --port value\n");
         return ParseResult::exit_error;
       }
       continue;
     }
     if (std::strcmp(argv[i], "--target-hz") == 0 && i + 1 < argc) {
-      if (!ParsePositiveInt(argv[++i], target_hz)) {
+      if (!parse_positive_int(argv[++i], target_hz)) {
         std::fprintf(stderr, "Invalid --target-hz value\n");
         return ParseResult::exit_error;
       }
@@ -102,7 +102,7 @@ ParseResult ParseArgs(int argc, char** argv, int* port, int* target_hz) {
     }
 
     std::fprintf(stderr, "Unknown option: %s\n", argv[i]);
-    PrintUsage(argv[0]);
+    print_usage(argv[0]);
     return ParseResult::exit_error;
   }
 
@@ -125,7 +125,7 @@ struct GameState {
   std::vector<MockEnemy> enemies;
 };
 
-void UpdateGame(GameState& state) {
+void update_game(GameState& state) {
   state.tic++;
 
   // Move player in a circle
@@ -144,7 +144,7 @@ void UpdateGame(GameState& state) {
 }
 
 // DMCP callback to fill snapshot
-void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
+void snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   auto* state = static_cast<GameState*>(user_data);
 
   // Level info
@@ -186,7 +186,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
   }
 }
 
-void LogCallback(void* /*user_data*/, int level, const char* message) {
+void log_callback(void* /*user_data*/, int level, const char* message) {
   const char* prefix = "[DMCP]";
   switch (level) {
     case MCP_LOG_DEBUG:
@@ -211,7 +211,7 @@ int main(int argc, char** argv) {
 
   int               port         = MCP_DEFAULT_PORT;
   int               target_hz    = DMCP_DEFAULT_TARGET_HZ;
-  const ParseResult parse_result = ParseArgs(argc, argv, &port, &target_hz);
+  const ParseResult parse_result = parse_args(argc, argv, &port, &target_hz);
   if (parse_result == ParseResult::exit_success) {
     return 0;
   }
@@ -226,8 +226,8 @@ int main(int argc, char** argv) {
   dmcp_config_t config = dmcp_config_default();
   config.port          = static_cast<uint16_t>(port);
   config.target_hz     = static_cast<uint32_t>(target_hz);
-  config.on_snapshot   = SnapshotCallback;
-  config.on_log        = LogCallback;
+  config.on_snapshot   = snapshot_callback;
+  config.on_log        = log_callback;
   config.user_data     = &game;
 
   // Create context
@@ -248,7 +248,7 @@ int main(int argc, char** argv) {
   while (g_running) {
     auto start = std::chrono::steady_clock::now();
 
-    UpdateGame(game);
+    update_game(game);
     dmcp_context_tick(ctx);
 
     // Log stats periodically

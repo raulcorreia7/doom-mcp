@@ -60,7 +60,8 @@ async def brief(client: DMCPClient, args: argparse.Namespace) -> Any:
         "agent_rules": [
             "Use exact canonical names from available_content.",
             "Use granular read tools for focused context: get_player, get_map, get_game_info, "
-            "get_enemies, get_entities, get_items, and get_screenshot.",
+            "get_enemies, get_entities, and get_items.",
+            "Use screenshot only when tools --compact lists get_screenshot.",
             "Use direct MCP tools for single commands and execute_batch.calls for batchable commands.",
             "execute_batch calls use {name, arguments}; change_level and player_input are direct tools.",
             contract.WEAPON_SLOT_HELP,
@@ -98,7 +99,7 @@ async def give_item(client: DMCPClient, args: argparse.Namespace) -> Any:
     return await submit_queued(client, args, "give_item", give_args(item_class, args.amount))
 
 
-async def batch_give(client: DMCPClient, args: argparse.Namespace) -> Any:
+async def give_batch(client: DMCPClient, args: argparse.Namespace) -> Any:
     available = await client.call_tool("get_available_giveable", {})
     specs = parse_give_specs(args.items_json)
     for item in specs:

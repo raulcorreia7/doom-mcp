@@ -45,11 +45,11 @@ class context {
   void tick() noexcept { dmcp_context_tick(handle_); }
 
   [[nodiscard]] mcp::status push_command(dmcp_command_t& command) noexcept {
-    return mcp::status(dmcp_push_command(handle_, &command));
+    return mcp::status(dmcp_command_push(handle_, &command));
   }
 
   [[nodiscard]] bool pop_command(dmcp_command_t& out_command) noexcept {
-    return dmcp_pop_command(handle_, &out_command);
+    return dmcp_command_pop(handle_, &out_command);
   }
 
   [[nodiscard]] uint32_t command_count() const noexcept { return dmcp_command_count(handle_); }

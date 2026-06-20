@@ -33,7 +33,7 @@ static inline int dmcp_adapter_process_command_queue(dmcp_context_t* dmcp_ctx, v
   }
 
   processed = 0;
-  while ((max_items == 0 || (size_t)processed < max_items) && dmcp_pop_command(dmcp_ctx, &cmd)) {
+  while ((max_items == 0 || (size_t)processed < max_items) && dmcp_command_pop(dmcp_ctx, &cmd)) {
     char result_message[256] = {0};
     bool success = execute_fn(adapter_ctx, &cmd, result_message, sizeof(result_message));
 
@@ -63,7 +63,8 @@ static inline int dmcp_adapter_process_input_queue(dmcp_context_t* dmcp_ctx, voi
   }
 
   processed = 0;
-  while ((max_items == 0 || (size_t)processed < max_items) && dmcp_pop_input(dmcp_ctx, &input_cmd)) {
+  while ((max_items == 0 || (size_t)processed < max_items) &&
+         dmcp_input_pop(dmcp_ctx, &input_cmd)) {
     char result_message[256] = {0};
     bool success = execute_fn(adapter_ctx, &input_cmd, result_message, sizeof(result_message));
 

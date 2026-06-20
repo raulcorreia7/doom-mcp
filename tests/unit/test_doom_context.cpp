@@ -60,20 +60,20 @@ static dmcp_item_t create_test_item(const char* name, int amount) {
   return item;
 }
 
-static dmcp_config_t TestConfig() {
+static dmcp_config_t test_config() {
   dmcp_config_t config   = dmcp_config_default();
   config.port            = dmcp::test::allocate_loopback_port();
   config.start_transport = false;
   return config;
 }
 
-static std::unique_ptr<dmcp_snapshot_t> MakeSnapshot() {
+static std::unique_ptr<dmcp_snapshot_t> make_snapshot() {
   return std::make_unique<dmcp_snapshot_t>();
 }
 
 TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   SECTION("Create and destroy context with default config") {
-    dmcp_config_t   config = TestConfig();
+    dmcp_config_t   config = test_config();
     dmcp_context_t* ctx    = dmcp_context_create(&config);
 
     REQUIRE(ctx != nullptr);
@@ -93,7 +93,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with custom port") {
-    dmcp_config_t config = TestConfig();
+    dmcp_config_t config = test_config();
     config.port          = dmcp::test::allocate_loopback_port();
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -103,7 +103,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with custom target Hz") {
-    dmcp_config_t config = TestConfig();
+    dmcp_config_t config = test_config();
     config.target_hz     = 30;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -113,7 +113,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context rejects zero target Hz") {
-    dmcp_config_t config = TestConfig();
+    dmcp_config_t config = test_config();
     config.target_hz     = 0;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -121,7 +121,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with screenshot disabled") {
-    dmcp_config_t config     = TestConfig();
+    dmcp_config_t config     = test_config();
     config.screenshot.enable = false;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -131,7 +131,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   }
 
   SECTION("Create context with custom screenshot dimensions") {
-    dmcp_config_t config     = TestConfig();
+    dmcp_config_t config     = test_config();
     config.screenshot.width  = 1280;
     config.screenshot.height = 720;
 
@@ -144,7 +144,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
   SECTION("Create context with snapshot callback") {
     snapshot_call_count = 0;
 
-    dmcp_config_t config = TestConfig();
+    dmcp_config_t config = test_config();
     config.on_snapshot   = test_snapshot_callback;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -163,14 +163,14 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
 TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
   snapshot_call_count = 0;
 
-  dmcp_config_t config = TestConfig();
+  dmcp_config_t config = test_config();
   config.on_snapshot   = test_snapshot_callback;
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
   SECTION("Tick without snapshot callback is safe") {
-    dmcp_config_t no_callback = TestConfig();
+    dmcp_config_t no_callback = test_config();
     no_callback.on_snapshot   = nullptr;
 
     dmcp_context_t* ctx_no_callback = dmcp_context_create(&no_callback);
@@ -201,7 +201,7 @@ TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
   SECTION("Target Hz limits snapshot sampling") {
     snapshot_call_count = 0;
 
-    dmcp_config_t slow_config = TestConfig();
+    dmcp_config_t slow_config = test_config();
     slow_config.target_hz     = 1;
     slow_config.on_snapshot   = test_snapshot_callback;
 
@@ -222,7 +222,7 @@ TEST_CASE("Doom MCP: Game loop integration", "[doom][tick]") {
 }
 
 TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
-  dmcp_config_t config     = TestConfig();
+  dmcp_config_t config     = test_config();
   config.screenshot.enable = true;
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -379,7 +379,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit screenshot with disabled screenshot feature") {
-    dmcp_config_t no_screenshot     = TestConfig();
+    dmcp_config_t no_screenshot     = test_config();
     no_screenshot.screenshot.enable = false;
 
     dmcp_context_t* ctx_no_ss = dmcp_context_create(&no_screenshot);
@@ -403,7 +403,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
 }
 
 TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
-  dmcp_config_t config = TestConfig();
+  dmcp_config_t config = test_config();
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
@@ -431,7 +431,7 @@ TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
 
 TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   SECTION("Clear snapshot zeros all fields") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     snapshot.player.hp                = 100;
     snapshot.enemy_count              = 5;
@@ -452,7 +452,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   SECTION("Clear snapshot with null pointer is safe") { dmcp_snapshot_clear(nullptr); }
 
   SECTION("Add enemy to empty snapshot succeeds") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -468,7 +468,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add multiple enemies to snapshot") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -483,7 +483,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy beyond max limit fails") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -507,7 +507,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy with null enemy fails") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     bool             result           = dmcp_snapshot_add_enemy(&snapshot, nullptr);
 
@@ -515,7 +515,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add item to empty inventory succeeds") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -530,7 +530,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add multiple items to inventory") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -545,7 +545,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add item beyond max limit fails") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -569,7 +569,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add item with null item fails") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     bool             result           = dmcp_snapshot_add_item(&snapshot, nullptr);
 
@@ -648,7 +648,7 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
   }
 
   SECTION("Custom config values") {
-    dmcp_config_t config       = TestConfig();
+    dmcp_config_t config       = test_config();
     config.target_hz           = 30;
     config.command_queue_slots = 8;
     config.screenshot.width    = 1920;
@@ -812,7 +812,7 @@ TEST_CASE("Doom MCP: Content availability by mode", "[doom][content]") {
 
 TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   SECTION("Convert valid snapshot to JSON") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -848,7 +848,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with null buffer returns error") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     int              result = dmcp_snapshot_to_json(&snapshot, nullptr, MCP_MAX_JSON_SIZE);
 
@@ -856,7 +856,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with small buffer truncates") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -867,7 +867,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert empty snapshot to JSON") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -878,7 +878,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with many enemies to JSON") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -894,7 +894,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with inventory to JSON") {
-    auto             snapshot_storage = MakeSnapshot();
+    auto             snapshot_storage = make_snapshot();
     dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
@@ -937,17 +937,17 @@ TEST_CASE("Doom MCP: Error messages", "[doom][error]") {
 }
 
 TEST_CASE("Doom MCP: Command queue lifecycle", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
+  dmcp_config_t   config = test_config();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
   SECTION("Empty queue returns no commands") {
-    REQUIRE(dmcp_has_commands(ctx) == false);
+    REQUIRE(dmcp_command_has_pending(ctx) == false);
     REQUIRE(dmcp_command_count(ctx) == 0);
   }
 
   SECTION("Clear empty queue is safe") {
-    dmcp_clear_commands(ctx);
+    dmcp_command_clear(ctx);
     REQUIRE(dmcp_command_count(ctx) == 0);
   }
 
@@ -955,7 +955,7 @@ TEST_CASE("Doom MCP: Command queue lifecycle", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
+  dmcp_config_t   config = test_config();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -964,26 +964,26 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
   cmd.sequence       = 12345;
 
   SECTION("Push command succeeds") {
-    mcp_status_t result = dmcp_push_command(ctx, &cmd);
+    mcp_status_t result = dmcp_command_push(ctx, &cmd);
     REQUIRE(result.code == MCP_STATUS_CODE_OK);
-    REQUIRE(dmcp_has_commands(ctx) == true);
+    REQUIRE(dmcp_command_has_pending(ctx) == true);
     REQUIRE(dmcp_command_count(ctx) == 1);
   }
 
   SECTION("Push and pop roundtrip") {
-    dmcp_push_command(ctx, &cmd);
+    dmcp_command_push(ctx, &cmd);
 
     dmcp_command_t popped = {};
-    bool           result = dmcp_pop_command(ctx, &popped);
+    bool           result = dmcp_command_pop(ctx, &popped);
     REQUIRE(result == true);
     REQUIRE(popped.type == DMCP_CMD_PAUSE_GAME);
     REQUIRE(popped.sequence >= 1);
-    REQUIRE(dmcp_has_commands(ctx) == false);
+    REQUIRE(dmcp_command_has_pending(ctx) == false);
   }
 
   SECTION("Pop from empty queue returns error") {
     dmcp_command_t popped = {};
-    bool           result = dmcp_pop_command(ctx, &popped);
+    bool           result = dmcp_command_pop(ctx, &popped);
     REQUIRE(result == false);
   }
 
@@ -991,11 +991,11 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
     cmd.type = DMCP_CMD_GIVE_ITEM;
     for (int i = 0; i < 5; i++) {
       cmd.sequence = i;
-      dmcp_push_command(ctx, &cmd);
+      dmcp_command_push(ctx, &cmd);
     }
     REQUIRE(dmcp_command_count(ctx) == 5);
 
-    dmcp_clear_commands(ctx);
+    dmcp_command_clear(ctx);
     REQUIRE(dmcp_command_count(ctx) == 0);
   }
 
@@ -1004,25 +1004,25 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
 
 TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissions]") {
   SECTION("Default config allows privileged commands") {
-    dmcp_config_t   config = TestConfig();
+    dmcp_config_t   config = test_config();
     dmcp_context_t* ctx    = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
 
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
     mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
-    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_push(ctx, &console).code == MCP_STATUS_CODE_OK);
 
     dmcp_command_t health{};
     health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
     health.data.set_health.health = 200;
-    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_push(ctx, &health).code == MCP_STATUS_CODE_OK);
 
     dmcp_context_destroy(ctx);
   }
 
   SECTION("Explicit disabled permissions reject raw console and cheat-style mutation") {
-    dmcp_config_t config                      = TestConfig();
+    dmcp_config_t config                      = test_config();
     config.permissions.allow_console_commands = false;
     config.permissions.allow_cheats           = false;
 
@@ -1032,18 +1032,18 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
     mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
-    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
+    REQUIRE(dmcp_command_push(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
 
     dmcp_command_t health{};
     health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
     health.data.set_health.health = 200;
-    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_DISABLED);
+    REQUIRE(dmcp_command_push(ctx, &health).code == MCP_STATUS_CODE_DISABLED);
 
     dmcp_context_destroy(ctx);
   }
 
   SECTION("Console access alone does not allow known cheat commands") {
-    dmcp_config_t config                      = TestConfig();
+    dmcp_config_t config                      = test_config();
     config.permissions.allow_console_commands = true;
     config.permissions.allow_cheats           = false;
 
@@ -1053,13 +1053,13 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
     mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
-    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
+    REQUIRE(dmcp_command_push(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
 
     dmcp_context_destroy(ctx);
   }
 
   SECTION("Explicit enabled permissions allow privileged commands") {
-    dmcp_config_t config                      = TestConfig();
+    dmcp_config_t config                      = test_config();
     config.permissions.allow_console_commands = true;
     config.permissions.allow_cheats           = true;
 
@@ -1069,19 +1069,19 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
     mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
-    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_push(ctx, &console).code == MCP_STATUS_CODE_OK);
 
     dmcp_command_t health{};
     health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
     health.data.set_health.health = 200;
-    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_push(ctx, &health).code == MCP_STATUS_CODE_OK);
 
     dmcp_context_destroy(ctx);
   }
 }
 
 TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
-  dmcp_config_t config       = TestConfig();
+  dmcp_config_t config       = test_config();
   config.command_queue_slots = 64;
   dmcp_context_t* ctx        = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
@@ -1093,7 +1093,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
     int pushed = 0;
     for (int i = 0; i < 100; i++) {
       cmd.sequence        = i;
-      mcp_status_t result = dmcp_push_command(ctx, &cmd);
+      mcp_status_t result = dmcp_command_push(ctx, &cmd);
       if (result.code == MCP_STATUS_CODE_OK) {
         pushed++;
       } else {
@@ -1108,7 +1108,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
     dmcp_command_result_t result = {};
     for (int i = 0; i < 70; i++) {
       cmd.sequence = i;
-      REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_STATUS_CODE_OK);
+      REQUIRE(dmcp_command_push(ctx, &cmd).code == MCP_STATUS_CODE_OK);
     }
 
     REQUIRE(dmcp_command_result_get(ctx, 1, &result).code == MCP_STATUS_CODE_OK);
@@ -1117,7 +1117,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
     REQUIRE(std::strcmp(result.message, "Dropped due to command queue overflow") == 0);
 
     dmcp_command_t popped = {};
-    REQUIRE(dmcp_pop_command(ctx, &popped) == true);
+    REQUIRE(dmcp_command_pop(ctx, &popped) == true);
     REQUIRE(popped.sequence == 7);
   }
 
@@ -1125,7 +1125,7 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: Command queue capacity follows config", "[doom][commands]") {
-  dmcp_config_t config       = TestConfig();
+  dmcp_config_t config       = test_config();
   config.command_queue_slots = 3;
 
   dmcp_context_t* ctx = dmcp_context_create(&config);
@@ -1135,20 +1135,20 @@ TEST_CASE("Doom MCP: Command queue capacity follows config", "[doom][commands]")
   cmd.type           = DMCP_CMD_GIVE_ITEM;
 
   for (int i = 0; i < 5; ++i) {
-    REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_push(ctx, &cmd).code == MCP_STATUS_CODE_OK);
   }
 
   REQUIRE(dmcp_command_count(ctx) == 3);
 
   dmcp_command_t popped = {};
-  REQUIRE(dmcp_pop_command(ctx, &popped) == true);
+  REQUIRE(dmcp_command_pop(ctx, &popped) == true);
   REQUIRE(popped.sequence == 3);
 
   dmcp_context_destroy(ctx);
 }
 
 TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
+  dmcp_config_t   config = test_config();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -1157,7 +1157,7 @@ TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
   cmd.data.pause.paused = true;
 
   SECTION("Track queued and completed command by sequence") {
-    mcp_status_t push_result = dmcp_push_command(ctx, &cmd);
+    mcp_status_t push_result = dmcp_command_push(ctx, &cmd);
     REQUIRE(push_result.code == MCP_STATUS_CODE_OK);
     REQUIRE(cmd.sequence > 0);
 
@@ -1188,7 +1188,7 @@ TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
 }
 
 TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
+  dmcp_config_t   config = test_config();
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 

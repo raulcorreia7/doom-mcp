@@ -79,7 +79,7 @@ struct TransportContext {
   std::mutex              start_mutex;
 };
 
-static std::string NormalizeHttpMethod(std::string_view method) {
+static std::string normalize_http_method(std::string_view method) {
   std::string normalized(method);
   for (char& c : normalized) {
     c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
@@ -87,11 +87,11 @@ static std::string NormalizeHttpMethod(std::string_view method) {
   return normalized;
 }
 
-static bool MethodCanHaveBody(std::string_view method) {
+static bool method_can_have_body(std::string_view method) {
   return method == "POST" || method == "PUT" || method == "PATCH";
 }
 
-static bool ContainsCaseInsensitive(std::string_view haystack, std::string_view needle) {
+static bool contains_case_insensitive(std::string_view haystack, std::string_view needle) {
   if (needle.empty() || haystack.size() < needle.size()) {
     return false;
   }
@@ -114,12 +114,12 @@ static bool ContainsCaseInsensitive(std::string_view haystack, std::string_view 
   return false;
 }
 
-static std::string GetHeaderValue(const httplib::Request& req, const char* key) {
+static std::string get_header_value(const httplib::Request& req, const char* key) {
   const auto value = req.get_header_value(key);
   return value;
 }
 
-static void SetCommonHeaders(httplib::Response& res) {
+static void set_common_headers(httplib::Response& res) {
   res.set_header("Access-Control-Allow-Origin", "*");
   res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.set_header("Access-Control-Allow-Headers",
@@ -127,8 +127,8 @@ static void SetCommonHeaders(httplib::Response& res) {
   res.set_header("Cache-Control", "no-store");
 }
 
-static void SetMcpHeaders(httplib::Response& res, std::string_view request_session_id,
-                          const request_context::response_metadata& meta) {
+static void set_mcp_headers(httplib::Response& res, std::string_view request_session_id,
+                            const request_context::response_metadata& meta) {
   const std::string protocol =
       meta.protocol_version.empty() ? std::string(MCP_PROTOCOL_VERSION) : meta.protocol_version;
   res.set_header("MCP-Protocol-Version", protocol);
@@ -140,24 +140,24 @@ static void SetMcpHeaders(httplib::Response& res, std::string_view request_sessi
   }
 }
 
-static void WriteJsonErrorResponse(httplib::Response& res, int status, std::string_view payload,
-                                   bool             add_mcp_headers    = false,
-                                   std::string_view request_session_id = {}) {
+static void write_json_error_response(httplib::Response& res, int status, std::string_view payload,
+                                      bool             add_mcp_headers    = false,
+                                      std::string_view request_session_id = {}) {
   res.status = status;
-  SetCommonHeaders(res);
+  set_common_headers(res);
   if (add_mcp_headers) {
     request_context::response_metadata meta;
-    SetMcpHeaders(res, request_session_id, meta);
+    set_mcp_headers(res, request_session_id, meta);
   }
   res.set_content(std::string(payload), "application/json");
 }
 
-static bool IsOriginAllowed(const TransportContext* ctx, const httplib::Request& req) {
+static bool is_origin_allowed(const TransportContext* ctx, const httplib::Request& req) {
   if (!ctx || ctx->allowed_origin.empty()) {
     return true;
   }
 
-  const std::string origin = GetHeaderValue(req, "Origin");
+  const std::string origin = get_header_value(req, "Origin");
   if (origin.empty()) {
     return true;
   }
@@ -165,8 +165,8 @@ static bool IsOriginAllowed(const TransportContext* ctx, const httplib::Request&
   return origin == ctx->allowed_origin;
 }
 
-static void MarkClientClosed(TransportContext* ctx, const std::shared_ptr<Client>& client,
-                             bool notify_disconnect) {
+static void mark_client_closed(TransportContext* ctx, const std::shared_ptr<Client>& client,
+                               bool notify_disconnect) {
   if (!ctx || !client) return;
 
   bool expected = false;
@@ -190,19 +190,19 @@ static void MarkClientClosed(TransportContext* ctx, const std::shared_ptr<Client
   client->cv.notify_all();
 }
 
-static void WriteOptionsResponse(httplib::Response& res) {
+static void write_options_response(httplib::Response& res) {
   res.status = 204;
-  SetCommonHeaders(res);
+  set_common_headers(res);
   res.body.clear();
 }
 
-static void WriteHandledResponse(httplib::Response& res, int http_status, const char* body,
-                                 bool is_mcp_request, std::string_view request_session_id,
-                                 const request_context::response_metadata& meta) {
+static void write_handled_response(httplib::Response& res, int http_status, const char* body,
+                                   bool is_mcp_request, std::string_view request_session_id,
+                                   const request_context::response_metadata& meta) {
   res.status = http_status;
-  SetCommonHeaders(res);
+  set_common_headers(res);
   if (is_mcp_request) {
-    SetMcpHeaders(res, request_session_id, meta);
+    set_mcp_headers(res, request_session_id, meta);
   }
 
   if (!body || body[0] == '\0' || http_status == 204) {
@@ -213,20 +213,20 @@ static void WriteHandledResponse(httplib::Response& res, int http_status, const 
   res.set_content(std::string(body), "application/json");
 }
 
-static void DispatchHttpRequest(TransportContext* ctx, const httplib::Request& req,
-                                httplib::Response& res, std::string_view method,
-                                std::string_view path, const char* body_or_null) {
+static void dispatch_http_request(TransportContext* ctx, const httplib::Request& req,
+                                  httplib::Response& res, std::string_view method,
+                                  std::string_view path, const char* body_or_null) {
   if (!ctx->callbacks.on_http_request) {
-    WriteJsonErrorResponse(res, 404, kJsonErrorNotFound);
+    write_json_error_response(res, 404, kJsonErrorNotFound);
     return;
   }
 
   request_context::request_metadata req_meta;
-  req_meta.session_id       = GetHeaderValue(req, "MCP-Session-Id");
-  req_meta.protocol_version = GetHeaderValue(req, "MCP-Protocol-Version");
-  req_meta.origin           = GetHeaderValue(req, "Origin");
-  req_meta.accept           = GetHeaderValue(req, "Accept");
-  req_meta.content_type     = GetHeaderValue(req, "Content-Type");
+  req_meta.session_id       = get_header_value(req, "MCP-Session-Id");
+  req_meta.protocol_version = get_header_value(req, "MCP-Protocol-Version");
+  req_meta.origin           = get_header_value(req, "Origin");
+  req_meta.accept           = get_header_value(req, "Accept");
+  req_meta.content_type     = get_header_value(req, "Content-Type");
 
   request_context::set_current(req_meta);
   request_context::clear_response();
@@ -246,25 +246,25 @@ static void DispatchHttpRequest(TransportContext* ctx, const httplib::Request& r
   request_context::clear_response();
 
   if (!handled) {
-    WriteJsonErrorResponse(res, 404, kJsonErrorNotFound, path == MCP_ENDPOINT_MCP,
-                           req_meta.session_id);
+    write_json_error_response(res, 404, kJsonErrorNotFound, path == MCP_ENDPOINT_MCP,
+                              req_meta.session_id);
     return;
   }
 
-  WriteHandledResponse(res, http_status, response, path == MCP_ENDPOINT_MCP, req_meta.session_id,
-                       response_meta);
+  write_handled_response(res, http_status, response, path == MCP_ENDPOINT_MCP, req_meta.session_id,
+                         response_meta);
 }
 
-static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req,
-                         httplib::Response& res) {
-  if (!IsOriginAllowed(ctx, req)) {
-    WriteJsonErrorResponse(res, 403, kJsonErrorForbiddenOrigin);
+static void handle_get_sse(TransportContext* ctx, const httplib::Request& req,
+                           httplib::Response& res) {
+  if (!is_origin_allowed(ctx, req)) {
+    write_json_error_response(res, 403, kJsonErrorForbiddenOrigin);
     return;
   }
 
-  const std::string accept_header = GetHeaderValue(req, "Accept");
-  if (!ContainsCaseInsensitive(accept_header, "text/event-stream")) {
-    WriteJsonErrorResponse(res, 406, kJsonErrorNotAcceptableSSE);
+  const std::string accept_header = get_header_value(req, "Accept");
+  if (!contains_case_insensitive(accept_header, "text/event-stream")) {
+    write_json_error_response(res, 406, kJsonErrorNotAcceptableSSE);
     return;
   }
 
@@ -283,7 +283,7 @@ static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req,
     client->handle = client_handle;
   }
 
-  SetCommonHeaders(res);
+  set_common_headers(res);
   res.set_header("Cache-Control", "no-cache");
   res.set_header("Connection", "keep-alive");
   res.set_header("MCP-Protocol-Version", MCP_PROTOCOL_VERSION);
@@ -339,62 +339,62 @@ static void HandleGetSSE(TransportContext* ctx, const httplib::Request& req,
 
         return true;
       },
-      [ctx, client](bool /*success*/) { MarkClientClosed(ctx, client, true); });
+      [ctx, client](bool /*success*/) { mark_client_closed(ctx, client, true); });
 }
 
-static void HandleHttpRequest(TransportContext* ctx, const httplib::Request& req,
-                              httplib::Response& res) {
-  const std::string method = NormalizeHttpMethod(req.method);
+static void handle_http_request(TransportContext* ctx, const httplib::Request& req,
+                                httplib::Response& res) {
+  const std::string method = normalize_http_method(req.method);
   const std::string path   = req.path;
 
-  if (!IsOriginAllowed(ctx, req)) {
-    WriteJsonErrorResponse(res, 403, kJsonErrorForbiddenOrigin);
+  if (!is_origin_allowed(ctx, req)) {
+    write_json_error_response(res, 403, kJsonErrorForbiddenOrigin);
     return;
   }
 
   if (method == "OPTIONS") {
-    WriteOptionsResponse(res);
+    write_options_response(res);
     return;
   }
 
   if (method == "GET" && path == MCP_ENDPOINT_MCP) {
-    HandleGetSSE(ctx, req, res);
+    handle_get_sse(ctx, req, res);
     return;
   }
 
   if (method == "POST" && path == MCP_ENDPOINT_MCP) {
-    const std::string content_type = GetHeaderValue(req, "Content-Type");
-    if (!content_type.empty() && !ContainsCaseInsensitive(content_type, "application/json")) {
-      WriteJsonErrorResponse(res, 415, kJsonErrorUnsupportedMediaType, true,
-                             GetHeaderValue(req, "MCP-Session-Id"));
+    const std::string content_type = get_header_value(req, "Content-Type");
+    if (!content_type.empty() && !contains_case_insensitive(content_type, "application/json")) {
+      write_json_error_response(res, 415, kJsonErrorUnsupportedMediaType, true,
+                                get_header_value(req, "MCP-Session-Id"));
       return;
     }
 
-    const std::string accept = GetHeaderValue(req, "Accept");
-    if (!accept.empty() && !ContainsCaseInsensitive(accept, "application/json") &&
-        !ContainsCaseInsensitive(accept, "*/*")) {
-      WriteJsonErrorResponse(res, 406, kJsonErrorNotAcceptableJson, true,
-                             GetHeaderValue(req, "MCP-Session-Id"));
+    const std::string accept = get_header_value(req, "Accept");
+    if (!accept.empty() && !contains_case_insensitive(accept, "application/json") &&
+        !contains_case_insensitive(accept, "*/*")) {
+      write_json_error_response(res, 406, kJsonErrorNotAcceptableJson, true,
+                                get_header_value(req, "MCP-Session-Id"));
       return;
     }
   }
 
-  if (MethodCanHaveBody(method) && req.body.size() > ctx->max_payload_size) {
-    WriteJsonErrorResponse(res, 413, kJsonErrorPayloadTooLarge, path == MCP_ENDPOINT_MCP,
-                           GetHeaderValue(req, "MCP-Session-Id"));
+  if (method_can_have_body(method) && req.body.size() > ctx->max_payload_size) {
+    write_json_error_response(res, 413, kJsonErrorPayloadTooLarge, path == MCP_ENDPOINT_MCP,
+                              get_header_value(req, "MCP-Session-Id"));
     return;
   }
 
-  const char* body_or_null = MethodCanHaveBody(method) ? req.body.c_str() : nullptr;
-  DispatchHttpRequest(ctx, req, res, method, path, body_or_null);
+  const char* body_or_null = method_can_have_body(method) ? req.body.c_str() : nullptr;
+  dispatch_http_request(ctx, req, res, method, path, body_or_null);
 }
 
-static void TransportThreadMain(TransportContext* ctx) {
+static void transport_thread_main(TransportContext* ctx) {
   ctx->server = std::make_unique<httplib::Server>();
   ctx->server->set_payload_max_length(ctx->max_payload_size);
 
   auto handler = [ctx](const httplib::Request& req, httplib::Response& res) {
-    HandleHttpRequest(ctx, req, res);
+    handle_http_request(ctx, req, res);
   };
 
   ctx->server->Get(R"(.*)", handler);
@@ -431,7 +431,7 @@ static void TransportThreadMain(TransportContext* ctx) {
   }
 
   for (const auto& client : clients_snapshot) {
-    MarkClientClosed(ctx, client, true);
+    mark_client_closed(ctx, client, true);
   }
 
   ctx->server.reset();
@@ -446,9 +446,9 @@ static void TransportThreadMain(TransportContext* ctx) {
 
 extern "C" {
 
-static void SSE_Stop(mcp_transport_t* transport);
+static void sse_stop(mcp_transport_t* transport);
 
-static mcp_transport_t* SSE_Create(uint16_t port, const mcp_transport_callbacks_t* callbacks,
+static mcp_transport_t* sse_create(uint16_t port, const mcp_transport_callbacks_t* callbacks,
                                    void* user_data) {
   auto ctx  = std::make_unique<mcp::transport::TransportContext>();
   ctx->port = port;
@@ -467,12 +467,12 @@ static mcp_transport_t* SSE_Create(uint16_t port, const mcp_transport_callbacks_
   return reinterpret_cast<mcp_transport_t*>(ctx.release());
 }
 
-static void SSE_Destroy(mcp_transport_t* transport) {
+static void sse_destroy(mcp_transport_t* transport) {
   if (!transport) return;
   std::unique_ptr<mcp::transport::TransportContext> ctx(
       reinterpret_cast<mcp::transport::TransportContext*>(transport));
 
-  SSE_Stop(transport);
+  sse_stop(transport);
 
   std::vector<std::shared_ptr<mcp::transport::Client>> clients_snapshot;
   {
@@ -482,11 +482,11 @@ static void SSE_Destroy(mcp_transport_t* transport) {
   }
 
   for (const auto& client : clients_snapshot) {
-    mcp::transport::MarkClientClosed(ctx.get(), client, true);
+    mcp::transport::mark_client_closed(ctx.get(), client, true);
   }
 }
 
-static bool SSE_Start(mcp_transport_t* transport) {
+static bool sse_start(mcp_transport_t* transport) {
   if (!transport) return false;
   auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
 
@@ -500,7 +500,7 @@ static bool SSE_Start(mcp_transport_t* transport) {
     ctx->startup_ok   = false;
   }
 
-  ctx->thread = std::thread(mcp::transport::TransportThreadMain, ctx);
+  ctx->thread = std::thread(mcp::transport::transport_thread_main, ctx);
 
   std::unique_lock<std::mutex> lock(ctx->start_mutex);
   if (!ctx->start_cv.wait_for(lock, std::chrono::seconds(MCP_STARTUP_TIMEOUT_SECONDS),
@@ -527,7 +527,7 @@ static bool SSE_Start(mcp_transport_t* transport) {
   return true;
 }
 
-static void SSE_Stop(mcp_transport_t* transport) {
+static void sse_stop(mcp_transport_t* transport) {
   if (!transport) return;
   auto* ctx = reinterpret_cast<mcp::transport::TransportContext*>(transport);
 
@@ -544,7 +544,7 @@ static void SSE_Stop(mcp_transport_t* transport) {
   }
 
   for (const auto& client : clients_snapshot) {
-    mcp::transport::MarkClientClosed(ctx, client, true);
+    mcp::transport::mark_client_closed(ctx, client, true);
   }
 
   if (ctx->thread.joinable()) {
@@ -552,16 +552,16 @@ static void SSE_Stop(mcp_transport_t* transport) {
   }
 }
 
-static bool SSE_IsRunning(const mcp_transport_t* transport) {
+static bool sse_is_running(const mcp_transport_t* transport) {
   if (!transport) return false;
   auto* ctx = reinterpret_cast<const mcp::transport::TransportContext*>(transport);
   return ctx->running.load(std::memory_order_acquire);
 }
 
-static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t len) {
+static void sse_broadcast(mcp_transport_t* transport, const char* data, size_t len) {
   if (!transport || !data || len == 0) return;
   auto*             ctx    = reinterpret_cast<mcp::transport::TransportContext*>(transport);
-  const std::string framed = mcp::FormatSseMessage(std::string_view(data, len));
+  const std::string framed = mcp::format_sse_message(std::string_view(data, len));
 
   std::vector<std::shared_ptr<mcp::transport::Client>> clients_snapshot;
   {
@@ -587,7 +587,7 @@ static void SSE_Broadcast(mcp_transport_t* transport, const char* data, size_t l
   }
 }
 
-static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
+static size_t sse_get_client_count(const mcp_transport_t* transport) {
   if (!transport) return 0;
   auto* ctx = reinterpret_cast<const mcp::transport::TransportContext*>(transport);
   std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(ctx->clients_mutex));
@@ -595,15 +595,15 @@ static size_t SSE_GetClientCount(const mcp_transport_t* transport) {
 }
 
 const mcp_transport_interface_t mcp_sse_transport = {
-    1,                   // version
-    "sse-httplib",       // name
-    SSE_Create,          // create
-    SSE_Destroy,         // destroy
-    SSE_Start,           // start
-    SSE_Stop,            // stop
-    SSE_IsRunning,       // is_running
-    SSE_Broadcast,       // broadcast
-    SSE_GetClientCount,  // get_client_count
+    1,                     // version
+    "sse-httplib",         // name
+    sse_create,            // create
+    sse_destroy,           // destroy
+    sse_start,             // start
+    sse_stop,              // stop
+    sse_is_running,        // is_running
+    sse_broadcast,         // broadcast
+    sse_get_client_count,  // get_client_count
 };
 
 }  // extern "C"

@@ -104,7 +104,7 @@ constexpr std::array<const char*, 7> kWeaponSlots = {
 
 constexpr std::array<const char*, 2> kAvailableMaps = {"MAP01", "MAP02"};
 
-dmcp_fake_config_t CopyConfig(const dmcp_fake_config_t* config) {
+dmcp_fake_config_t copy_config(const dmcp_fake_config_t* config) {
   dmcp_fake_config_t effective = dmcp_fake_config_default();
   if (!config) {
     return effective;
@@ -535,8 +535,8 @@ bool apply_command(dmcp_fake_t* fake, const dmcp_command_t& cmd, char* message,
   }
 }
 
-bool ExecuteQueuedCommand(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
-                          size_t out_message_size) {
+bool execute_queued_command(void* adapter_ctx, const dmcp_command_t* cmd, char* out_message,
+                            size_t out_message_size) {
   auto* fake = static_cast<dmcp_fake_t*>(adapter_ctx);
   if (!fake || !cmd) {
     set_text(out_message, out_message_size, "Invalid command");
@@ -547,8 +547,8 @@ bool ExecuteQueuedCommand(void* adapter_ctx, const dmcp_command_t* cmd, char* ou
   return apply_command(fake, *cmd, out_message, out_message_size);
 }
 
-bool ExecuteQueuedInput(void* adapter_ctx, const dmcp_command_t* input_cmd, char* out_message,
-                        size_t out_message_size) {
+bool execute_queued_input(void* adapter_ctx, const dmcp_command_t* input_cmd, char* out_message,
+                          size_t out_message_size) {
   auto* fake = static_cast<dmcp_fake_t*>(adapter_ctx);
   if (!fake || !input_cmd || input_cmd->type != DMCP_CMD_PLAYER_INPUT) {
     set_text(out_message, out_message_size, "Invalid player input");
@@ -593,7 +593,7 @@ dmcp_fake_t* dmcp_fake_create(const dmcp_fake_config_t* config) {
     return nullptr;
   }
 
-  fake->config = CopyConfig(config);
+  fake->config = copy_config(config);
 
   fake->config.base.struct_size = sizeof(dmcp_config_t);
   fake->config.base.on_snapshot = fake_snapshot_callback;
@@ -653,7 +653,7 @@ void dmcp_fake_commands_process(dmcp_fake_t* fake) {
     return;
   }
 
-  dmcp_adapter_process_command_queue(fake->dmcp_ctx, fake, ExecuteQueuedCommand, 0);
+  dmcp_adapter_process_command_queue(fake->dmcp_ctx, fake, execute_queued_command, 0);
 }
 
 void dmcp_fake_inputs_process(dmcp_fake_t* fake) {
@@ -661,12 +661,12 @@ void dmcp_fake_inputs_process(dmcp_fake_t* fake) {
     return;
   }
 
-  dmcp_adapter_process_input_queue(fake->dmcp_ctx, fake, ExecuteQueuedInput, 0);
+  dmcp_adapter_process_input_queue(fake->dmcp_ctx, fake, execute_queued_input, 0);
 }
 
 bool dmcp_fake_command_execute(dmcp_fake_t* fake, const dmcp_command_t* cmd) {
   char command_message[kCommandResultMessageSize] = {0};
-  return ExecuteQueuedCommand(fake, cmd, command_message, sizeof(command_message));
+  return execute_queued_command(fake, cmd, command_message, sizeof(command_message));
 }
 
 bool dmcp_fake_is_running(const dmcp_fake_t* fake) {
@@ -679,14 +679,14 @@ bool dmcp_fake_is_running(const dmcp_fake_t* fake) {
   return dmcp_context_is_running(fake->dmcp_ctx);
 }
 
-dmcp_context_t* dmcp_fake_get_context(dmcp_fake_t* fake) {
+dmcp_context_t* dmcp_fake_context_get(dmcp_fake_t* fake) {
   if (!fake) {
     return nullptr;
   }
   return fake->dmcp_ctx;
 }
 
-void dmcp_fake_get_stats(dmcp_fake_t* fake, dmcp_stats_t* out_stats) {
+void dmcp_fake_stats_get(dmcp_fake_t* fake, dmcp_stats_t* out_stats) {
   if (!fake || !out_stats || !fake->dmcp_ctx) {
     return;
   }

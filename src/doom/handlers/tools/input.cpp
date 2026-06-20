@@ -20,14 +20,14 @@ bool handle_tool_input(context* ctx, const json_value& params, char* response_bu
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  mcp_status_t push_result = dmcp_push_input(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
+  mcp_status_t push_result = dmcp_input_push(reinterpret_cast<dmcp_context_t*>(ctx), &cmd);
   if (push_result.code != MCP_STATUS_CODE_OK) {
     const std::string resp = build_content_response(
         push_result.message ? push_result.message : "Failed to queue input", true);
     return write_json_response(resp, response_buffer, response_size);
   }
 
-  dmcp_log(ctx, MCP_LOG_INFO, "Input queued (action=%d seq=%llu)", cmd.data.input.action,
+  dmcp_log(ctx, MCP_LOG_DEBUG, "Input queued (action=%d seq=%llu)", cmd.data.input.action,
            static_cast<unsigned long long>(cmd.sequence));
 
   json_builder result;

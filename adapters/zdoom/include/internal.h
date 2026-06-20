@@ -16,6 +16,6 @@ struct AdapterContext {
 
 constexpr size_t kLogBufferSize = 256;
 
-void Log(AdapterContext* ctx, int level, const char* fmt, ...);
+void adapter_log(AdapterContext* ctx, int level, const char* fmt, ...);
 
 }  // namespace dmcp::zdoom

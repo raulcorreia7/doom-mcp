@@ -38,7 +38,7 @@ int dmcp_crispy_populate_enemies(dmcp_snapshot_t* snap);
 int dmcp_crispy_populate_entities(dmcp_snapshot_t* snap);
 
 // Get the current player struct (may be NULL if not in game)
-struct player_s* dmcp_get_player(void);
+struct player_s* dmcp_crispy_player_get(void);
 
 // Execute one queued DMCP command against Crispy Doom and return a concise result message.
 bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd, char* out_message,

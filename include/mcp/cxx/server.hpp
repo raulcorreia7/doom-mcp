@@ -10,7 +10,7 @@ namespace mcp {
 
 class server {
  public:
-  server() : server(mcp_default_config()) {}
+  server() : server(mcp_server_config_default()) {}
   explicit server(const mcp_server_config_t& config) : handle_(mcp_server_create(&config)) {}
   explicit server(mcp_server_t* handle) noexcept : handle_(handle) {}
 

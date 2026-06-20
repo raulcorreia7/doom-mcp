@@ -21,7 +21,7 @@ int main(void) {
   mcp_core_api_get(&api);
   int cmp = mcp_strcmp_ci("DMCP", "dmcp");
 
-  mcp_server_config_t     server_config     = mcp_default_config();
+  mcp_server_config_t     server_config     = mcp_server_config_default();
   mcp_game_registration_t game_registration = mcp_game_registration_default();
   dmcp_config_t           doom_config       = dmcp_config_default();
   dmcp_crispy_config_t    crispy_config     = dmcp_crispy_config_default();

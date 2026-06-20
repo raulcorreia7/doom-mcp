@@ -128,7 +128,7 @@ uint64_t command_queue::next_sequence() { return next_sequence_.fetch_add(1); }
 
 extern "C" {
 
-mcp_status_t dmcp_push_command(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
+mcp_status_t dmcp_command_push(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd) {
     return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
@@ -263,7 +263,7 @@ mcp_status_t dmcp_command_result_get(const dmcp_context_t* ctx_handle, uint64_t 
   return MCP_STATUS_OK("Success");
 }
 
-bool dmcp_pop_command(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
+bool dmcp_command_pop(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
   if (!ctx_handle || !out_cmd) {
     return false;
   }
@@ -282,7 +282,7 @@ bool dmcp_pop_command(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
   return true;
 }
 
-bool dmcp_has_commands(const dmcp_context_t* ctx_handle) {
+bool dmcp_command_has_pending(const dmcp_context_t* ctx_handle) {
   if (!ctx_handle) {
     return false;
   }
@@ -308,7 +308,7 @@ std::uint32_t dmcp_command_count(const dmcp_context_t* ctx_handle) {
   return ctx->cmd_queue->size();
 }
 
-void dmcp_clear_commands(dmcp_context_t* ctx_handle) {
+void dmcp_command_clear(dmcp_context_t* ctx_handle) {
   if (!ctx_handle) {
     return;
   }
@@ -325,7 +325,7 @@ void dmcp_clear_commands(dmcp_context_t* ctx_handle) {
 // Player Input Queue API
 // ============================================================================
 
-mcp_status_t dmcp_push_input(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
+mcp_status_t dmcp_input_push(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
   if (!ctx_handle || !cmd) {
     return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
@@ -344,7 +344,7 @@ mcp_status_t dmcp_push_input(dmcp_context_t* ctx_handle, dmcp_command_t* cmd) {
   return MCP_STATUS_OK("Success");
 }
 
-bool dmcp_pop_input(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
+bool dmcp_input_pop(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
   if (!ctx_handle || !out_cmd) {
     return false;
   }
@@ -363,7 +363,7 @@ bool dmcp_pop_input(dmcp_context_t* ctx_handle, dmcp_command_t* out_cmd) {
   return true;
 }
 
-bool dmcp_has_input(const dmcp_context_t* ctx_handle) {
+bool dmcp_input_has_pending(const dmcp_context_t* ctx_handle) {
   if (!ctx_handle) {
     return false;
   }
@@ -389,7 +389,7 @@ uint32_t dmcp_input_count(const dmcp_context_t* ctx_handle) {
   return ctx->input_queue->size();
 }
 
-void dmcp_clear_inputs(dmcp_context_t* ctx_handle) {
+void dmcp_input_clear(dmcp_context_t* ctx_handle) {
   if (!ctx_handle) {
     return;
   }

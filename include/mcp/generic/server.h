@@ -60,7 +60,7 @@ typedef bool (*mcp_route_handler_t)(void* user_data, const char* method, const c
  *
  * Example:
  * @code
- * mcp_server_config_t config = mcp_default_config();
+ * mcp_server_config_t config = mcp_server_config_default();
  * config.port = 6060;
  * mcp_server_t* server = mcp_server_create(&config);
  * if (!server) {

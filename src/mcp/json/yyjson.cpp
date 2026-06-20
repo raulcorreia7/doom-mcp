@@ -9,20 +9,20 @@ namespace json {
 
 namespace {
 
-yyjson_mut_val* MakeCopiedKey(yyjson_mut_doc* doc, std::string_view key) {
+yyjson_mut_val* make_copied_key(yyjson_mut_doc* doc, std::string_view key) {
   if (!doc) {
     return nullptr;
   }
   return yyjson_mut_strncpy(doc, key.data(), key.size());
 }
 
-bool AddObjectMember(yyjson_mut_doc* doc, yyjson_mut_val* obj, std::string_view key,
-                     yyjson_mut_val* value) {
+bool add_object_member(yyjson_mut_doc* doc, yyjson_mut_val* obj, std::string_view key,
+                       yyjson_mut_val* value) {
   if (!doc || !obj || !value) {
     return false;
   }
 
-  yyjson_mut_val* copied_key = MakeCopiedKey(doc, key);
+  yyjson_mut_val* copied_key = make_copied_key(doc, key);
   if (!copied_key) {
     return false;
   }
@@ -232,21 +232,21 @@ void Value::set_member(std::string_view key, bool val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc) return;
   yyjson_mut_val* obj   = static_cast<yyjson_mut_val*>(ptr_);
   yyjson_mut_val* value = yyjson_mut_bool(doc_->impl->mut_doc, val);
-  AddObjectMember(doc_->impl->mut_doc, obj, key, value);
+  add_object_member(doc_->impl->mut_doc, obj, key, value);
 }
 
 void Value::set_member(std::string_view key, int64_t val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc) return;
   yyjson_mut_val* obj   = static_cast<yyjson_mut_val*>(ptr_);
   yyjson_mut_val* value = yyjson_mut_sint(doc_->impl->mut_doc, val);
-  AddObjectMember(doc_->impl->mut_doc, obj, key, value);
+  add_object_member(doc_->impl->mut_doc, obj, key, value);
 }
 
 void Value::set_member(std::string_view key, double val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc) return;
   yyjson_mut_val* obj   = static_cast<yyjson_mut_val*>(ptr_);
   yyjson_mut_val* value = yyjson_mut_real(doc_->impl->mut_doc, val);
-  AddObjectMember(doc_->impl->mut_doc, obj, key, value);
+  add_object_member(doc_->impl->mut_doc, obj, key, value);
 }
 
 void Value::set_member(std::string_view key, const char* val) {
@@ -257,7 +257,7 @@ void Value::set_member(std::string_view key, std::string_view val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc) return;
   yyjson_mut_val* obj   = static_cast<yyjson_mut_val*>(ptr_);
   yyjson_mut_val* value = yyjson_mut_strncpy(doc_->impl->mut_doc, val.data(), val.size());
-  AddObjectMember(doc_->impl->mut_doc, obj, key, value);
+  add_object_member(doc_->impl->mut_doc, obj, key, value);
 }
 
 void Value::set_member(std::string_view key, const Value& val) {
@@ -269,7 +269,7 @@ void Value::set_member(std::string_view key, const Value& val) {
   } else if (val.doc_ && val.doc_->impl->mut_doc) {
     copy = yyjson_mut_val_mut_copy(doc_->impl->mut_doc, static_cast<yyjson_mut_val*>(val.ptr_));
   }
-  AddObjectMember(doc_->impl->mut_doc, obj, key, copy);
+  add_object_member(doc_->impl->mut_doc, obj, key, copy);
 }
 
 size_t Value::size() const {
@@ -317,7 +317,7 @@ void Value::push_back(std::string_view val) {
 
 void Value::push_back(const Value& val) {
   if (!ptr_ || !doc_ || !doc_->impl->mut_doc || !val.ptr_) return;
-  yyjson_mut_val* arr = static_cast<yyjson_mut_val*>(ptr_);
+  yyjson_mut_val* arr  = static_cast<yyjson_mut_val*>(ptr_);
   yyjson_mut_val* copy = nullptr;
   if (val.doc_ && val.doc_->impl->doc) {
     copy = yyjson_val_mut_copy(doc_->impl->mut_doc, static_cast<yyjson_val*>(val.ptr_));
@@ -422,28 +422,28 @@ void Builder::add(std::string_view key, bool val) {
   if (impl->stack.empty()) return;
   yyjson_mut_val* obj   = impl->stack.back();
   yyjson_mut_val* value = yyjson_mut_bool(impl->doc, val);
-  AddObjectMember(impl->doc, obj, key, value);
+  add_object_member(impl->doc, obj, key, value);
 }
 
 void Builder::add(std::string_view key, int64_t val) {
   if (impl->stack.empty()) return;
   yyjson_mut_val* obj   = impl->stack.back();
   yyjson_mut_val* value = yyjson_mut_sint(impl->doc, val);
-  AddObjectMember(impl->doc, obj, key, value);
+  add_object_member(impl->doc, obj, key, value);
 }
 
 void Builder::add(std::string_view key, double val) {
   if (impl->stack.empty()) return;
   yyjson_mut_val* obj   = impl->stack.back();
   yyjson_mut_val* value = yyjson_mut_real(impl->doc, val);
-  AddObjectMember(impl->doc, obj, key, value);
+  add_object_member(impl->doc, obj, key, value);
 }
 
 void Builder::add(std::string_view key, std::string_view val) {
   if (impl->stack.empty()) return;
   yyjson_mut_val* obj   = impl->stack.back();
   yyjson_mut_val* value = yyjson_mut_strncpy(impl->doc, val.data(), val.size());
-  AddObjectMember(impl->doc, obj, key, value);
+  add_object_member(impl->doc, obj, key, value);
 }
 
 void Builder::add(std::string_view key, const char* val) { add(key, std::string_view(val)); }
@@ -453,7 +453,7 @@ void Builder::add(std::string_view key, const Builder& nested) {
   yyjson_mut_val* obj  = impl->stack.back();
   yyjson_mut_val* val  = nested.impl->stack.back();
   yyjson_mut_val* copy = yyjson_mut_val_mut_copy(impl->doc, val);
-  AddObjectMember(impl->doc, obj, key, copy);
+  add_object_member(impl->doc, obj, key, copy);
 }
 
 void Builder::push(bool val) {

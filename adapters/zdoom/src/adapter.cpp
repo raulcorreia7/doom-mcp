@@ -30,8 +30,8 @@ struct PlayerView {
   AActor*       pawn;
   FLevelLocals* level;
 
-  bool HasPawn() const { return pawn != nullptr; }
-  bool HasLevel() const { return level != nullptr; }
+  bool has_pawn() const { return pawn != nullptr; }
+  bool has_level() const { return level != nullptr; }
 };
 
 }  // namespace
@@ -40,7 +40,7 @@ struct PlayerView {
 // ZDoom State Extraction
 // ============================================================================
 
-static PlayerView MakePlayerView() {
+static PlayerView make_player_view() {
   PlayerView view = {};
   view.player     = &players[consoleplayer];
   view.pawn       = view.player ? view.player->mo : nullptr;
@@ -48,7 +48,7 @@ static PlayerView MakePlayerView() {
   return view;
 }
 
-static uint16_t EnvPortOverride() {
+static uint16_t env_port_override() {
   const char* env_port = std::getenv("DMCP_PORT");
   if (env_port) {
     int port = std::atoi(env_port);
@@ -59,7 +59,7 @@ static uint16_t EnvPortOverride() {
   return 0;
 }
 
-static dmcp_zdoom_config_t CopyConfig(const dmcp_zdoom_config_t* config) {
+static dmcp_zdoom_config_t copy_config(const dmcp_zdoom_config_t* config) {
   dmcp_zdoom_config_t effective = dmcp_zdoom_config_default();
   if (!config) {
     return effective;
@@ -74,7 +74,7 @@ static dmcp_zdoom_config_t CopyConfig(const dmcp_zdoom_config_t* config) {
   return effective;
 }
 
-static const char* ItemLabel(AActor* item) {
+static const char* item_label(AActor* item) {
   if (!item) return "";
 
   const char* label = item->GetTag();
@@ -84,7 +84,7 @@ static const char* ItemLabel(AActor* item) {
   return label ? label : "";
 }
 
-static bool ShouldFilterInventoryItem(AActor* item) {
+static bool should_filter_inventory_item(AActor* item) {
   if (!item) return true;
 
   const char* className = item->GetClass()->TypeName.GetChars();
@@ -104,7 +104,7 @@ static bool ShouldFilterInventoryItem(AActor* item) {
 // Snapshot Population
 // ============================================================================
 
-static void BindDefaults(dmcp_snapshot_t* snapshot) {
+static void bind_defaults(dmcp_snapshot_t* snapshot) {
   snapshot->level.tic         = 0;
   snapshot->player.hp         = DMCP_PLAYER_INITIAL_HEALTH;
   snapshot->player.armor      = 0;
@@ -116,12 +116,12 @@ static void BindDefaults(dmcp_snapshot_t* snapshot) {
   }
 }
 
-static void BindPlayerHealth(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  snapshot->player.hp = view.HasPawn() ? view.pawn->health : 0;
+static void bind_player_health(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  snapshot->player.hp = view.has_pawn() ? view.pawn->health : 0;
 }
 
-static void BindPlayerArmor(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  if (!view.HasPawn()) {
+static void bind_player_armor(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  if (!view.has_pawn()) {
     snapshot->player.armor = 0;
     return;
   }
@@ -130,14 +130,14 @@ static void BindPlayerArmor(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   snapshot->player.armor = armor ? armor->IntVar(NAME_Amount) : 0;
 }
 
-static void BindPlayerPosition(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  if (!view.HasPawn()) return;
+static void bind_player_position(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  if (!view.has_pawn()) return;
 
   snapshot->player.position.x = static_cast<float>(view.pawn->Pos().X);
   snapshot->player.position.y = static_cast<float>(view.pawn->Pos().Y);
 }
 
-static void BindPlayerAmmo(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+static void bind_player_ammo(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   if (!view.player || view.player->ReadyWeapon == nullptr) {
     return;
   }
@@ -149,8 +149,8 @@ static void BindPlayerAmmo(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   snapshot->player.ammo[0] = ammo ? ammo->IntVar(NAME_Amount) : 0;
 }
 
-static void BindLevel(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  if (view.HasLevel()) {
+static void bind_level(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  if (view.has_level()) {
     snapshot->level.tic = view.level->time;
     mcp_strcpy_safe(snapshot->level.level_id, sizeof(snapshot->level.level_id),
                     view.level->MapName.GetChars());
@@ -173,8 +173,8 @@ static void BindLevel(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   snapshot->level.secret_count = view.player ? view.player->secretcount : 0;
 }
 
-static void BindEnemies(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  if (!view.HasLevel() || !view.HasPawn()) return;
+static void bind_enemies(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  if (!view.has_level() || !view.has_pawn()) return;
 
   TThinkerIterator<AActor> it(view.level);
   while (auto* actor = it.Next()) {
@@ -205,47 +205,47 @@ static void BindEnemies(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   }
 }
 
-static void BindInventory(dmcp_snapshot_t* snapshot, const PlayerView& view) {
-  if (!view.HasPawn()) return;
+static void bind_inventory(dmcp_snapshot_t* snapshot, const PlayerView& view) {
+  if (!view.has_pawn()) return;
 
   for (AActor* item = view.pawn->Inventory; item != nullptr; item = item->Inventory) {
-    if (ShouldFilterInventoryItem(item)) continue;
+    if (should_filter_inventory_item(item)) continue;
 
     int amount = item->IntVar(NAME_Amount);
     if (amount <= 0) continue;
 
     dmcp_item_t dest = {};
-    mcp_strcpy_safe(dest.name, sizeof(dest.name), ItemLabel(item));
+    mcp_strcpy_safe(dest.name, sizeof(dest.name), item_label(item));
     dest.amount = amount;
 
     dmcp_snapshot_add_item(snapshot, &dest);
   }
 }
 
-static void PopulateSnapshot(dmcp_snapshot_t* snapshot) {
+static void populate_snapshot(dmcp_snapshot_t* snapshot) {
   dmcp_snapshot_clear(snapshot);
-  BindDefaults(snapshot);
+  bind_defaults(snapshot);
 
-  const PlayerView view = MakePlayerView();
-  BindPlayerHealth(snapshot, view);
-  BindPlayerArmor(snapshot, view);
-  BindPlayerPosition(snapshot, view);
-  BindPlayerAmmo(snapshot, view);
-  BindLevel(snapshot, view);
-  BindEnemies(snapshot, view);
-  BindInventory(snapshot, view);
+  const PlayerView view = make_player_view();
+  bind_player_health(snapshot, view);
+  bind_player_armor(snapshot, view);
+  bind_player_position(snapshot, view);
+  bind_player_ammo(snapshot, view);
+  bind_level(snapshot, view);
+  bind_enemies(snapshot, view);
+  bind_inventory(snapshot, view);
 }
 
 // ============================================================================
 // Callbacks
 // ============================================================================
 
-static void ZdoomSnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
+static void zdoom_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   if (!snapshot) return;
-  PopulateSnapshot(snapshot);
+  populate_snapshot(snapshot);
 }
 
-static void ZdoomLogCallback(void* user_data, int level, const char* message) {
+static void zdoom_log_callback(void* user_data, int level, const char* message) {
   auto* ctx = static_cast<AdapterContext*>(user_data);
   if (!ctx || !message) return;
 
@@ -262,7 +262,7 @@ static void ZdoomLogCallback(void* user_data, int level, const char* message) {
 
 namespace dmcp::zdoom {
 
-void Log(AdapterContext* ctx, int level, const char* fmt, ...) {
+void adapter_log(AdapterContext* ctx, int level, const char* fmt, ...) {
   if (!fmt) return;
 
   char    buf[kLogBufferSize];
@@ -271,7 +271,7 @@ void Log(AdapterContext* ctx, int level, const char* fmt, ...) {
   vsnprintf(buf, sizeof(buf), fmt, args);
   va_end(args);
 
-  ZdoomLogCallback(ctx, level, buf);
+  zdoom_log_callback(ctx, level, buf);
 }
 
 }  // namespace dmcp::zdoom
@@ -284,31 +284,32 @@ extern "C" {
 
 dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg) {
   auto ctx                     = std::make_unique<AdapterContext>();
-  ctx->user_cfg                = CopyConfig(cfg);
+  ctx->user_cfg                = copy_config(cfg);
   ctx->dmcp_cfg                = ctx->user_cfg.base;
   ctx->log_not_running_emitted = false;
 
   // Apply user config
-  if (uint16_t env_port = EnvPortOverride()) {
+  if (uint16_t env_port = env_port_override()) {
     ctx->dmcp_cfg.port = env_port;
   }
 
   // Setup callbacks
-  ctx->dmcp_cfg.on_snapshot = ZdoomSnapshotCallback;
-  ctx->dmcp_cfg.on_log      = ZdoomLogCallback;
+  ctx->dmcp_cfg.on_snapshot = zdoom_snapshot_callback;
+  ctx->dmcp_cfg.on_log      = zdoom_log_callback;
   ctx->dmcp_cfg.user_data   = ctx.get();
 
   // Create DMCP context
   std::unique_ptr<dmcp_context_t, decltype(&dmcp_context_destroy)> dmcp_ctx(
       dmcp_context_create(&ctx->dmcp_cfg), dmcp_context_destroy);
   if (!dmcp_ctx) {
-    Log(ctx.get(), MCP_LOG_ERROR, "Failed to start DMCP server on port %u", ctx->dmcp_cfg.port);
+    adapter_log(ctx.get(), MCP_LOG_ERROR, "Failed to start DMCP server on port %u",
+                ctx->dmcp_cfg.port);
     return nullptr;
   }
 
   ctx->dmcp_ctx = dmcp_ctx.release();
-  Log(ctx.get(), MCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)", ctx->dmcp_cfg.port,
-      ctx->dmcp_cfg.target_hz);
+  adapter_log(ctx.get(), MCP_LOG_INFO, "DMCP server started on port %u (target %u Hz)",
+              ctx->dmcp_cfg.port, ctx->dmcp_cfg.target_hz);
 
   return reinterpret_cast<dmcp_zdoom_t*>(ctx.release());
 }
@@ -322,7 +323,7 @@ void dmcp_zdoom_destroy(dmcp_zdoom_t* ctx_handle) {
     ctx->dmcp_ctx = nullptr;
   }
 
-  Log(ctx.get(), MCP_LOG_INFO, "DMCP server stopped");
+  adapter_log(ctx.get(), MCP_LOG_INFO, "DMCP server stopped");
 }
 
 mcp_status_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
@@ -342,7 +343,7 @@ mcp_status_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx_handle) {
   // Check server health
   if (!dmcp_context_is_running(ctx->dmcp_ctx)) {
     if (!ctx->log_not_running_emitted) {
-      Log(ctx, MCP_LOG_WARN, "DMCP server not running; skipping tick");
+      adapter_log(ctx, MCP_LOG_WARN, "DMCP server not running; skipping tick");
       ctx->log_not_running_emitted = true;
     }
     mcp_status_t result = {};
@@ -363,14 +364,14 @@ bool dmcp_zdoom_is_running(dmcp_zdoom_t* ctx_handle) {
   return dmcp_context_is_running(ctx->dmcp_ctx);
 }
 
-void dmcp_zdoom_get_stats(dmcp_zdoom_t* ctx_handle, dmcp_stats_t* out_stats) {
+void dmcp_zdoom_stats_get(dmcp_zdoom_t* ctx_handle, dmcp_stats_t* out_stats) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx || !ctx->dmcp_ctx || !out_stats) return;
 
   dmcp_stats_get(ctx->dmcp_ctx, out_stats);
 }
 
-dmcp_context_t* dmcp_zdoom_get_context(dmcp_zdoom_t* ctx_handle) {
+dmcp_context_t* dmcp_zdoom_context_get(dmcp_zdoom_t* ctx_handle) {
   auto* ctx = reinterpret_cast<AdapterContext*>(ctx_handle);
   if (!ctx) {
     return nullptr;
