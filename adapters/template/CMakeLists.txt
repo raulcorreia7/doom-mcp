@@ -87,7 +87,7 @@ target_link_libraries(dmcp_adapter_template
 if(DMCP_BUILD_SHARED)
   target_compile_definitions(dmcp_adapter_template PRIVATE DMCP_BUILDING)
 
-  if(NOT WIN32)
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_options(dmcp_adapter_template PRIVATE
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/dmcp_template.version")
   endif()

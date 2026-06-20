@@ -11,7 +11,7 @@ set_target_properties(adapter_crispy PROPERTIES
     OUTPUT_NAME dmcp_crispy
 )
 
-if(NOT WIN32 AND DMCP_BUILD_SHARED)
+if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND DMCP_BUILD_SHARED)
     target_link_options(adapter_crispy PRIVATE
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/dmcp_crispy.version"
     )
