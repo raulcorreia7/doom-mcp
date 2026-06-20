@@ -171,6 +171,51 @@ static bool dmcp_item_is(const dmcp_cmd_give_item_t* give, const char* item_clas
   return give && item_class && strcmp(give->item_class, item_class) == 0;
 }
 
+static bool dmcp_set_command_message(char* out_message, size_t out_message_size,
+                                     const char* message) {
+  return mcp_strcpy_safe(out_message, out_message_size, message ? message : "");
+}
+
+static bool dmcp_fail_command(char* out_message, size_t out_message_size, const char* message) {
+  dmcp_set_command_message(out_message, out_message_size, message);
+  return false;
+}
+
+static bool dmcp_fail_unavailable_content(char* out_message, size_t out_message_size,
+                                          const char* content_type, const char* content_name) {
+  if (dmcp_content_unavailable_message_copy(content_type, content_name, dmcp_to_gamemode(gamemode),
+                                            out_message, out_message_size) < 0) {
+    dmcp_set_command_message(out_message, out_message_size,
+                             "Command failed: content unavailable in current game mode");
+  }
+  return false;
+}
+
+static const char* dmcp_default_failure_message(dmcp_command_type_t command_type) {
+  switch (command_type) {
+    case DMCP_CMD_SPAWN_ENTITY:
+      return "Spawn failed";
+    case DMCP_CMD_CHANGE_LEVEL:
+      return "Change level failed";
+    case DMCP_CMD_GIVE_ITEM:
+      return "Give failed";
+    case DMCP_CMD_SET_PLAYER_HEALTH:
+      return "Set health failed";
+    case DMCP_CMD_SET_PLAYER_POSITION:
+      return "Set position failed";
+    case DMCP_CMD_EXECUTE_CONSOLE:
+      return "Console command failed";
+    case DMCP_CMD_PAUSE_GAME:
+      return "Pause command failed";
+    case DMCP_CMD_DAMAGE_ENTITY:
+      return "Damage entity failed";
+    case DMCP_CMD_KILL_ENTITY:
+      return "Kill entity failed";
+    default:
+      return "Command failed";
+  }
+}
+
 static bool dmcp_has_required_sound_lump(int sound_id) {
   char lump_name[11];
 
@@ -276,15 +321,17 @@ static bool dmcp_spawn_position_in_bounds(mobjtype_t type, fixed_t x, fixed_t y)
   return true;
 }
 
-static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
+static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give, char* out_message,
+                           size_t out_message_size) {
   int32_t amount;
 
   if (!player || !player->mo || !give || !give->item_class[0]) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size,
+                             "Give failed: player is not in a level");
   }
 
   if (!dmcp_is_item_available(give->item_class, dmcp_to_gamemode(gamemode))) {
-    return false;
+    return dmcp_fail_unavailable_content(out_message, out_message_size, "Item", give->item_class);
   }
 
   amount = dmcp_clamp_int((int)give->amount, 1, 1000);
@@ -459,7 +506,8 @@ static bool dmcp_give_item(player_t* player, const dmcp_cmd_give_item_t* give) {
     return P_GivePower(player, pw_infrared) != 0;
   }
 
-  return false;
+  return dmcp_fail_command(out_message, out_message_size,
+                           "Give failed: unsupported item_class for Crispy Doom");
 }
 
 static mobj_t* dmcp_find_enemy_by_id(int enemy_id) {
@@ -496,51 +544,59 @@ static mobj_t* dmcp_find_enemy_by_id(int enemy_id) {
   return NULL;
 }
 
-static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn) {
+static bool dmcp_execute_spawn_entity(const dmcp_cmd_spawn_t* spawn, char* out_message,
+                                      size_t out_message_size) {
   mobjtype_t        type;
   dmcp_spawn_kind_t kind;
   mobj_t*           spawned;
   fixed_t           x;
   fixed_t           y;
 
-  if (!spawn || gamestate != GS_LEVEL) {
-    return false;
+  if (!spawn || !spawn->entity_class[0]) {
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed: missing entity_class");
+  }
+  if (gamestate != GS_LEVEL) {
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed: game is not in a level");
   }
   if (!dmcp_resolve_spawn_type(spawn->entity_class, &type, &kind)) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed: unknown entity_class");
   }
 
   if (kind == DMCP_SPAWN_KIND_ENEMY) {
     if (!dmcp_is_enemy_spawnable(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
-      return false;
+      return dmcp_fail_unavailable_content(out_message, out_message_size, "Enemy",
+                                           spawn->entity_class);
     }
   } else {
     if (!dmcp_is_item_available(spawn->entity_class, dmcp_to_gamemode(gamemode))) {
-      return false;
+      return dmcp_fail_unavailable_content(out_message, out_message_size, "Item",
+                                           spawn->entity_class);
     }
   }
 
   if (!dmcp_spawn_assets_available(type)) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size,
+                             "Spawn failed: assets unavailable in current game");
   }
 
   if (!dmcp_float_to_fixed_checked(spawn->position.x, &x) ||
       !dmcp_float_to_fixed_checked(spawn->position.y, &y)) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed: invalid position");
   }
 
   if (!dmcp_spawn_position_in_bounds(type, x, y)) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size,
+                             "Spawn failed: position outside current map");
   }
 
   spawned = P_SpawnMobj(x, y, ONFLOORZ, type);
   if (!spawned) {
-    return false;
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed in engine");
   }
 
   if (!P_CheckPosition(spawned, x, y)) {
     P_RemoveMobj(spawned);
-    return false;
+    return dmcp_fail_command(out_message, out_message_size, "Spawn failed: position blocked");
   }
 
   spawned->angle = dmcp_degrees_to_angle(spawn->angle);
@@ -752,44 +808,68 @@ static bool dmcp_execute_kill_entity(player_t* player, const dmcp_cmd_kill_t* ki
   return true;
 }
 
-bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd) {
+bool dmcp_crispy_command_execute(dmcp_crispy_t* ctx, const dmcp_command_t* cmd, char* out_message,
+                                 size_t out_message_size) {
   player_t* player;
+  bool      success;
 
   if (!ctx || !cmd) {
+    dmcp_set_command_message(out_message, out_message_size,
+                             "Command failed: invalid adapter state");
     return false;
   }
 
   player = dmcp_get_player();
+  dmcp_set_command_message(out_message, out_message_size, "");
 
   switch (cmd->type) {
     case DMCP_CMD_SPAWN_ENTITY:
-      return dmcp_execute_spawn_entity(&cmd->data.spawn);
+      success = dmcp_execute_spawn_entity(&cmd->data.spawn, out_message, out_message_size);
+      break;
 
     case DMCP_CMD_CHANGE_LEVEL:
-      return dmcp_execute_change_level(&cmd->data.change_level);
+      success = dmcp_execute_change_level(&cmd->data.change_level);
+      break;
 
     case DMCP_CMD_GIVE_ITEM:
-      return dmcp_give_item(player, &cmd->data.give_item);
+      success = dmcp_give_item(player, &cmd->data.give_item, out_message, out_message_size);
+      break;
 
     case DMCP_CMD_SET_PLAYER_HEALTH:
-      return dmcp_execute_set_player_health(player, &cmd->data.set_health);
+      success = dmcp_execute_set_player_health(player, &cmd->data.set_health);
+      break;
 
     case DMCP_CMD_SET_PLAYER_POSITION:
-      return dmcp_execute_set_player_position(player, &cmd->data.set_position);
+      success = dmcp_execute_set_player_position(player, &cmd->data.set_position);
+      break;
 
     case DMCP_CMD_EXECUTE_CONSOLE:
-      return dmcp_execute_console(player, &cmd->data.console);
+      success = dmcp_execute_console(player, &cmd->data.console);
+      break;
 
     case DMCP_CMD_PAUSE_GAME:
-      return dmcp_execute_pause(&cmd->data.pause);
+      success = dmcp_execute_pause(&cmd->data.pause);
+      break;
 
     case DMCP_CMD_DAMAGE_ENTITY:
-      return dmcp_execute_damage_entity(player, &cmd->data.damage);
+      success = dmcp_execute_damage_entity(player, &cmd->data.damage);
+      break;
 
     case DMCP_CMD_KILL_ENTITY:
-      return dmcp_execute_kill_entity(player, &cmd->data.kill);
+      success = dmcp_execute_kill_entity(player, &cmd->data.kill);
+      break;
 
     default:
-      return false;
+      success = false;
+      break;
   }
+
+  if (success) {
+    dmcp_set_command_message(out_message, out_message_size, "Command executed successfully");
+  } else if (out_message && out_message_size > 0 && out_message[0] == '\0') {
+    dmcp_set_command_message(out_message, out_message_size,
+                             dmcp_default_failure_message(cmd->type));
+  }
+
+  return success;
 }

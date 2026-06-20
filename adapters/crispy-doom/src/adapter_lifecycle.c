@@ -220,23 +220,6 @@ mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx) {
   return MCP_STATUS_OK("Success");
 }
 
-static const char* crispy_command_message(const dmcp_command_t* cmd, bool success) {
-  if (success) {
-    return "Command executed successfully";
-  }
-
-  if (cmd && (cmd->type == DMCP_CMD_GIVE_ITEM || cmd->type == DMCP_CMD_SPAWN_ENTITY)) {
-    if (gamemode == shareware) {
-      return "Content not available in shareware. Restricted: PlasmaRifle, BFG9000, "
-             "SuperShotgun, Cacodemon, LostSoul, Cyberdemon, SpiderMastermind, and Doom II "
-             "monsters";
-    }
-    return "Command failed: invalid item/monster or unavailable in current mode";
-  }
-
-  return "Command failed in engine";
-}
-
 static bool crispy_execute_command_for_queue(void* adapter_ctx, const dmcp_command_t* cmd,
                                              char* out_message, size_t out_message_size) {
   dmcp_crispy_t* ctx;
@@ -247,9 +230,8 @@ static bool crispy_execute_command_for_queue(void* adapter_ctx, const dmcp_comma
   }
 
   ctx     = (dmcp_crispy_t*)adapter_ctx;
-  success = dmcp_crispy_command_execute(ctx, cmd);
+  success = dmcp_crispy_command_execute(ctx, cmd, out_message, out_message_size);
 
-  mcp_strcpy_safe(out_message, out_message_size, crispy_command_message(cmd, success));
   dmcp_adapter_log(MCP_LOG_DEBUG, "command executed: type=%d result=%s", cmd->type,
                    success ? "success" : "failed");
   return success;

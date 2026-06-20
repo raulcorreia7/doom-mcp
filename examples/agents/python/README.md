@@ -18,6 +18,7 @@ uv run dmcp-agent --pretty read enemies --status alive --limit 8
 uv run dmcp-agent --pretty content
 uv run dmcp-agent --pretty content enemies
 uv run dmcp-agent --pretty content maps
+uv run dmcp-agent --pretty shell
 uv run dmcp-agent spawn DoomImp --x 160 --y 96
 uv run dmcp-agent spawn-many --spawns-json '[{"entity_class":"DoomImp","x":160,"y":96,"angle":0}]'
 uv run dmcp-agent give-many --items-json '[{"item_class":"Shotgun","amount":1},{"item_class":"Shells","amount":20}]'
@@ -42,6 +43,8 @@ The helper keeps output compact but readable:
 - `content` calls `get_available_content` by default, or a granular `get_available_*` tool when given `enemies`, `entities`, `items`, `weapons`, `ammo`, `keys`, `maps`, or `giveable`.
 - `screenshot` calls `get_screenshot`.
 - Mutating commands use the current direct tool names: `spawn_entity`, `give_item`, `change_level`, `set_player_health`, `set_player_position`, `pause_game`, `damage_entity`, `kill_entity`, `execute_console`, and `player_input`.
+- Mutating one-shot commands wait for `get_command_result` by default and exit nonzero when the completed command fails. Add `--no-wait` to return raw queued sequence ids.
+- `shell` keeps one MCP connection open and accepts the same commands, one per line. Use it for agentic sessions that need cached MCP session state and repeated commands without reconnecting.
 - JSON batch helpers accept canonical MCP fields only. `spawn-many` expects `spawn_entity` arguments with `entity_class`, `x`, `y`, optional `angle`, and optional `tid`. `give-many` expects `give_item` arguments with `item_class` and optional `amount`.
 - `batch` passes canonical `execute_batch.calls` entries shaped as `{"name":"give_item","arguments":{"item_class":"Shotgun","amount":1}}`.
 - `change_level` and `player_input` are direct tools in the current contract; use `level`, `input`, `weapon`, or `input-plan` instead of `batch` for those actions.

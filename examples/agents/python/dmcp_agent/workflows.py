@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 from . import contract
@@ -24,6 +26,8 @@ from .content import compact, content_digest, require_available, require_giveabl
 from .errors import DMCPError
 
 Json = Dict[str, Any]
+DEFAULT_WAIT_TIMEOUT_SECONDS = 3.0
+WAIT_POLL_INTERVAL_SECONDS = 0.05
 
 
 async def content(client: DMCPClient, args: argparse.Namespace) -> Any:
@@ -60,7 +64,7 @@ async def brief(client: DMCPClient, args: argparse.Namespace) -> Any:
             "Use direct MCP tools for single commands and execute_batch.calls for batchable commands.",
             "execute_batch calls use {name, arguments}; change_level and player_input are direct tools.",
             contract.WEAPON_SLOT_HELP,
-            "Use get_command_result with sequences returned by queued mutating tools.",
+            "Mutating CLI commands wait for get_command_result by default; use --no-wait for raw sequences.",
         ],
     }
 
@@ -68,8 +72,11 @@ async def brief(client: DMCPClient, args: argparse.Namespace) -> Any:
 async def spawn(client: DMCPClient, args: argparse.Namespace) -> Any:
     available = await client.call_tool("get_available_entities", {})
     entity_class = require_available(available, "entities", args.entity_class)
-    return await client.call_tool(
-        "spawn_entity", spawn_args(entity_class, args.x, args.y, args.angle, args.tid)
+    return await submit_queued(
+        client,
+        args,
+        "spawn_entity",
+        spawn_args(entity_class, args.x, args.y, args.angle, args.tid),
     )
 
 
@@ -81,13 +88,14 @@ async def spawn_batch(client: DMCPClient, args: argparse.Namespace) -> Any:
         item["entity_class"] = entity_class
         calls.append(tool_call("spawn_entity", item))
 
-    return batch_response(await client.call_tool("execute_batch", {"calls": calls}), len(calls))
+    result = await client.call_tool("execute_batch", {"calls": calls})
+    return await batch_response(client, args, result, len(calls))
 
 
 async def give_item(client: DMCPClient, args: argparse.Namespace) -> Any:
     available = await client.call_tool("get_available_giveable", {})
     item_class = require_giveable(available, args.item_class)
-    return await client.call_tool("give_item", give_args(item_class, args.amount))
+    return await submit_queued(client, args, "give_item", give_args(item_class, args.amount))
 
 
 async def batch_give(client: DMCPClient, args: argparse.Namespace) -> Any:
@@ -97,43 +105,52 @@ async def batch_give(client: DMCPClient, args: argparse.Namespace) -> Any:
         item["item_class"] = require_giveable(available, str(item["item_class"]))
 
     result = await client.call_tool("execute_batch", {"calls": give_many(specs)})
-    return batch_response(result, len(specs))
+    return await batch_response(client, args, result, len(specs))
 
 
 async def level(client: DMCPClient, args: argparse.Namespace) -> Any:
     available = await client.call_tool("get_available_maps", {})
     map_name = require_available(available, "maps", args.map_name)
-    return await client.call_tool(
-        "change_level", change_level_args(map_name, args.skill_level, args.reset_inventory)
+    return await submit_queued(
+        client,
+        args,
+        "change_level",
+        change_level_args(map_name, args.skill_level, args.reset_inventory),
     )
 
 
 async def set_health(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool("set_player_health", set_player_health_args(args.health))
+    return await submit_queued(client, args, "set_player_health", set_player_health_args(args.health))
 
 
 async def set_position(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool(
-        "set_player_position", set_player_position_args(args.x, args.y, args.angle)
+    return await submit_queued(
+        client,
+        args,
+        "set_player_position",
+        set_player_position_args(args.x, args.y, args.angle),
     )
 
 
 async def pause(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool("pause_game", pause_game_args(parse_bool(args.paused)))
+    return await submit_queued(client, args, "pause_game", pause_game_args(parse_bool(args.paused)))
 
 
 async def damage(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool(
-        "damage_entity", damage_entity_args(args.target_tid, args.damage, args.damage_type)
+    return await submit_queued(
+        client,
+        args,
+        "damage_entity",
+        damage_entity_args(args.target_tid, args.damage, args.damage_type),
     )
 
 
 async def kill(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool("kill_entity", kill_entity_args(args.target_tid))
+    return await submit_queued(client, args, "kill_entity", kill_entity_args(args.target_tid))
 
 
 async def console(client: DMCPClient, args: argparse.Namespace) -> Any:
-    return await client.call_tool("execute_console", execute_console_args(args.command_text))
+    return await submit_queued(client, args, "execute_console", execute_console_args(args.command_text))
 
 
 async def input_tick(client: DMCPClient, args: argparse.Namespace) -> Any:
@@ -157,7 +174,8 @@ async def input_plan(client: DMCPClient, args: argparse.Namespace) -> Any:
 
 async def batch(client: DMCPClient, args: argparse.Namespace) -> Any:
     calls = parse_batch_calls(args.calls_json)
-    return batch_response(await client.call_tool("execute_batch", {"calls": calls}), len(calls))
+    result = await client.call_tool("execute_batch", {"calls": calls})
+    return await batch_response(client, args, result, len(calls))
 
 
 async def command_result(client: DMCPClient, args: argparse.Namespace) -> Any:
@@ -210,13 +228,117 @@ def read_arguments(args: argparse.Namespace) -> Json:
     return params
 
 
-def batch_response(result: Any, requested: int) -> Json:
-    return {
+async def submit_queued(client: DMCPClient, args: argparse.Namespace, tool: str, params: Json) -> Any:
+    result = await client.call_tool(tool, params)
+    return await queued_response(client, args, result)
+
+
+async def batch_response(
+    client: DMCPClient, args: argparse.Namespace, result: Any, requested: int
+) -> Json:
+    response = {
         "status": result.get("status", "queued") if isinstance(result, dict) else "queued",
         "requested": requested,
         "result": result,
         "next": "poll get_command_result with returned sequences",
     }
+    return await queued_response(client, args, response)
+
+
+async def queued_response(client: DMCPClient, args: argparse.Namespace, submitted: Any) -> Any:
+    sequences = queued_sequences(submitted)
+    if getattr(args, "no_wait", False) or not sequences:
+        return submitted
+
+    completion = await wait_for_command_results(
+        client, sequences, float(getattr(args, "wait_timeout", DEFAULT_WAIT_TIMEOUT_SECONDS))
+    )
+    return {
+        "status": "failed" if result_failed(completion) else "completed",
+        "submitted": submitted,
+        "completion": completion,
+    }
+
+
+def queued_sequences(value: Any) -> List[int]:
+    sequences: List[int] = []
+
+    def visit(item: Any) -> None:
+        if isinstance(item, dict):
+            status = item.get("status")
+            sequence = item.get("sequence")
+            if (
+                isinstance(sequence, int)
+                and sequence > 0
+                and (status == "queued" or "tool_name" in item or "execution_index" in item)
+            ):
+                sequences.append(sequence)
+            batch_sequences = item.get("sequences")
+            if status == "queued" and isinstance(batch_sequences, list):
+                sequences.extend(
+                    seq for seq in batch_sequences if isinstance(seq, int) and seq > 0
+                )
+            for key, nested in item.items():
+                if key in {"completion", "results"}:
+                    continue
+                visit(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                visit(nested)
+
+    visit(value)
+    return sorted(set(sequences))
+
+
+async def wait_for_command_results(
+    client: DMCPClient, sequences: List[int], timeout_seconds: float
+) -> Any:
+    deadline = time.monotonic() + max(timeout_seconds, 0.0)
+    last_result: Any = None
+
+    while True:
+        try:
+            result = await client.call_tool("get_command_result", {"sequences": sequences})
+        except DMCPError as exc:
+            if len(sequences) != 1 or "not found" not in str(exc).lower():
+                raise
+            result = {"requested": 1, "results": [], "not_found": sequences}
+
+        last_result = result
+        if command_results_complete(result, sequences):
+            return result
+        if time.monotonic() >= deadline:
+            return {
+                "status": "timeout",
+                "requested": len(sequences),
+                "sequences": sequences,
+                "last_result": last_result,
+            }
+        await asyncio.sleep(WAIT_POLL_INTERVAL_SECONDS)
+
+
+def command_results_complete(result: Any, sequences: List[int]) -> bool:
+    if len(sequences) == 1 and isinstance(result, dict) and "sequence" in result:
+        return bool(result.get("completed"))
+
+    if not isinstance(result, dict):
+        return False
+    if result.get("not_found"):
+        return False
+    results = result.get("results")
+    if not isinstance(results, list) or len(results) < len(sequences):
+        return False
+    return all(isinstance(item, dict) and item.get("completed") for item in results)
+
+
+def result_failed(value: Any) -> bool:
+    if isinstance(value, dict):
+        if value.get("status") in {"failed", "timeout"} or value.get("success") is False:
+            return True
+        return any(result_failed(nested) for nested in value.values())
+    if isinstance(value, list):
+        return any(result_failed(item) for item in value)
+    return False
 
 
 def parse_spawn_specs(raw: str) -> List[Json]:
