@@ -1,7 +1,5 @@
 # DMCP - Doom Model Context Protocol SDK
 
-**Version**: 0.6.0
-
 DMCP is a C/C++ SDK for exposing Doom-family game state and commands through the
 Model Context Protocol (MCP). It keeps engine-specific hooks separate from the
 agent-facing protocol:

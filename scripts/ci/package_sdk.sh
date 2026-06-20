@@ -158,6 +158,20 @@ copy_tree() {
   cp -R "$src" "$dst"
 }
 
+copy_tree_contents() {
+  local src="$1"
+  local dst="$2"
+  [[ -d "$src" ]] || die "required directory not found: $src"
+  mkdir -p "$dst"
+  cp -R "$src"/. "$dst"/
+}
+
+copy_public_headers() {
+  local root="$1"
+  copy_tree "$REPO_ROOT/include" "$root/include"
+  copy_tree_contents "$build_dir/generated/include" "$root/include"
+}
+
 first_existing() {
   for candidate in "$@"; do
     if [[ -f "$candidate" ]]; then
@@ -308,7 +322,7 @@ main() {
   rm -rf "$root" "$asset_name"
   mkdir -p "$root"
 
-  copy_tree "$REPO_ROOT/include" "$root/include"
+  copy_public_headers "$root"
   copy_library_files "$root"
   write_cmake_config "$root"
   write_sdk_info "$root"

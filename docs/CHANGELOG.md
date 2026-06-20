@@ -11,6 +11,8 @@ history.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-20
+
 ### Breaking Changes
 - Public MCP command execution now uses direct `tools/call` tool names with structured `arguments`.
 - Removed the public `execute_command` MCP tool and native JSON-RPC method aliases.
@@ -19,18 +21,6 @@ history.
   `mcp_server_config_default()`, `dmcp_command_push/pop/clear/has_pending()`,
   `dmcp_input_push/pop/clear/has_pending()`, and adapter
   `*_context_get()` / `*_stats_get()` accessors.
-
-### Changed
-- `execute_batch` now accepts `calls: [{name, arguments}]`.
-- `player_input` now uses `action` and optional `value`.
-- `get_available_content` returns available-only canonical content for the active game mode, including enemies, entities, weapons, ammo, keys, items, giveable content, maps, and weapon-slot metadata.
-- Added granular available-content tools: `get_available_enemies`, `get_available_entities`, `get_available_items`, `get_available_weapons`, `get_available_ammo`, `get_available_keys`, `get_available_maps`, and `get_available_giveable`.
-- Internal C++ helpers now use lower-snake function names; C ABI/API names stay
-  lower-snake and macro/enum constants stay upper-snake.
-
-## [0.7.0] - 2026-02-24
-
-### Breaking Changes
 - Superseded package-config install guidance with local source/build artifact integration; DMCP is not installed as a system library by default
 - Target names changed: `dmcp::dmcp_generic` → `dmcp::generic`, `dmcp::dmcp_core` → `dmcp::core`
 - Library output names: `libdmcp_generic.so`/`libdmcp_core.so` (previously `libdmcp_dmcp_generic.so`)
@@ -39,6 +29,7 @@ history.
 - Removed backwards-compatibility aliases and deprecated constant names
 
 ### Added
+- Granular available-content tools: `get_available_enemies`, `get_available_entities`, `get_available_items`, `get_available_weapons`, `get_available_ammo`, `get_available_keys`, `get_available_maps`, and `get_available_giveable`.
 - Per-session lifecycle state tracking to avoid cross-client state leakage
 - MCP JSON-RPC envelope validation
 - MCP initialize parameter validation
@@ -52,6 +43,11 @@ history.
 - Unknown endpoint responses no longer leak transport implementation details
 
 ### Changed
+- `execute_batch` now accepts `calls: [{name, arguments}]`.
+- `player_input` now uses `action` and optional `value`.
+- `get_available_content` returns available-only canonical content for the active game mode, including enemies, entities, weapons, ammo, keys, items, giveable content, maps, and weapon-slot metadata.
+- Internal C++ helpers now use lower-snake function names; C ABI/API names stay
+  lower-snake and macro/enum constants stay upper-snake.
 - Object library pattern for shared/static builds
 - Simplified CMake config file for relocatable install
 - Package version compatibility: `SameMajorVersion`

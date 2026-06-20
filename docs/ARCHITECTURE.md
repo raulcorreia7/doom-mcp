@@ -1,7 +1,5 @@
 # DMCP Architecture
 
-**Version**: 0.6.0
-
 DMCP separates engine hooks from MCP transport so Doom-family engines can expose
 state, commands, input, and screenshots to agents without coupling engine code to
 JSON-RPC or HTTP internals.
@@ -18,7 +16,7 @@ Engine <-> Engine Adapter <-> Doom MCP <-> Generic MCP <-> Core API/runtime
 | Engine Adapter | Translates engine state/commands to DMCP types and queues input safely | `adapters/`, `include/dmcp/adapters/` |
 | Doom MCP | Owns Doom state types, content catalogs, command parsing, screenshots, and MCP tools | `src/doom/`, `include/dmcp/doom/` |
 | Generic MCP | Owns MCP lifecycle, JSON-RPC, HTTP/SSE transport, sessions, and method dispatch | `src/mcp/`, `include/mcp/generic/` |
-| Core | Owns shared status, export/version headers, string helpers, and package target metadata | `src/core/`, `include/mcp/core/` |
+| Core | Owns shared status, generated version headers, export macros, string helpers, and package target metadata | `src/core/`, `include/mcp/core/` |
 
 ## Dependency Rules
 

@@ -58,6 +58,17 @@ Out of scope (escalate to maintainers before editing):
 - Endpoint examples match registered routes in `src/doom/context.cpp`.
 - Cross-links resolve and avoid duplicate long-form API content.
 
+## Versioning
+
+- The SDK release version is maintained in top-level `CMakeLists.txt` through
+  `project(dmcp VERSION X.Y.Z)`.
+- CMake generates `mcp/core/version_config.h` from that version at configure time.
+  Doom and Generic MCP public headers derive their version macros from it.
+- Release tags use `dmcp-vX.Y.Z`; `scripts/ci/verify_release_tag.sh` validates
+  tags against the CMake project version.
+- README and architecture documents do not carry separate version banners; use
+  `docs/CHANGELOG.md` for release history.
+
 ## Cadence
 
 | Cadence | Owner | Trigger | Expected Output |

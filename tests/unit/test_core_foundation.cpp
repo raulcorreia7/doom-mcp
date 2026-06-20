@@ -2,6 +2,15 @@
 
 #include "mcp/core/core.h"
 
+#include <cstring>
+
+TEST_CASE("MCP core version matches generated config", "[core][version]") {
+  REQUIRE(std::strcmp(mcp_core_version_string(), MCP_CORE_VERSION) == 0);
+  REQUIRE(mcp_core_version_major() == MCP_CORE_VERSION_MAJOR);
+  REQUIRE(mcp_core_version_minor() == MCP_CORE_VERSION_MINOR);
+  REQUIRE(mcp_core_version_patch() == MCP_CORE_VERSION_PATCH);
+}
+
 TEST_CASE("MCP core string helpers compare ASCII case-insensitively", "[core][string]") {
   REQUIRE(mcp_strcmp_ci("debug", "DEBUG") == 0);
   REQUIRE(mcp_strcmp_ci("warn", "warning") < 0);

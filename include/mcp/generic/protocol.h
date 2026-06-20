@@ -13,6 +13,7 @@ extern "C" {
 
 #include "mcp/core/string.h"
 #include "mcp/core/status.h"
+#include "mcp/core/version.h"
 #include "mcp/generic/constants.h"
 
 // ============================================================================
@@ -31,9 +32,9 @@ extern "C" {
  * @brief Server version string
  *
  * Version follows semantic versioning (MAJOR.MINOR.PATCH).
- * Updated with each release.
+ * Generated from the CMake project version.
  */
-#define MCP_SERVER_VERSION "0.6.0"
+#define MCP_SERVER_VERSION MCP_CORE_VERSION
 
 // ============================================================================
 // Log Levels

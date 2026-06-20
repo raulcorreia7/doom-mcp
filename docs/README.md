@@ -1,7 +1,5 @@
 # DMCP API Reference
 
-**Version**: 0.6.0
-
 DMCP is a C/C++ SDK for exposing Doom-family game state and commands through MCP.
 The stable public boundary is C99-compatible; C++ helpers are source-level
 conveniences over that C API.
@@ -31,7 +29,7 @@ Engine <-> Engine Adapter <-> Doom MCP <-> Generic MCP <-> Core API/runtime
 | Engine Adapter | Engine-specific state extraction, commands, and input bridge |
 | Doom MCP | Doom data types, content catalogs, command parsing, screenshots, tools |
 | Generic MCP | MCP lifecycle, JSON-RPC, HTTP/SSE transport, sessions |
-| Core | Shared status, version/export macros, string helpers |
+| Core | Shared status, generated version/export macros, string helpers |
 
 Adapter source currently exists for `crispy-doom`, `zdoom`, and the deterministic
 `fake` test adapter. Adapter-specific examples live in `adapters/*/README.md`.

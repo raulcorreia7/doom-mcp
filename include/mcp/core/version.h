@@ -1,25 +1,13 @@
 #pragma once
 
 #include "mcp/core/export.h"
+#include "mcp/core/version_config.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
-
-#ifndef MCP_CORE_VERSION_MAJOR
-#define MCP_CORE_VERSION_MAJOR 0
-#endif
-#ifndef MCP_CORE_VERSION_MINOR
-#define MCP_CORE_VERSION_MINOR 6
-#endif
-#ifndef MCP_CORE_VERSION_PATCH
-#define MCP_CORE_VERSION_PATCH 0
-#endif
-#ifndef MCP_CORE_VERSION
-#define MCP_CORE_VERSION "0.6.0"
-#endif
 
 /**
  * Return the linked MCP core foundation semantic version string.

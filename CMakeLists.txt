@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(dmcp LANGUAGES C CXX VERSION 0.6.0)
+project(dmcp LANGUAGES C CXX VERSION 0.7.0)
 
 option(DMCP_BUILD_TESTS             "Build tests"                                       OFF)
 option(DMCP_BUILD_EXAMPLES          "Build example servers"                             OFF)
@@ -26,6 +26,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+set(DMCP_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/mcp_core_version_config.h.in"
+  "${DMCP_GENERATED_INCLUDE_DIR}/mcp/core/version_config.h"
+  @ONLY
+)
 
 if(DMCP_USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
@@ -79,14 +86,6 @@ target_include_directories(dmcp_core_foundation_objs
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
-target_compile_definitions(dmcp_core_foundation_objs
-  PUBLIC
-    MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-    MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-    MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-    MCP_CORE_VERSION="${PROJECT_VERSION}"
-)
-
 set_target_properties(dmcp_core_foundation_objs PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
@@ -107,11 +106,6 @@ if(DMCP_BUILD_SHARED_SPLIT)
       $<INSTALL_INTERFACE:include>
   )
   target_compile_definitions(core_foundation
-    PUBLIC
-      MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-      MCP_CORE_VERSION="${PROJECT_VERSION}"
     PRIVATE
       MCP_CORE_BUILDING
   )
@@ -138,10 +132,6 @@ if(NOT DMCP_BUILD_SHARED OR DMCP_BUILD_STATIC_FOR_TESTS OR DMCP_BUILD_SHARED_SPL
   )
   target_compile_definitions(core_foundation_static
     PUBLIC
-      MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-      MCP_CORE_VERSION="${PROJECT_VERSION}"
       MCP_CORE_STATIC
   )
   set_target_properties(core_foundation_static PROPERTIES
@@ -171,9 +161,6 @@ endif()
 target_compile_definitions(dmcp_generic_objs
   PUBLIC
     DMCP_USE_YYJSON
-    MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-    MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-    MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
 set_target_properties(dmcp_generic_objs PROPERTIES
@@ -208,9 +195,6 @@ if(DMCP_BUILD_SHARED_SPLIT)
   target_compile_definitions(generic
     PUBLIC
       DMCP_USE_YYJSON
-      MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
     PRIVATE
       MCP_BUILDING
   )
@@ -247,9 +231,6 @@ if(DMCP_BUILD_GENERIC_STATIC)
   target_compile_definitions(generic_static
     PUBLIC
       DMCP_USE_YYJSON
-      MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
       MCP_STATIC
   )
   set_target_properties(generic_static PROPERTIES
@@ -344,13 +325,6 @@ target_include_directories(dmcp_core_objs
 
 target_link_libraries(dmcp_core_objs PUBLIC dmcp_game_objs)
 
-target_compile_definitions(dmcp_core_objs
-  PUBLIC
-    DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-    DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-    DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-)
-
 set_target_properties(dmcp_core_objs PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
@@ -377,10 +351,6 @@ if(DMCP_BUILD_SHARED_SPLIT)
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_compile_definitions(core
-    PUBLIC
-      DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
     PRIVATE
       DMCP_BUILDING
   )
@@ -410,9 +380,6 @@ if(DMCP_BUILD_CORE_STATIC)
   )
   target_compile_definitions(core_static
     PUBLIC
-      DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-      DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-      DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
       DMCP_STATIC
   )
   set_target_properties(core_static PROPERTIES
@@ -445,16 +412,6 @@ if(DMCP_BUILD_SINGLE_DLL)
     target_compile_definitions(single
       PUBLIC
         DMCP_USE_YYJSON
-        MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        MCP_CORE_VERSION="${PROJECT_VERSION}"
       PRIVATE
         MCP_CORE_BUILDING
         MCP_BUILDING
@@ -498,16 +455,6 @@ if(DMCP_BUILD_SINGLE_DLL)
     target_compile_definitions(single_static
       PUBLIC
         DMCP_USE_YYJSON
-        MCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        MCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        MCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        DMCP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        DMCP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        DMCP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        MCP_CORE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        MCP_CORE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        MCP_CORE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        MCP_CORE_VERSION="${PROJECT_VERSION}"
         MCP_CORE_STATIC
         MCP_STATIC
         DMCP_STATIC
@@ -519,6 +466,21 @@ if(DMCP_BUILD_SINGLE_DLL)
     dmcp_enable_warnings(single_static)
   endif()
 endif()
+
+# Add generated public headers after all core targets exist. BEFORE prevents a
+# stale source-tree header from shadowing generated release metadata.
+foreach(dmcp_public_target IN ITEMS
+    dmcp_core_foundation_objs core_foundation core_foundation_static
+    dmcp_generic_objs generic generic_static
+    dmcp_game_objs game game_static
+    dmcp_core_objs core core_static
+    single single_static)
+  if(TARGET ${dmcp_public_target})
+    target_include_directories(${dmcp_public_target} BEFORE PUBLIC
+      $<BUILD_INTERFACE:${DMCP_GENERATED_INCLUDE_DIR}>
+    )
+  endif()
+endforeach()
 
 # ------------------------------------------------------------------------------
 # Public target aliases
