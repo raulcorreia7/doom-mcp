@@ -48,6 +48,7 @@ target_link_libraries(adapter_crispy
 target_compile_definitions(adapter_crispy
     PRIVATE
         CRISPY_DOOM_BUILD
+        DMCP_CRISPY_ENABLE_FRAME_CAPTURE=$<BOOL:${DMCP_CRISPY_ENABLE_FRAME_CAPTURE}>
 )
 
 if(DMCP_BUILD_SHARED)
