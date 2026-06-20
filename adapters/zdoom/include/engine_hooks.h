@@ -14,11 +14,11 @@ extern "C" {
  * binary should link exactly one real DMCP engine adapter. Adapter internals use
  * dmcp_zdoom_* directly; engine hook points should prefer this small surface.
  */
-DMCP_API dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv);
-DMCP_API void                 DMCP_Init(dmcp_engine_config_t config);
-DMCP_API void                 DMCP_Shutdown(void);
-DMCP_API void                 DMCP_Tick(void);
-DMCP_API void                 DMCP_CaptureFrame(void);
+dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv);
+void                 DMCP_Init(dmcp_engine_config_t config);
+void                 DMCP_Shutdown(void);
+void                 DMCP_Tick(void);
+void                 DMCP_CaptureFrame(void);
 
 #ifdef __cplusplus
 }

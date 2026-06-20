@@ -11,6 +11,13 @@ history.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-20
+
+### Fixed
+- Adapter-local `DMCP_*` engine hooks are no longer declared with the DMCP
+  shared-library export/import macro. This lets Windows engines define those
+  hooks inside the game executable while still linking against `dmcp.dll`.
+
 ## [0.7.1] - 2026-06-20
 
 ### Added

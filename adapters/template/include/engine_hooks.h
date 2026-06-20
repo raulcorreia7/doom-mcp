@@ -15,11 +15,11 @@ extern "C" {
  * engine code limited to parse/init/tick/frame/shutdown and put translation
  * work in the adapter implementation.
  */
-DMCP_API dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv);
-DMCP_API void                 DMCP_Init(dmcp_engine_config_t config);
-DMCP_API void                 DMCP_Shutdown(void);
-DMCP_API void                 DMCP_Tick(void);
-DMCP_API void                 DMCP_CaptureFrame(void);
+dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv);
+void                 DMCP_Init(dmcp_engine_config_t config);
+void                 DMCP_Shutdown(void);
+void                 DMCP_Tick(void);
+void                 DMCP_CaptureFrame(void);
 
 #ifdef __cplusplus
 }
