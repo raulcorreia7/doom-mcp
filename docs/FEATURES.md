@@ -21,9 +21,9 @@ Complete feature overview of the Doom Model Context Protocol SDK.
 |---------|-------------|
 | Entity spawning | Spawn any enemy or item at specified position |
 | Level changes | Switch maps with skill level control |
-| Inventory management | Give items, set health, teleport player |
+| Inventory management | Give items, set health, move player |
 | Entity manipulation | Damage or kill specific entities |
-| Game control | Pause/unpause, timescale adjustment |
+| Game control | Pause/unpause |
 | Console commands | Execute engine-specific console commands |
 
 ### Player Control
@@ -65,8 +65,8 @@ dmcp_context_tick(ctx);  // Call each game tick
 dmcp_context_destroy(ctx);
 ```
 
-- Clean C API for maximum portability
-- C++ convenience wrappers available
+- Public C99-compatible API for maximum portability
+- C++ source convenience wrappers available
 - Thread-safe internal state
 - Rich error messages
 
@@ -105,11 +105,21 @@ dmcp_context_destroy(ctx);
 |------|-------------|-----------|
 | `get_player` | Player-only state | None |
 | `get_enemies` | Enemy list | `status`, `offset`, `limit` |
-| `get_entities` | Interactive entities | `offset`, `limit` |
-| `get_map` / `get_level` | Map/level details | None |
+| `get_entities` | Enemies and world entities | `kind`, `status`, `offset`, `limit` |
+| `get_items` | World pickups/items only | `kind`, `offset`, `limit` |
+| `get_map` | Map/level details | None |
 | `get_inventory` | Inventory items | `offset`, `limit` |
-| `get_game_info` / `get_game` | Game metadata | None |
-| `get_state` | Unified section query | `section`, `status` |
+| `get_game_info` | Game metadata | None |
+| `get_available_content` | Complete available-only canonical content catalog | optional `game_mode` |
+| `get_available_enemies` | Available enemy classes | optional `game_mode` |
+| `get_available_entities` | Available spawnable entity classes | optional `game_mode` |
+| `get_available_items` | Available item classes | optional `game_mode` |
+| `get_available_weapons` | Available weapon classes | optional `game_mode` |
+| `get_available_ammo` | Available ammo classes | optional `game_mode` |
+| `get_available_keys` | Available key classes | optional `game_mode` |
+| `get_available_maps` | Available map names | optional `game_mode` |
+| `get_available_giveable` | Available classes accepted by `give_item` | optional `game_mode` |
+| `get_state` | Unified section query | `section`, `kind`, `status` |
 | `get_state_batch` | Multi-section query | `requests[]` |
 | `get_screenshot` | ASCII screenshot | None |
 
@@ -117,12 +127,14 @@ dmcp_context_destroy(ctx);
 
 | Tool | Description | Arguments |
 |------|-------------|-----------|
-| `execute_command` | Queue a command | `type`, command params |
-| `execute_batch` | Queue multiple commands | `commands[]` |
-| `player_input` | Player control | `a` (action), `v` (value) |
+| `spawn_entity` | Spawn available entity | `entity_class`, `x`, `y`, `angle` |
+| `give_item` | Give weapon, ammo, key, or item | `item_class`, `amount` |
+| `change_level` | Change map | `map_name`, `skill_level`, `reset_inventory` |
+| `set_player_position` | Move player | `x`, `y`, `angle` |
+| `execute_batch` | Queue multiple commands | `calls[]` |
+| `player_input` | Player control | `action`, `value` |
 | `get_command_result` | Poll command status | `sequence` |
 | `get_command_examples` | Structured examples | None |
-| `get_available_content` | Entity/item classes | None |
 
 ## Build Options
 
@@ -130,8 +142,7 @@ dmcp_context_destroy(ctx);
 |--------------|---------|-------------|
 | `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build unit test suite |
-| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration tests |
-| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build C/C++ no-game integration tests |
 | `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter for smoke/integration |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
 | `DMCP_BUILD_SINGLE_DLL` | ON | Build single `libdmcp` runtime surface |

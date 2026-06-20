@@ -84,8 +84,31 @@ Examples:
 ### Prerequisites
 
 - CMake 3.25+
-- C++17 compiler
+- C99 compiler for adapter/public C headers
+- C++17 compiler for the SDK implementation
 - SDL2 (for adapters)
+
+Ubuntu/Debian:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential \
+  cmake \
+  pkg-config \
+  git \
+  curl \
+  jq \
+  libsdl2-dev \
+  libpng-dev \
+  libsamplerate0-dev
+```
+
+macOS with Homebrew:
+
+```bash
+brew install cmake ninja pkg-config jq sdl2 libpng libsamplerate
+```
 
 ### Using Makefile (Recommended)
 
@@ -97,14 +120,14 @@ make check     # Build + test
 make validate  # Validate core defaults + opt-in paths
 make run       # Run example server
 make debug     # Debug build with sanitizers
-make headless  # Run headless e2e tests
+make headless  # Run optional engine-backed headless checks
 ```
 
 ### Using CMake Directly
 
 ```bash
 # Configure
-cmake -B build/default -S . -DDMCP_BUILD_TESTS=ON
+cmake -B build/default -S . -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_EXAMPLES=ON
 
 # Build
 cmake --build build/default --parallel
@@ -122,8 +145,8 @@ ctest --test-dir build/default -j1
 |--------|---------|-------------|
 | `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
-| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
-| `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build C/C++ no-game integration tests |
+| `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build deterministic fake adapter |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
@@ -132,19 +155,21 @@ ctest --test-dir build/default -j1
 
 ## Integration
 
-### Consumer CMake Integration (Recommended)
+### Local CMake Integration (Recommended)
 
-For consumers integrating DMCP into their own engine:
+DMCP is consumed from local source/build artifacts.
+Engine integrations pass the DMCP source/build directories explicitly, as the
+Crispy integration does with `DMCP_ROOT` and `DMCP_BUILD_DIR`.
 
 ```cmake
-find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::single)
+add_subdirectory(path/to/doom-mcp path/to/doom-mcp-build EXCLUDE_FROM_ALL)
+target_link_libraries(myengine PRIVATE dmcp::runtime)
 ```
 
 This provides:
-- `dmcp::single` - Unified DMCP runtime surface
-- `dmcp::generic` - Generic MCP protocol layer
-- `dmcp::core` - Doom-specific MCP layer (depends on generic)
+- `dmcp::runtime` - Preferred local runtime surface
+- `dmcp::doom` - Doom-specific MCP API surface
+- `mcp::generic` - Generic MCP protocol layer
 - `dmcp::adapter_crispy` - Crispy Doom adapter (if enabled)
 - `dmcp::adapter_zdoom` - ZDoom adapter (if enabled)
 
@@ -155,6 +180,7 @@ This provides:
 
 // Create server
 mcp_server_config_t config = mcp_default_config();
+// For registration-only tests, set config.start_transport = false.
 mcp_server_t* server = mcp_server_create(&config);
 
 // Register method handler
@@ -173,8 +199,8 @@ mcp_method_registration_t methods[] = {
   {"tools/call", OnCallTool, NULL},
   {"resources/list", OnListResources, NULL}
 };
-mcp_result_t result = mcp_server_methods_register(server, methods, 3);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = mcp_server_methods_register(server, methods, 3);
+if (result.code != MCP_STATUS_CODE_OK) {
   fprintf(stderr, "Registration failed: %s\n", result.message);
 }
 
@@ -218,6 +244,7 @@ dmcp_config_t config = dmcp_config_default();
 config.port = 6060;
 config.target_hz = 10;  // Snapshot rate limit
 config.on_snapshot = SnapshotCallback;
+// For no-listener tests, set config.start_transport = false.
 
 dmcp_context_t* ctx = dmcp_context_create(&config);
 if (!ctx) {
@@ -237,8 +264,8 @@ if (dmcp_screenshot_is_requested(ctx)) {
     .height = height,
     .stride = width * 4  // RGBA = 4 bytes per pixel
   };
-  mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
-  if (result.code != MCP_RESULT_CODE_OK) {
+  mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+  if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Screenshot submit failed: %s\n", result.message);
   }
   free(pixels);  // Safe to free after submit
@@ -260,7 +287,7 @@ dmcp_context_destroy(ctx);
 
 // Startup
 dmcp_zdoom_config_t cfg = dmcp_zdoom_config_default();
-cfg.port_override = 8080;  // Optional: override default port
+cfg.base.port = 8080;  // Optional: override default port
 
 dmcp_zdoom_t* mcp = dmcp_zdoom_create(&cfg);
 
@@ -318,11 +345,11 @@ void          mcp_server_destroy(mcp_server_t* server);
 bool          mcp_server_is_running(const mcp_server_t* server);
 
 // Method registration (single and batch)
-mcp_result_t mcp_server_method_register(mcp_server_t* server,
+mcp_status_t mcp_server_method_register(mcp_server_t* server,
                                         const char* method,
                                         mcp_method_handler_t handler,
                                         void* user_data);
-mcp_result_t mcp_server_methods_register(mcp_server_t* server,
+mcp_status_t mcp_server_methods_register(mcp_server_t* server,
                                           const mcp_method_registration_t* methods,
                                           size_t count);
 void          mcp_server_method_unregister(mcp_server_t* server, const char* method);
@@ -358,7 +385,7 @@ void dmcp_context_tick(dmcp_context_t* ctx);
 
 // Screenshots
 bool dmcp_screenshot_is_requested(const dmcp_context_t* ctx);
-mcp_result_generic_t dmcp_screenshot_submit(dmcp_context_t* ctx,
+mcp_status_t dmcp_screenshot_submit(dmcp_context_t* ctx,
                                       const dmcp_screenshot_frame_t* frame);
 
 // Utilities
@@ -382,7 +409,7 @@ dmcp_zdoom_t* dmcp_zdoom_create(const dmcp_zdoom_config_t* cfg);
 void          dmcp_zdoom_destroy(dmcp_zdoom_t* ctx);
 
 // Game loop
-mcp_result_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
+mcp_status_t dmcp_zdoom_tick(dmcp_zdoom_t* ctx);
 
 // State
 bool          dmcp_zdoom_is_running(const dmcp_zdoom_t* ctx);
@@ -409,7 +436,6 @@ static inline const char* dmcp_entity_name(int mobj_type);
 
 // dmcp/adapter/validation.h - Input validation
 bool dmcp_validate_health(int32_t health);
-bool dmcp_validate_timescale(float timescale);
 ```
 
 ## Protocol Endpoints
@@ -422,55 +448,48 @@ bool dmcp_validate_timescale(float timescale);
 | `/game/state` | GET | Current game snapshot as JSON |
 | `/game/screenshot` | GET | Latest screenshot payload as JSON |
 
-Direct JSON-RPC method aliases are also available for agent compatibility:
+DMCP exposes tools through JSON-RPC `tools/list` and `tools/call`. Direct
+native JSON-RPC method aliases are not part of the public MCP surface.
 
-- `get_player`
-- `get_enemies`
-- `get_entities`
-- `get_map` / `get_level`
-- `get_inventory`
-- `get_game_info` / `get_game`
-- `get_state`
-- `get_screenshot`
-- `execute_command`
-- `player_input` - single-tick player control
-
-These aliases map to the same underlying handlers used by `tools/call`.
-
-Additional tool-only operations (via `tools/call`) include:
+Tool operations include:
 
 - `get_command_result` for async command completion polling
 - `get_state_batch` for read-only grouped state queries
 - `execute_batch` for queuing mutating commands in-order
 - `get_command_examples` for structured command/example discovery
+- `spawn_entity`, `give_item`, `change_level`, `set_player_position`, and
+  other mutating command tools
 - `player_input` for single-tick player control (movement, aim, attack, use, weapon)
 
 ### `player_input` Tool
 
 Send a single player input to control movement and actions. Each input executes for one game tick (35Hz).
 
-| Action | Shortcode | Full Name | Value |
-|--------|-----------|-----------|-------|
-| Forward | `fwd` | `forward` | - |
-| Backward | `back` | `backward` | - |
-| Strafe Left | `left` | `strafe_left` | - |
-| Strafe Right | `right` | `strafe_right` | - |
-| Turn Left | `tleft` | `turn_left` | - |
-| Turn Right | `tright` | `turn_right` | - |
-| Aim at Angle | `aim` | - | `v`: 0-360 degrees |
-| Attack | `atk` | `attack` | - |
-| Use | `use` | - | - |
-| Weapon | `wpn` | `weapon` | `v`: 1-7 |
+| Action | Value |
+|--------|-------|
+| `forward` | - |
+| `backward` | - |
+| `strafe_left` | - |
+| `strafe_right` | - |
+| `turn_left` | - |
+| `turn_right` | - |
+| `aim` | `value`: 0-360 degrees |
+| `attack` | - |
+| `use` | - |
+| `weapon` | `value`: 1-7 |
+
+Weapon slots: `1` Fist/Chainsaw, `2` Pistol, `3` Shotgun/SuperShotgun,
+`4` Chaingun, `5` RocketLauncher, `6` PlasmaRifle, `7` BFG9000.
 
 Example:
 ```json
-{"name": "player_input", "arguments": {"a": "fwd"}}
-{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
-{"name": "player_input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"action": "forward"}}
+{"name": "player_input", "arguments": {"action": "aim", "value": 90}}
+{"name": "player_input", "arguments": {"action": "weapon", "value": 3}}
 ```
 
 `execute_batch` rejects `change_level`; queue map changes separately with
-`execute_command`, wait for `get_command_result` success, then send follow-up
+the direct `change_level` tool, wait for `get_command_result` success, then send follow-up
 commands.
 
 ## Data Types
@@ -526,27 +545,27 @@ All result-returning functions use a consistent error pattern:
 typedef struct {
   int32_t     code;     // 0 = success, negative = error
   const char* message;  // Human-readable error message
-} mcp_result_generic_t;
+} mcp_status_t;
 
 // Convenience macros
-#define MCP_RESULT_OK(msg)       // Create success result
-#define MCP_RESULT_ERROR(code, msg)  // Create error result
+#define MCP_STATUS_OK(msg)       // Create success result
+#define MCP_STATUS_ERROR(code, msg)  // Create error result
 
 // Check result
-mcp_result_generic_t result = some_function(...);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = some_function(...);
+if (result.code != MCP_STATUS_CODE_OK) {
   printf("Error: %s\n", result.message);
 }
 ```
 
 Result codes:
-- `MCP_RESULT_CODE_OK` (0) - Success
-- `MCP_RESULT_CODE_INVALID_ARGS` (-1) - Invalid arguments
-- `MCP_RESULT_CODE_ENCODING_FAILED` (-2) - JSON encoding/decoding failed
-- `MCP_RESULT_CODE_DISABLED` (-3) - Operation disabled
-- `MCP_RESULT_CODE_QUEUE_FULL` (-4) - Queue is full
-- `MCP_RESULT_CODE_NOT_FOUND` (-5) - Resource/method not found
-- `MCP_RESULT_CODE_INTERNAL` (-6) - Internal error
+- `MCP_STATUS_CODE_OK` (0) - Success
+- `MCP_STATUS_CODE_INVALID_ARGS` (-1) - Invalid arguments
+- `MCP_STATUS_CODE_ENCODING_FAILED` (-2) - JSON encoding/decoding failed
+- `MCP_STATUS_CODE_DISABLED` (-3) - Operation disabled
+- `MCP_STATUS_CODE_QUEUE_FULL` (-4) - Queue is full
+- `MCP_STATUS_CODE_NOT_FOUND` (-5) - Resource/method not found
+- `MCP_STATUS_CODE_INTERNAL` (-6) - Internal error
 
 ## Design Principles
 

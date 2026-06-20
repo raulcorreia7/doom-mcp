@@ -3,6 +3,9 @@
 **Version**: 0.6.0
 
 A C/C++ SDK that exposes Doom game state to AI agents via the Model Context Protocol (MCP).
+DMCP exists so engine integrations can keep Doom-specific state and commands out
+of generic MCP transport code while still giving agents one stable HTTP/SSE MCP
+surface.
 
 ## What
 
@@ -25,15 +28,25 @@ DMCP bridges Doom-family engines and AI assistants, enabling:
 ## How
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   AI Agent      │────▶│  DMCP Server    │────▶│   Doom Engine   │
-│ (Claude/Cline)  │◀────│ (HTTP/SSE/MCP)  │◀────│  (Crispy/etc)   │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+AI Agent
+  <-> HTTP/SSE MCP
+Generic MCP (`include/mcp/generic/`, `src/mcp/`)
+  <-> JSON-RPC tools/routes
+Doom MCP (`include/dmcp/doom/`, `src/doom/`)
+  <-> public C API
+Adapter (`adapters/<engine>/`)
+  <-> engine hooks
+Crispy Doom / another Doom-family engine
 ```
 
 1. **Agent** sends MCP requests via HTTP POST
 2. **DMCP** translates to game commands
 3. **Engine** executes and returns state
+
+The public integration boundary is a C99-compatible API (`extern "C"` headers under
+`include/`) with opaque handles, explicit destroy functions, and size-versioned
+configuration structs. C++ consumers also get source-stable convenience wrappers
+over the C API.
 
 ## Quick Verify
 
@@ -64,7 +77,10 @@ curl http://localhost:6060/health
 
 ## Features
 
-- **Clean C API**: All public APIs are C-compatible for maximum portability
+- **Clean public C API**: Public runtime objects use opaque handles and explicit
+  ownership functions
+- **Source-stable C++ wrappers**: Protocol constants are exposed as C macros and
+  C++ `std::string_view` names
 - **Modular Architecture**: Separate layers for protocol, game logic, and engine integration
 - **Object Pooling**: Reuses snapshot objects to minimize allocations
 - **Thread-Safe**: Proper synchronization for concurrent access
@@ -79,7 +95,7 @@ make check    # Build + test
 make run      # Run example server
 
 # Or using CMake directly
-cmake -B build/default -DDMCP_BUILD_TESTS=ON
+cmake -B build/default -DDMCP_BUILD_TESTS=ON -DDMCP_BUILD_EXAMPLES=ON
 cmake --build build/default --parallel
 ctest --test-dir build/default
 ./build/default/dummy_server
@@ -100,22 +116,32 @@ make crispy-doom   # Build Crispy Doom with DMCP
 make debug         # Build with sanitizers
 make test          # Run unit tests
 make test-unit     # Run unit tests only
-make test-smoke    # Run fast headless integration smoke
-make test-integration # Run integration suite
-make test-e2e      # Run Python e2e suite
+make test-smoke    # Run no-game fake-adapter MCP smoke
+make test-integration # Run C/C++ no-game integration suite
+make test-e2e      # Run optional engine-backed e2e checks
 make check         # Build + test (full verification)
 make validate      # Validate core defaults + opt-in paths
 make download-wad  # Download DOOM shareware
-make headless      # Run e2e headless tests
+make headless      # Run optional engine-backed headless checks
 make run           # Run dummy server
 make compdb        # Generate compile_commands.json for clangd/LSP
 make format        # Format source code
 make clean         # Remove build directory
 ```
 
-E2E tuning:
-- `DMCP_E2E_FAST=1` keeps fixture timeouts short (default).
-- `DMCP_STARTUP_INITIAL_DELAY` controls first readiness probe delay.
+No-game validation:
+- `make test-unit` validates protocol, Doom context/tool groups, and layer boundary
+  rules without starting a Doom engine.
+- `DMCP_BUILD_ADAPTER_FAKE=ON` builds the deterministic fake adapter used by
+  no-game integration coverage when a real engine is not available.
+- `DMCP_BUILD_INTEGRATION_TESTS=ON` builds the C/C++ fake-adapter transport
+  checks. These tests exercise HTTP/SSE and MCP lifecycle behavior without a
+  WAD or game process.
+- Unit helpers set `mcp_server_config_t.start_transport=false` and
+  `dmcp_config_t.start_transport=false` where live HTTP/SSE is not under test;
+  the public default remains `true` for real embedders.
+- Optional engine-backed e2e/headless checks are separate and may require a
+  Crispy Doom binary plus an IWAD. They are not the default CI/test path.
 
 ## CMake Options
 
@@ -124,18 +150,16 @@ E2E tuning:
 | `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build test suite |
 | `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build integration test targets |
-| `DMCP_BUILD_ADAPTERS` | OFF | Enable bundled adapter projects |
 | `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter (smoke/tests) |
 | `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
 | `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy Doom adapter |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries (`.so`/`.dll`) |
 | `DMCP_BUILD_SINGLE_DLL` | ON | Build unified `dmcp` shared library (`dmcp.so`/`dmcp.dll`) instead of split shared libs |
-| `DMCP_INSTALL` | ON | Enable install rules for headers/libs |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
 
 Notes:
 - Default CMake configure is core-only (`src/` + `include/` APIs), with adapters opt-in.
-- With `DMCP_BUILD_SHARED=OFF`, install exports static archives (`libdmcp_generic.a`, `libdmcp_core.a`).
+- Local source/build artifacts are the supported integration path.
 - Adapter targets need engine-specific include paths/generated headers.
 
 ## Basic Usage
@@ -172,20 +196,15 @@ int main() {
 For GZDoom/ZDoom-based source ports.
 
 ### Crispy Doom Adapter (`adapters/crispy-doom/`)
-For enhanced vanilla-accurate gameplay with headless testing support.
-Use `make crispy-doom` and `DOOM_ENGINE=crispy tests/integration/run_headless.sh`.
+For enhanced vanilla-accurate gameplay with minimal checked-in engine hooks.
+Use `make crispy-doom` to validate the hooks and build the game; this build
+workflow does not launch Crispy Doom or require a WAD.
 
 If this is a fresh clone, run `make submodules` first.
 
-`make crispy-doom` automatically applies the tracked DMCP patch from
-`adapters/crispy-doom/patches/dmcp_integration.patch` before configuring Crispy.
-By default it restores the submodule back to a clean source tree after build.
-
-To keep the patch applied for local debugging:
-
-```bash
-make crispy-doom CRISPY_KEEP_PATCH=1
-```
+`make crispy-doom` validates that the pinned Crispy submodule already contains
+the minimal DMCP hooks, then builds the DMCP runtime and the game without
+launching it.
 
 ## API Endpoints
 
@@ -266,9 +285,8 @@ Response:
 ```
 
 Save the returned `sessionId` and send it on every subsequent `/mcp` request with
-`MCP-Session-Id`.
-For compatibility with older clients that omit session headers, you can set
-`DMCP_ALLOW_IMPLICIT_SESSION=1` (only when exactly one session is active).
+`MCP-Session-Id`. Requests without a valid session ID are rejected after
+`initialize`.
 
 #### 3. Send initialized Notification
 
@@ -316,18 +334,10 @@ Response:
         "description": "Capture a screenshot of the current game state",
         "inputSchema": {"type": "object", "properties": {}}
       },
-      {
-        "name": "execute_command",
-        "description": "Execute a game command (spawn enemy, change level, etc.)",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "type": {"type": "string"},
-            "params": {"type": "object"}
-          },
-          "required": ["type"]
-        }
-      }
+      {"name": "spawn_entity", "description": "Spawn an entity in the current level"},
+      {"name": "give_item", "description": "Give an item to the player"},
+      {"name": "change_level", "description": "Change to another map/level"},
+      {"name": "execute_batch", "description": "Execute multiple mutating commands"}
     ]
   }
 }
@@ -362,7 +372,7 @@ Response (truncated):
 }
 ```
 
-#### 5. Execute Command
+#### 5. Execute Command Tool
 
 ```bash
 curl -X POST http://localhost:6060/mcp \
@@ -374,54 +384,20 @@ curl -X POST http://localhost:6060/mcp \
     "id": 4,
     "method": "tools/call",
     "params": {
-      "name": "execute_command",
+      "name": "spawn_entity",
       "arguments": {
-        "type": "spawn_entity",
-        "params": {
-          "entity_class": "DoomImp",
-          "position": {"x": 1000, "y": 500},
-          "angle": 90
-        }
+        "entity_class": "DoomImp",
+        "x": 1000,
+        "y": 500,
+        "angle": 90
       }
     }
   }'
 ```
 
-#### 5b. Direct JSON-RPC Method Aliases (agent compatibility)
-
-The server also accepts direct method calls for agentic clients that do not use
-`tools/call` wrappers.
-
-Additional direct state methods are also available:
-`get_player`, `get_enemies`, `get_entities`, `get_map`, `get_level`, `get_inventory`,
-`get_game_info`, `get_game`, and `get_state`.
-
-```bash
-curl -X POST http://localhost:6060/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 41,
-    "method": "get_player",
-    "params": {}
-  }'
-```
-
-```bash
-curl -X POST http://localhost:6060/mcp \
-  -H "Content-Type: application/json" \
-  -H "MCP-Protocol-Version: 2025-11-25" \
-  -H "MCP-Session-Id: <SESSION_ID>" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 42,
-    "method": "execute_command",
-    "params": {
-      "type": "set_player_health",
-      "value": 100
-    }
-  }'
-```
+DMCP exposes one MCP input route for tools: JSON-RPC `tools/call` with
+structured `arguments`. Native JSON-RPC aliases such as `get_player` or
+`execute_command` are not part of the public MCP surface.
 
 #### 6. Get Screenshot
 
@@ -535,19 +511,44 @@ print(client.get_player())  # Player state
 
 ### MCP Client Configuration
 
-Connect your MCP client to the running DMCP server:
+Connect your MCP client to the running DMCP server.
+
+Codex (`.codex/config.toml`):
+
+```toml
+[mcp_servers.doom]
+url = "http://localhost:6060/mcp"
+enabled = true
+```
+
+OpenCode (`opencode.json`):
+
+```json
+{
+  "mcp": {
+    "doom": {
+      "type": "remote",
+      "url": "http://localhost:6060/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+Claude / generic MCP clients (`.mcp.json` or client config):
 
 ```json
 {
   "mcpServers": {
     "doom": {
+      "type": "http",
       "url": "http://localhost:6060/mcp"
     }
   }
 }
 ```
 
-First start the Doom engine with DMCP enabled (see [docs/INTEGRATION.md](docs/INTEGRATION.md)), then add the configuration above to your MCP client (Claude, Cline, Continue, Opencode, etc.).
+First start the Doom engine with DMCP enabled (see [docs/INTEGRATION.md](docs/INTEGRATION.md)), then add the relevant configuration to your MCP client.
 
 ## Available Tools
 
@@ -557,11 +558,21 @@ For agent loops that need focused, low-overhead reads:
 
 - `get_player` - Player-only state
 - `get_enemies` - Enemy list with pagination and status filter (`offset`, `limit`, `status=alive|dead|all`)
-- `get_entities` - Interactive world entities (pickups/barrels, no projectiles/decor) (`offset`, `limit`)
-- `get_map` / `get_level` - Current map/level details
+- `get_entities` - Enemies and world entities with filters (`offset`, `limit`, `kind=all|enemy|item|weapon|ammo|key|health|armor|powerup|world`, `status=alive|dead|all`)
+- `get_items` - World pickups/items only (`offset`, `limit`, `kind=item|weapon|ammo|key|health|armor|powerup`)
+- `get_map` - Current map/level details
 - `get_inventory` - Inventory list with pagination (`offset`, `limit`)
-- `get_game_info` / `get_game` - Runtime mode/version metadata
-- `get_state` - Unified section query (`section: player|enemies|entities|map|inventory|game`, optional `status` for `enemies`)
+- `get_game_info` - Runtime mode/version metadata
+- `get_available_content` - Complete available-only canonical catalog
+- `get_available_enemies` - Available enemy classes only
+- `get_available_entities` - Available spawnable entity classes only
+- `get_available_items` - Available item classes only
+- `get_available_weapons` - Available weapon classes only
+- `get_available_ammo` - Available ammo classes only
+- `get_available_keys` - Available key classes only
+- `get_available_maps` - Available map names only
+- `get_available_giveable` - Available classes accepted by `give_item`
+- `get_state` - Unified section query (`section: player|enemies|entities|items|map|inventory|game`)
 - `get_state_batch` - Read-only batch query for multiple state sections (`requests: [{section,...}]`)
 - `get_command_result` - Poll queued command status by `sequence`
 - `get_command_examples` - Structured tool examples for all supported commands
@@ -571,15 +582,17 @@ For agent loops that need focused, low-overhead reads:
 
 Returns an ASCII representation of the current game view. Useful for visual debugging.
 
-### `execute_command`
+### Mutating Tools
 
-Queue a command to be executed by the game:
+Queue commands directly through `tools/call` using canonical names and
+arguments. Use the granular `get_available_*` tools before content-dependent
+commands; they return only canonical names available for the current game mode.
 
-| Command Type | Description | Parameters |
+| Tool | Description | Arguments |
 |--------------|-------------|------------|
 | `spawn_entity` | Spawn an enemy/item | `entity_class`, `x`, `y`, `angle`, `tid` |
 | `change_level` | Switch map | `map_name`, `skill_level`, `reset_inventory` |
-| `give_item` | Give player an item | `item_class`, `amount` |
+| `give_item` | Give player a weapon, ammo, key, or item | `item_class`, `amount` |
 | `set_player_health` | Set health | `health` |
 | `set_player_position` | Move player | `x`, `y`, `angle` |
 | `execute_console` | Run engine console command | `command` |
@@ -591,29 +604,32 @@ Queue a command to be executed by the game:
 
 Send a single player input to control movement and actions. Each input executes for one game tick (35Hz). Designed for agent loops that need human-like control.
 
-| Action | Shortcode | Full Name | Value |
-|--------|-----------|-----------|-------|
-| Forward | `fwd` | `forward` | - |
-| Backward | `back` | `backward` | - |
-| Strafe Left | `left` | `strafe_left` | - |
-| Strafe Right | `right` | `strafe_right` | - |
-| Turn Left | `tleft` | `turn_left` | - |
-| Turn Right | `tright` | `turn_right` | - |
-| Aim at Angle | `aim` | - | `v`: 0-360 degrees |
-| Attack | `atk` | `attack` | - |
-| Use | `use` | - | - |
-| Weapon | `wpn` | `weapon` | `v`: 1-7 |
+| Action | Value |
+|--------|-------|
+| `forward` | - |
+| `backward` | - |
+| `strafe_left` | - |
+| `strafe_right` | - |
+| `turn_left` | - |
+| `turn_right` | - |
+| `aim` | `value`: 0-360 degrees |
+| `attack` | - |
+| `use` | - |
+| `weapon` | `value`: 1-7 |
+
+Weapon slots: `1` Fist/Chainsaw, `2` Pistol, `3` Shotgun/SuperShotgun,
+`4` Chaingun, `5` RocketLauncher, `6` PlasmaRifle, `7` BFG9000.
 
 Example:
 ```json
-{"name": "player_input", "arguments": {"a": "fwd"}}
-{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
-{"name": "player_input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"action": "forward"}}
+{"name": "player_input", "arguments": {"action": "aim", "value": 90}}
+{"name": "player_input", "arguments": {"action": "weapon", "value": 3}}
 ```
 
 ### `execute_batch`
 
-Queue multiple commands in one `tools/call` request using `commands: []`.
+Queue multiple commands in one `tools/call` request using `calls: []`.
 Commands run in the order provided.
 
 `change_level` is intentionally rejected in batch mode to avoid running follow-up
@@ -624,7 +640,7 @@ Use `get_state_batch` for read-only grouped state fetches.
 
 For level transitions, use this pattern:
 
-1. Queue `change_level` via `execute_command`
+1. Queue `change_level` as a direct tool call
 2. Wait until `get_command_result` reports `completed=true` and `status=success`
 3. Send the next commands (single or `execute_batch`)
 
@@ -645,21 +661,16 @@ Run multiple read-only state queries in one request:
 
 Returns structured examples (including `execute_batch` and `get_state_batch`) so
 agents can generate valid command payloads without guessing parameter names.
-
-Agent-friendly aliases accepted by parser:
-- `teleport_player` -> `set_player_position`
-- `item`/`quantity` -> `item_class`/`amount`
-- `level` -> `map_name`
-- `value` -> `health`
-- `entity`/`class` -> `entity_class`
+Command arguments are intentionally canonical; aliases and shorthand fields are
+rejected.
 
 ## Error Handling
 
-All functions return `mcp_result_generic_t`:
+All functions return `mcp_status_t`:
 
 ```c
-mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }
 ```

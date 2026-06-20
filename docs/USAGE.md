@@ -6,7 +6,7 @@ Common patterns for using the Doom MCP SDK.
 
 - [Basic Server Setup](#basic-server-setup)
 - [Reading Game State](#reading-game-state)
-- [Executing Commands](#executing-commands)
+- [Calling Mutating Tools](#calling-mutating-tools)
 - [Player Control](#player-control)
 - [Screenshots](#screenshots)
 - [Batch Operations](#batch-operations)
@@ -171,20 +171,24 @@ Read multiple sections in one request:
 |---------|-------------|------------|
 | `player` | Health, armor, position, ammo | No |
 | `enemies` | Enemy list with HP and position | Yes (`offset`, `limit`, `status`) |
-| `entities` | Pickups, barrels, interactive objects | Yes (`offset`, `limit`) |
+| `entities` | Enemies and world entities | Yes (`offset`, `limit`, `kind`, `status`) |
+| `items` | World pickups/items only | Yes (`offset`, `limit`, `kind`) |
 | `map` | Level name, kill/item/secret counts | No |
 | `inventory` | Player inventory items | Yes (`offset`, `limit`) |
 | `game` | Game mode, version, skill | No |
 
 ---
 
-## Executing Commands
+## Calling Mutating Tools
 
-### Available Commands
+### Available Tools
 
-| Command | Parameters | Description |
-|---------|------------|-------------|
-| `spawn_entity` | `entity_class`, `position.x`, `position.y`, `angle` | Spawn enemy or item |
+Mutating tools are called through JSON-RPC `tools/call` with structured
+`params.arguments`.
+
+| Tool | Arguments | Description |
+|------|-----------|-------------|
+| `spawn_entity` | `entity_class`, `x`, `y`, `angle` | Spawn enemy or item |
 | `change_level` | `map_name`, `skill_level`, `reset_inventory` | Switch to new map |
 | `give_item` | `item_class`, `amount` | Give player an item |
 | `set_player_health` | `health` | Set player health |
@@ -206,11 +210,11 @@ curl -X POST http://localhost:6060/mcp \
     "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "execute_command",
+      "name": "spawn_entity",
       "arguments": {
-        "type": "spawn_entity",
         "entity_class": "DoomImp",
-        "position": {"x": 1000, "y": 500},
+        "x": 1000,
+        "y": 500,
         "angle": 90
       }
     }
@@ -229,9 +233,8 @@ curl -X POST http://localhost:6060/mcp \
     "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "execute_command",
+      "name": "change_level",
       "arguments": {
-        "type": "change_level",
         "map_name": "E1M2",
         "skill_level": 3
       }
@@ -247,31 +250,34 @@ The `player_input` tool provides tick-by-tick control (35Hz). Each call executes
 
 ### Actions
 
-| Shortcode | Full Name | Value | Description |
-|-----------|-----------|-------|-------------|
-| `fwd` | `forward` | - | Move forward |
-| `back` | `backward` | - | Move backward |
-| `left` | `strafe_left` | - | Strafe left |
-| `right` | `strafe_right` | - | Strafe right |
-| `tleft` | `turn_left` | - | Turn left |
-| `tright` | `turn_right` | - | Turn right |
-| `aim` | - | `v`: 0-360° | Aim at angle |
-| `atk` | `attack` | - | Attack |
-| `use` | - | - | Use/interact |
-| `wpn` | `weapon` | `v`: 1-7 | Switch weapon |
+| Action | Value | Description |
+|--------|-------|-------------|
+| `forward` | - | Move forward |
+| `backward` | - | Move backward |
+| `strafe_left` | - | Strafe left |
+| `strafe_right` | - | Strafe right |
+| `turn_left` | - | Turn left |
+| `turn_right` | - | Turn right |
+| `aim` | `value`: 0-360° | Aim at angle |
+| `attack` | - | Attack |
+| `use` | - | Use/interact |
+| `weapon` | `value`: 1-7 | Switch weapon |
+
+Weapon slots: `1` Fist/Chainsaw, `2` Pistol, `3` Shotgun/SuperShotgun,
+`4` Chaingun, `5` RocketLauncher, `6` PlasmaRifle, `7` BFG9000.
 
 ### Examples
 
 ```json
 // Move forward
-{"name": "player_input", "arguments": {"a": "fwd"}}
+{"name": "player_input", "arguments": {"action": "forward"}}
 
 // Aim at 90 degrees and attack
-{"name": "player_input", "arguments": {"a": "aim", "v": 90}}
-{"name": "player_input", "arguments": {"a": "atk"}}
+{"name": "player_input", "arguments": {"action": "aim", "value": 90}}
+{"name": "player_input", "arguments": {"action": "attack"}}
 
 // Switch to shotgun (weapon 3)
-{"name": "player_input", "arguments": {"a": "wpn", "v": 3}}
+{"name": "player_input", "arguments": {"action": "weapon", "value": 3}}
 ```
 
 ---
@@ -304,10 +310,9 @@ Returns ASCII representation of the game view for visual debugging.
   "params": {
     "name": "execute_batch",
     "arguments": {
-      "commands": [
-        {"type": "give_item", "item_class": "Chaingun", "amount": 1},
-        {"type": "set_player_health", "health": 200},
-        {"type": "spawn_entity", "entity_class": "Zombieman", "position": {"x": 500, "y": 500}}
+      "calls": [
+        {"name": "give_item", "arguments": {"item_class": "Chaingun", "amount": 1}},
+        {"name": "spawn_entity", "arguments": {"entity_class": "Zombieman", "x": 500, "y": 500, "angle": 0}}
       ]
     }
   }
@@ -378,8 +383,8 @@ All errors follow JSON-RPC 2.0 format:
 ### C/C++ Error Pattern
 
 ```c
-mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }
 ```

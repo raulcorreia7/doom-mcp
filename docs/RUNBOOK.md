@@ -68,7 +68,8 @@ Out of scope (escalate to maintainers before editing):
 
 ## Update Checklist
 
-- Verify `make check` and `make headless` commands still match docs.
+- Verify `make check`, `make validate`, and no-game integration commands still match docs.
+- Keep real-engine headless/e2e checks documented as optional, not default CI validation.
 - Verify MCP examples still work for `initialize`, `tools/list`, and `tools/call`.
 - Remove sections that duplicate another maintained document.
 - Capture owner and due date for the next review cycle.

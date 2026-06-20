@@ -43,15 +43,15 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
-| Server MUST support `initialize` method | ✅ | `src/mcp/server.cpp:449-549` | `test_mcp_protocol.cpp:Valid initialize`, `run_headless.sh` |
+| Server MUST support `initialize` method | ✅ | `src/mcp/server.cpp`, `src/mcp/json_rpc.cpp` | `test_mcp_protocol.cpp:Valid initialize`, fake-adapter integration |
 | `initialize` MUST be a request (not notification) | ✅ | `src/mcp/server.cpp:452-461` | `test_mcp_protocol.cpp:Initialize as notification` |
-| `params.protocolVersion` required | ✅ | `src/mcp/server.cpp:486-497` | `test_mcp_protocol.cpp:Initialize without protocolVersion`, `run_headless.sh` |
+| `params.protocolVersion` required | ✅ | `src/mcp/server.cpp` | `test_mcp_protocol.cpp:Initialize without protocolVersion` |
 | `params.capabilities` required | ✅ | `src/mcp/server.cpp:512-522` | `test_mcp_protocol.cpp:Initialize without capabilities` |
 | `params.clientInfo` required | ✅ | `src/mcp/server.cpp:524-534` | `test_mcp_protocol.cpp:Initialize without clientInfo` |
 | Response MUST include `protocolVersion` | ✅ | `src/mcp/server.cpp:326` | `test_mcp_protocol.cpp:Valid initialize` |
 | Response MUST include `capabilities` | ✅ | `src/mcp/server.cpp:329-337` | `test_mcp_protocol.cpp:Valid initialize` |
 | Response MUST include `serverInfo` | ✅ | `src/mcp/server.cpp:344-348` | `test_mcp_protocol.cpp:Valid initialize` |
-| Unsupported version → error response | ✅ | `src/mcp/server.cpp:500-510` | `test_mcp_protocol.cpp:Initialize with unsupported protocol`, `run_headless.sh` |
+| Unsupported version → error response | ✅ | `src/mcp/server.cpp` | `test_mcp_protocol.cpp:Initialize with unsupported protocol` |
 | Error MUST include `supported` versions | ✅ | `src/mcp/server.cpp:308-318` | `test_mcp_protocol.cpp:Initialize with unsupported protocol` |
 | Repeated initialize creates independent sessions | ✅ | `src/mcp/server.cpp` (`CreateSession`) | `test_mcp_protocol.cpp:Each initialize creates a new session` |
 
@@ -59,7 +59,7 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
-| Client MUST send `notifications/initialized` after `initialize` | ✅ | Expected by spec | `run_headless.sh` |
+| Client MUST send `notifications/initialized` after `initialize` | ✅ | Expected by spec | `test_mcp_protocol.cpp:Full lifecycle`, fake-adapter integration |
 | Server MUST allow `notifications/initialized` as notification | ✅ | `src/mcp/server.cpp:551-588` | `test_mcp_protocol.cpp:Full lifecycle` |
 | Requests before `initialized` → ServerNotInitialized (-32002) | ✅ | `src/mcp/server.cpp:607-630` | `test_mcp_protocol.cpp:Request before initialize, Initialize then request without initialized` |
 | `initialized` before `initialize` → ignore or error | ⚠️ | `src/mcp/server.cpp:554-571` (logs warning, accepts) | Unit test needed |
@@ -72,7 +72,6 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 | Multiple clients can initialize independently | ✅ | Each `initialize` creates new `Session` with unique `sessionId` | `test_mcp_protocol.cpp:Multiple sessions` |
 | Session ID returned in initialize response | ✅ | `result.sessionId` in `src/mcp/server.cpp` | `test_mcp_protocol.cpp:Valid initialize` |
 | Session ID required for subsequent requests (strict mode) | ✅ | Default behavior requires `MCP-Session-Id` | `test_mcp_protocol.cpp:Lifecycle gating` |
-| Optional single-session compatibility mode | ✅ | `DMCP_ALLOW_IMPLICIT_SESSION=1` enables single-session fallback | Unit test + integration behavior |
 | Invalid/expired session returns ServerNotInitialized | ✅ | `FindSessionById` returns null for unknown session | `test_mcp_protocol.cpp:Request with invalid session` |
 
 **Implementation (2026-02-24)**: Per-session lifecycle implemented via:
@@ -107,10 +106,10 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
-| `tools/list` method | ✅ | `src/doom/handlers/methods.cpp` | `run_headless.sh` |
-| `tools/call` method | ✅ | `src/doom/handlers/methods.cpp` | `run_headless.sh` |
-| Tool definitions include `name`, `description`, `inputSchema` | ✅ | `src/doom/handlers/tools/tools_list.cpp` | Headless integration + e2e |
-| Tool annotations include safety hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`) | ✅ | `src/doom/handlers/schema_builders.cpp` | Unit/e2e coverage |
+| `tools/list` method | ✅ | `src/doom/handlers/tools/tools_list.cpp` | Unit tests, fake-adapter integration |
+| `tools/call` method | ✅ | `src/doom/handlers/tools/tools_list.cpp` | Unit tests, fake-adapter integration |
+| Tool definitions include `name`, `description`, `inputSchema` | ✅ | `src/doom/handlers/tools/tools_list.cpp` | Unit tests, fake-adapter integration |
+| Tool annotations include safety hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`) | ✅ | `src/doom/handlers/schema_builders.cpp` | Unit coverage |
 | Tool errors use `isError: true` in result | 🚧 | Partial - mixed error formats | Needs standardization |
 
 ---
@@ -122,7 +121,7 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
 | POST `/mcp` for JSON-RPC requests | ✅ | `src/mcp/http_sse_transport.cpp:280` | All integration tests |
-| GET `/mcp` for SSE stream | ✅ | `src/mcp/http_sse_transport.cpp:182-184, 215-268` | `run_headless.sh` |
+| GET `/mcp` for SSE stream | ✅ | `src/mcp/http_sse_transport.cpp` | Fake-adapter integration |
 | CORS headers for browser clients | ✅ | `src/mcp/http_sse_transport.cpp:132, 139, 228` | Integration tests |
 | Request size limits | ✅ | `src/mcp/http_sse_transport.cpp:201-203` | Unit tests needed |
 | OPTIONS preflight support | ✅ | `src/mcp/http_sse_transport.cpp:129-135, 187-189` | Integration tests |
@@ -142,8 +141,8 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
-| Unknown endpoint → generic error | ✅ | `src/mcp/http_sse_transport.cpp:35-36` | `run_headless.sh` |
-| No implementation details in errors | ✅ | No transport internals in responses | `run_headless.sh` |
+| Unknown endpoint → generic error | ✅ | `src/mcp/http_sse_transport.cpp` | Unit/no-game integration coverage |
+| No implementation details in errors | ✅ | No transport internals in responses | Unit/no-game integration coverage |
 
 ---
 
@@ -270,4 +269,5 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 - JSON-RPC 2.0 Specification: https://www.jsonrpc.org/specification
 - Implementation: `src/mcp/server.cpp`, `src/mcp/http_sse_transport.cpp`
 - Unit Tests: `tests/unit/test_mcp_server.cpp`
-- Integration Tests: `tests/integration/run_headless.sh`
+- No-game Integration Tests: `tests/integration/test_fake_mcp_transport.cpp`
+- Optional Engine E2E: `tests/integration/run_headless.sh`

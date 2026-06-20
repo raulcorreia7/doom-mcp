@@ -1,6 +1,6 @@
 # MCP Tool Surface Audit
 
-Updated: 2026-03-04
+Updated: 2026-06-20
 
 This document classifies DMCP tools by operational risk and relevance for remote game-agent control.
 
@@ -11,38 +11,44 @@ This document classifies DMCP tools by operational risk and relevance for remote
 - `get_player`
 - `get_enemies`
 - `get_entities`
-- `get_map` / `get_level`
+- `get_items`
+- `get_map`
 - `get_inventory`
-- `get_game_info` / `get_game`
+- `get_game_info`
 - `get_state`
 - `get_state_batch`
 - `get_screenshot`
 - `get_command_result`
 - `get_available_content`
+- `get_available_enemies`
+- `get_available_entities`
+- `get_available_items`
+- `get_available_weapons`
+- `get_available_ammo`
+- `get_available_keys`
+- `get_available_maps`
+- `get_available_giveable`
 - `get_command_examples`
 
 ### Mutating game-state tools
 
-- `execute_command`
 - `execute_batch`
-- Command aliases:
-  - `spawn_entity`
-  - `change_level`
-  - `give_item`
-  - `set_player_health`
-  - `teleport_player`
-  - `set_player_position`
-  - `execute_console`
-  - `pause_game`
-  - `damage_entity`
-  - `kill_entity`
+- `spawn_entity`
+- `change_level`
+- `give_item`
+- `set_player_health`
+- `set_player_position`
+- `execute_console`
+- `pause_game`
+- `damage_entity`
+- `kill_entity`
 - `player_input`
 
 ## Relevance Assessment (Remote Agent + Live Game)
 
 - Keep: all read-only tools listed above.
-- Keep: `execute_command` and `execute_batch` as the main mutating control API.
-- Keep: command aliases for agent ergonomics (shorter prompts, fewer schema mistakes).
+- Keep: direct command tools and `execute_batch.calls` as the mutating control API.
+- Keep: canonical structured arguments only; aliases and shorthand fields are rejected.
 - Keep with caution: `execute_console` (highest-risk capability due broad command surface).
 
 ## Hardening Recommendations
@@ -54,8 +60,7 @@ This document classifies DMCP tools by operational risk and relevance for remote
   - `change_level`
   - `spawn_entity`
   - `execute_batch`
-- Keep MCP lifecycle strict by default (`MCP-Session-Id` required after initialize).
-- Enable compatibility fallback only when needed: `DMCP_ALLOW_IMPLICIT_SESSION=1`.
+- Keep MCP lifecycle strict (`MCP-Session-Id` required after initialize).
 
 ## Follow-up (Optional)
 

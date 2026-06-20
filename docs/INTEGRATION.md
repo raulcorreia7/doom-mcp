@@ -10,6 +10,7 @@ DMCP exposes an HTTP endpoint that MCP clients can connect to:
 {
   "mcpServers": {
     "doom": {
+      "type": "http",
       "url": "http://localhost:6060/mcp"
     }
   }
@@ -21,12 +22,13 @@ First, [start the DMCP server](#starting-the-server), then add the configuration
 ## Table of Contents
 
 - [Starting the Server](#starting-the-server)
+- [Codex](#codex)
+- [OpenCode](#opencode)
 - [Claude Desktop](#claude-desktop)
 - [Claude Code (CLI)](#claude-code-cli)
 - [VS Code](#vs-code)
   - [Cline](#cline)
   - [Continue](#continue)
-- [Opencode](#opencode)
 - [Generic HTTP Client](#generic-http-client)
 
 ---
@@ -52,7 +54,7 @@ cmake --build build/shared --parallel
 **Engine integration (recommended)**
 
 ```bash
-# Fast path (applies patch + builds DMCP + builds Crispy)
+# Fast path (validates hooks + builds DMCP + builds Crispy)
 make submodules
 make crispy-doom
 
@@ -63,12 +65,16 @@ cmake -S crispy-doom -B crispy-doom/build \
 cmake --build crispy-doom/build --parallel
 ```
 
-For external engines consuming installed DMCP packages:
+For external engines, consume DMCP from local source/build artifacts:
 
 ```cmake
-find_package(dmcp CONFIG REQUIRED)
-target_link_libraries(myengine PRIVATE dmcp::single)
+add_subdirectory(path/to/doom-mcp path/to/doom-mcp-build EXCLUDE_FROM_ALL)
+target_link_libraries(myengine PRIVATE dmcp::runtime)
 ```
+
+The public runtime surface is a C99-compatible API. Use the `include/mcp/*` and `include/dmcp/*`
+headers from C or C++ code; C++ wrappers under `include/*/cxx/` are source-level
+RAII conveniences over the C API.
 
 ### Starting the Server
 
@@ -114,6 +120,66 @@ The server runs as long as the game is active.
 Strict mode is the default: after `initialize`, include both
 `MCP-Protocol-Version` and `MCP-Session-Id` on every `/mcp` request.
 
+### No-Game Validation
+
+CI can validate the SDK and client-facing protocol without launching Crispy Doom:
+
+```bash
+cmake -B build/default \
+  -DDMCP_BUILD_TESTS=ON \
+  -DDMCP_BUILD_INTEGRATION_TESTS=ON \
+  -DDMCP_BUILD_ADAPTER_FAKE=ON
+cmake --build build/default --parallel
+ctest --test-dir build/default -L "unit|no_game" -LE "requires_game|headless|e2e" --output-on-failure
+```
+
+This runs unit coverage for the Generic MCP layer, Doom MCP layer, layer
+boundaries, the public C header smoke check, and the C/C++ fake-adapter MCP
+transport integration test. Use engine-backed headless/e2e scripts only when an
+engine binary and IWAD are available.
+
+For unit tests or embedders that need a context without opening a listener, set
+`mcp_server_config_t.start_transport=false` or
+`dmcp_config_t.start_transport=false`. The default is `true`, so normal game
+integration still starts the HTTP/SSE MCP endpoint.
+
+---
+
+## Codex
+
+Project-local configuration:
+
+```toml
+# .codex/config.toml
+[mcp_servers.doom]
+url = "http://localhost:6060/mcp"
+enabled = true
+```
+
+This is the same file shape packaged by the Crispy DMCP release artifact.
+
+---
+
+## OpenCode
+
+Project-local configuration:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "doom": {
+      "type": "remote",
+      "url": "http://localhost:6060/mcp",
+      "enabled": true,
+      "timeout": 10000
+    }
+  }
+}
+```
+
+The Crispy DMCP release artifact includes this as `opencode.json`.
+
 ---
 
 ## Claude Desktop
@@ -128,6 +194,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 {
   "mcpServers": {
     "doom": {
+      "type": "http",
       "url": "http://localhost:6060/mcp"
     }
   }
@@ -162,6 +229,7 @@ Create or edit `~/.claude-code/config.json`:
 {
   "mcpServers": {
     "doom": {
+      "type": "http",
       "url": "http://localhost:6060/mcp"
     }
   }
@@ -176,6 +244,7 @@ Add to your project's `.claude-code/config.json`:
 {
   "mcpServers": {
     "doom-dev": {
+      "type": "http",
       "url": "http://localhost:6060/mcp"
     }
   }
@@ -273,56 +342,6 @@ Continue is an open-source AI coding assistant for VS Code.
 
 ---
 
-## Opencode
-
-Opencode is an open-source AI coding assistant with built-in MCP support.
-
-### Configuration
-
-Project: `.opencode/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "doom": {
-      "url": "http://localhost:6060/mcp"
-    }
-  }
-}
-```
-
-Global: `~/.config/opencode/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "doom-dev": {
-      "url": "http://localhost:6060/mcp"
-    }
-  }
-}
-```
-
-### Auto-Approval
-
-Configure in `.opencode/config.json`:
-
-```json
-{
-  "autoApproveTools": ["get_player", "get_map", "get_screenshot"]
-}
-```
-
-### Usage
-
-```
-What tools are available for the doom server?
-Get the current game state
-Spawn an imp near the player
-```
-
----
-
 ## Generic HTTP Client
 
 For custom integrations or testing without an MCP client library:
@@ -384,18 +403,15 @@ class DMCPSimpleClient:
             return json.loads(result["result"]["content"][0]["text"])
         return result
     
-    def execute(self, cmd_type, params):
-        """Execute a command"""
+    def call_tool(self, name, arguments=None):
+        """Call a DMCP MCP tool."""
         response = requests.post(self.mcp_url, json={
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
             "params": {
-                "name": "execute_command",
-                "arguments": {
-                    "type": cmd_type,
-                    "params": params
-                }
+                "name": name,
+                "arguments": arguments or {}
             }
         }, headers=self._headers())
         return response.json()
@@ -410,9 +426,11 @@ client = DMCPSimpleClient()
 client.initialize()
 print(client.health_check())
 print(client.get_state())
-client.execute("spawn_entity", {
+client.call_tool("spawn_entity", {
     "entity_class": "DoomImp",
-    "position": {"x": 1000, "y": 500}
+    "x": 1000,
+    "y": 500,
+    "angle": 0
 })
 ```
 
@@ -423,7 +441,6 @@ client.execute("spawn_entity", {
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DMCP_PORT` | HTTP server port | 6060 |
-| `DMCP_ALLOW_IMPLICIT_SESSION` | Allow requests without `MCP-Session-Id` when exactly one session exists | `0` (strict) |
 
 `DMCP_TARGET_HZ` and `DMCP_LOG_LEVEL` are configured in code/config structs,
 not as runtime environment variables.
@@ -436,23 +453,36 @@ not as runtime environment variables.
 |------|-------------|
 | `get_player` | Get player-only state |
 | `get_enemies` | Get enemy list (paginated, `status=alive|dead|all`) |
-| `get_entities` | Get pickups/barrels only (paginated, excludes projectiles/decor) |
-| `get_map`/`get_level` | Get current map/level state |
+| `get_entities` | Get enemies and world entities (paginated, `kind`, `status`) |
+| `get_items` | Get world pickups/items only (paginated, `kind`) |
+| `get_map` | Get current map/level state |
 | `get_inventory` | Get inventory list (paginated) |
-| `get_game_info`/`get_game` | Get game mode/version metadata |
-| `get_state` | Unified section query (`player`, `enemies`, `entities`, `map`, `inventory`, `game`; optional `status` for enemies) |
+| `get_game_info` | Get game mode/version metadata |
+| `get_available_content` | Get the complete available-only canonical content catalog |
+| `get_available_enemies` | Get available enemy classes |
+| `get_available_entities` | Get available spawnable entity classes |
+| `get_available_items` | Get available item classes |
+| `get_available_weapons` | Get available weapon classes |
+| `get_available_ammo` | Get available ammo classes |
+| `get_available_keys` | Get available key classes |
+| `get_available_maps` | Get available map names |
+| `get_available_giveable` | Get available classes accepted by `give_item` |
+| `get_state` | Unified section query (`player`, `enemies`, `entities`, `items`, `map`, `inventory`, `game`) |
 | `get_state_batch` | Read-only batch query for multiple state sections |
 | `get_screenshot` | Capture ASCII screenshot of current view |
-| `execute_command` | Spawn entities, change levels, give items, etc. |
+| `spawn_entity` | Spawn an available monster or pickup by canonical `entity_class`, `x`, `y`, `angle` |
+| `give_item` | Give a canonical weapon, ammo, key, or item by `item_class` and `amount` |
+| `change_level` | Change map using canonical `map_name` from `get_available_maps` |
+| `set_player_position` | Change player location with `x`, `y`, `angle` |
 | `get_command_result` | Poll async command completion by `sequence` |
 | `execute_batch` | Queue mutating commands in order (rejects `change_level`) |
 | `get_command_examples` | Fetch structured command payload examples |
 | `player_input` | Queue one movement/aim/fire/use input action per tick |
 
-### execute_command Types
+### Mutating Tool Arguments
 
-| Type | Parameters |
-|------|------------|
+| Tool | Arguments |
+|------|-----------|
 | `spawn_entity` | `entity_class`, `x`, `y`, `angle` |
 | `change_level` | `map_name`, `skill_level` |
 | `give_item` | `item_class`, `amount` |
@@ -474,13 +504,13 @@ Use separate batch types:
 
 Use level transitions as a separate step:
 
-1. Send `change_level` with `execute_command`
+1. Send `change_level` as a direct `tools/call`
 2. Poll `get_command_result` until completion/success
 3. Send follow-up commands (single or batch)
 
 ### Command Examples Tool
 
-Use `get_command_examples` to discover valid payload shapes and aliases:
+Use `get_command_examples` to discover valid canonical payload shapes:
 
 ```json
 {

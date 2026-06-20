@@ -5,10 +5,27 @@ All notable changes to the Doom Model Context Protocol (DMCP) SDK will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Current public C APIs use `mcp_status_t` from `include/mcp/core/status.h`.
+Older release notes below may mention removed result aliases only as migration
+history.
+
+## [Unreleased]
+
+### Breaking Changes
+- Public MCP command execution now uses direct `tools/call` tool names with structured `arguments`.
+- Removed the public `execute_command` MCP tool and native JSON-RPC method aliases.
+- Removed public content-name aliases and input shorthand fields. Use canonical names from `get_available_*` content tools.
+
+### Changed
+- `execute_batch` now accepts `calls: [{name, arguments}]`.
+- `player_input` now uses `action` and optional `value`.
+- `get_available_content` returns available-only canonical content for the active game mode, including enemies, entities, weapons, ammo, keys, items, giveable content, maps, and weapon-slot metadata.
+- Added granular available-content tools: `get_available_enemies`, `get_available_entities`, `get_available_items`, `get_available_weapons`, `get_available_ammo`, `get_available_keys`, `get_available_maps`, and `get_available_giveable`.
+
 ## [0.7.0] - 2026-02-24
 
 ### Breaking Changes
-- Package config now uses `find_package(dmcp CONFIG REQUIRED)` - legacy `DMCP_INCLUDE_DIR`/`DMCP_LIB_DIR` still works but deprecated
+- Superseded package-config install guidance with local source/build artifact integration; DMCP is not installed as a system library by default
 - Target names changed: `dmcp::dmcp_generic` → `dmcp::generic`, `dmcp::dmcp_core` → `dmcp::core`
 - Library output names: `libdmcp_generic.so`/`libdmcp_core.so` (previously `libdmcp_dmcp_generic.so`)
 - Protocol constants consolidated: raw string literals replaced with centralized constants in `include/dmcp/doom/protocol.h`
@@ -22,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Protocol negotiation errors and pre-initialization request gating
 - Linker version scripts for symbol visibility control on Linux/Unix
 - Shared library build support with proper symbol export control
-- Installed adapter headers at `include/dmcp/adapters/` for C ABI boundary
+- Installed adapter headers at `include/dmcp/adapters/` for C API boundary
 
 ### Fixed
 - SSE implementation aligned with MCP spec (Accept header, Content-Type, Cache-Control headers)
@@ -36,13 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.0] - 2026-02-13
 
 ### Breaking Changes
-- Removed `dmcp_result_t` type alias - use `mcp_result_generic_t` or `mcp_result_t` instead
-- Removed all `DMCP_RESULT_CODE_*` macros - use `MCP_RESULT_CODE_*` instead
+- Removed `dmcp_result_t` type alias - use `mcp_status_t` instead
+- Removed all `DMCP_STATUS_CODE_*` macros - use `MCP_STATUS_CODE_*` instead
 - Removed all `DMCP_LOG_*` macros - use `MCP_LOG_*` instead
-- Removed `DMCP_OK` and `DMCP_ERROR_*` macros - use `MCP_RESULT_OK()` and `MCP_RESULT_ERROR()` instead
+- Removed `DMCP_OK` and `DMCP_ERROR_*` macros - use `MCP_STATUS_OK()` and `MCP_STATUS_ERROR()` instead
 - Removed `dmcp_log_level_t` type alias - use `mcp_log_level_t` instead
-- `dmcp_zdoom_tick()` now returns `mcp_result_generic_t` instead of `int`
-- `dmcp_screenshot_submit()` now returns `MCP_RESULT_CODE_DISABLED` (NYI)
+- `dmcp_zdoom_tick()` now returns `mcp_status_t` instead of `int`
+- `dmcp_screenshot_submit()` now returns `MCP_STATUS_CODE_DISABLED` (NYI)
 - Added `struct_size` field to `mcp_server_stats_t`, `dmcp_stats_t`, `mcp_transport_callbacks_t`
 - Added `version` field to `mcp_transport_interface_t`
 - Added `_reserved` field to `dmcp_command_t` union
@@ -99,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unused `Value::elements()` method
 - Duplicate tests from `test_main.cpp`
 - Duplicate documentation sections
-- `queue_slots` config field (renamed to `_reserved_queue_slots`)
+- `command_queue_slots` config field for command/input queue capacity
 
 ## [0.5.0] - 2026-01-28
 
@@ -138,22 +155,22 @@ All public APIs now follow `{namespace}_{type}_{action}` pattern for consistency
 #### Result Type Redesign
 Error handling now provides rich, human-readable messages.
 
-- `mcp_result_t` changed from `enum` to `struct` with `code` and `message` fields
+- `mcp_status_t` changed from `enum` to `struct` with `code` and `message` fields
 - `dmcp_result_t` changed from `enum` to `struct` with `code` and `message` fields
 - All error sites now provide descriptive messages
-- New convenience macros: `MCP_RESULT_MAKE()`, `MCP_RESULT_OK`, `MCP_ERROR_*`
-- Result code constants: `MCP_RESULT_CODE_OK`, `MCP_RESULT_CODE_INVALID_ARGS`, etc.
+- New convenience macros: `MCP_STATUS_MAKE()`, `MCP_STATUS_OK`, `MCP_ERROR_*`
+- Result code constants: `MCP_STATUS_CODE_OK`, `MCP_STATUS_CODE_INVALID_ARGS`, etc.
 
 **Migration:**
 ```c
 // Before
-if (mcp_server_register_method(...) != MCP_OK) {
+if (mcp_server_register_method(...) != MCP_STATUS_OK("Success")) {
     fprintf(stderr, "Error: %d\n", result);
 }
 
 // After
-mcp_result_t result = mcp_server_method_register(...);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = mcp_server_method_register(...);
+if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }
 ```
