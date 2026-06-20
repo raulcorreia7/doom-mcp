@@ -5,20 +5,20 @@ option(DMCP_BUILD_TESTS             "Build tests"                               
 option(DMCP_BUILD_EXAMPLES          "Build example servers"                             OFF)
 option(DMCP_BUILD_INTEGRATION_TESTS "Build integration tests"                           OFF)
 option(DMCP_BUILD_ADAPTER_FAKE      "Build fake adapter (smoke/tests)"                  OFF)
-option(DMCP_BUILD_ADAPTER_ZDOOM     "Build ZDoom adapter"                               OFF)
-option(DMCP_BUILD_ADAPTER_CRISPY    "Build Crispy Doom adapter"                         OFF)
+option(DMCP_BUILD_ADAPTER_ZDOOM     "Build zdoom adapter"                               OFF)
+option(DMCP_BUILD_ADAPTER_CRISPY    "Build crispy-doom adapter"                         OFF)
 option(DMCP_BUILD_SHARED            "Build shared libraries (.so/.dll)"                 OFF)
 option(DMCP_BUILD_SINGLE_DLL        "Build unified libdmcp artifact (dmcp.so/dmcp.dll)" ON)
 option(DMCP_ENABLE_SANITIZERS       "Enable AddressSanitizer and UBSan"                 OFF)
 option(DMCP_USE_CCACHE              "Use ccache for faster rebuilds"                    ON)
 
-set(DMCP_ZDOOM_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated include directories for ZDoom SDK headers")
-set(DMCP_CRISPY_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/src" CACHE PATH
-    "Crispy Doom source include directory")
-set(DMCP_CRISPY_DOOM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/src/doom" CACHE PATH
-    "Crispy Doom doom include directory")
-set(DMCP_CRISPY_GEN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/crispy-doom/build" CACHE PATH
-    "Crispy Doom generated headers directory (must contain config.h)")
+set(DMCP_ZDOOM_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated include directories for zdoom adapter headers")
+set(DMCP_CRISPY_SRC_DIR "" CACHE PATH
+    "crispy-doom source include directory")
+set(DMCP_CRISPY_DOOM_DIR "" CACHE PATH
+    "crispy-doom doom include directory")
+set(DMCP_CRISPY_GEN_INCLUDE_DIR "" CACHE PATH
+    "crispy-doom generated headers directory (must contain config.h)")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -629,8 +629,8 @@ message(STATUS "  Examples: ${DMCP_BUILD_EXAMPLES}")
 message(STATUS "  Tests: ${DMCP_BUILD_TESTS}")
 message(STATUS "  Integration tests: ${DMCP_BUILD_INTEGRATION_TESTS}")
 message(STATUS "  Fake Adapter: ${DMCP_BUILD_ADAPTER_FAKE}")
-message(STATUS "  ZDoom Adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
-message(STATUS "  Crispy Adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
+message(STATUS "  zdoom adapter: ${DMCP_BUILD_ADAPTER_ZDOOM}")
+message(STATUS "  crispy-doom adapter: ${DMCP_BUILD_ADAPTER_CRISPY}")
 message(STATUS "  Shared libs: ${DMCP_BUILD_SHARED}")
 message(STATUS "  Single libdmcp: ${DMCP_BUILD_SINGLE_DLL}")
 if(DMCP_BUILD_SHARED)

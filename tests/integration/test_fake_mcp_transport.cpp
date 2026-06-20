@@ -141,7 +141,7 @@ std::vector<int64_t> extract_sequences_from_batch_payload(const std::string& bod
 
 }  // namespace
 
-TEST_CASE("Fake adapter exposes no-game MCP transport", "[integration][no_game][fake][transport]") {
+TEST_CASE("Fake adapter exposes SDK MCP transport", "[integration][sdk][fake][transport]") {
   fake_server_fixture server;
   server.tick();
 

@@ -146,13 +146,12 @@ main() {
     assert_file "$root/lib/libdmcp.a"
   fi
 
-  if find "$root" -type f \( -iname '*.wad' -o -name 'crispy-doom' -o -name 'crispy-doom.exe' \) \
-      -print -quit | grep -q .; then
-    die "SDK package contains game/WAD artifacts"
+  if find "$root" -type f -iname '*.wad' -print -quit | grep -q .; then
+    die "SDK package contains game data files"
   fi
 
-  if [[ -d "$root/crispy-doom" || -d "$root/assets/wads" ]]; then
-    die "SDK package contains game checkout or WAD directory"
+  if [[ -d "$root/assets/wads" ]]; then
+    die "SDK package contains game asset directory"
   fi
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Purpose: Fail CI if a no-game workflow downloaded or produced IWAD files.
+# Purpose: Fail CI if SDK validation produced game runtime assets.
 # Dependencies: bash
 
 set -Eeuo pipefail
@@ -17,7 +17,7 @@ usage() {
 Usage:
   $PROGRAM_NAME [--root DIR]
 
-Fail if a no-game workflow downloaded or produced IWAD files.
+Fail if SDK validation produced game runtime assets.
 
 Options:
       --root DIR  Repository root to inspect (default: $REPO_ROOT).
@@ -67,11 +67,11 @@ main() {
   parse_args "$@"
   [[ -d "$root" ]] || die "root is not a directory: $root"
 
-  if find "$root" -path "$root/.git" -prune -o -iname 'doom1.wad' -print -quit | grep -q .; then
-    die "CI produced or downloaded doom1.wad"
+  if find "$root" -path "$root/.git" -prune -o -iname '*.wad' -print -quit | grep -q .; then
+    die "CI produced game data files"
   fi
 
-  [[ ! -d "$root/assets/wads" ]] || die "CI produced assets/wads"
+  [[ ! -d "$root/assets/wads" ]] || die "CI produced game asset directory"
 }
 
 main "$@"

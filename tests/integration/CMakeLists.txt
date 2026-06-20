@@ -15,6 +15,10 @@ target_link_libraries(dmcp_integration_tests
     httplib::httplib
 )
 
+if(DMCP_BUILD_SHARED)
+  target_link_libraries(dmcp_integration_tests PRIVATE core_static generic_static)
+endif()
+
 if(WIN32)
   target_link_libraries(dmcp_integration_tests PRIVATE ws2_32)
 endif()
@@ -25,6 +29,6 @@ endif()
 
 add_test(NAME dmcp_fake_transport_integration COMMAND dmcp_integration_tests)
 set_tests_properties(dmcp_fake_transport_integration PROPERTIES
-  LABELS "integration;no_game;fake;transport"
+  LABELS "integration;sdk;fake;transport"
   TIMEOUT 30
 )

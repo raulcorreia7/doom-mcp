@@ -67,8 +67,7 @@ endif()
 add_test(NAME public_c_headers COMMAND public_c_headers)
 set_tests_properties(public_c_headers PROPERTIES LABELS "unit")
 
-# Integration tests are no-game by default. Real-engine checks stay opt-in through
-# scripts such as tests/integration/run_headless.sh.
+# Integration tests use the deterministic fake adapter and do not launch engines.
 if(DMCP_BUILD_INTEGRATION_TESTS)
   if(NOT TARGET dmcp::adapter_fake)
     message(FATAL_ERROR "DMCP_BUILD_INTEGRATION_TESTS requires DMCP_BUILD_ADAPTER_FAKE=ON")

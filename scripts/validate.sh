@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# validate.sh - Fast no-game validation matrix for core-first + opt-in adapters.
+# validate.sh - Fast SDK validation matrix for core-first + opt-in adapters.
 #
 # Usage:
 #   ./scripts/validate.sh [build-root]
@@ -35,7 +35,7 @@ run_unit_tests() {
   ctest --test-dir "$dir" -L unit -j1 --timeout 60 --output-on-failure
 }
 
-run_no_game_integration_tests() {
+run_sdk_integration_tests() {
   local dir="$1"
   ctest --test-dir "$dir" -L integration -LE requires_game -j1 --timeout 60 --output-on-failure
 }
@@ -58,10 +58,7 @@ assert_no_default_adapter_artifacts() {
   local dir="$1"
 
   local found=""
-  found="$(find "$dir" -type f \
-    \( -name "libdmcp_fake*" -o -name "libdmcp_zdoom*" -o -name "libdmcp_crispy*" \
-       -o -name "dmcp_fake.*" -o -name "dmcp_zdoom.*" -o -name "dmcp_crispy.*" \) \
-    -print -quit)"
+  found="$(find "$dir" -type f \( -path "*/adapters/*" -o -name "libdmcp_fake*" -o -name "dmcp_fake.*" \) -print -quit)"
 
   if [[ -n "$found" ]]; then
     fail "default core build produced adapter artifact: $found"
@@ -109,14 +106,12 @@ step "Validating examples as explicit opt-in"
 configure_build "$EXAMPLES_DIR" -DDMCP_BUILD_EXAMPLES=ON
 assert_exists "$EXAMPLES_DIR/dummy_server"
 
-step "Validating fake adapter as explicit opt-in without launching a game"
+step "Validating fake adapter transport as explicit opt-in"
 configure_build "$FAKE_DIR" \
   -DDMCP_BUILD_TESTS=ON \
   -DDMCP_BUILD_INTEGRATION_TESTS=ON \
-  -DDMCP_BUILD_ADAPTER_FAKE=ON \
-  -DDMCP_BUILD_ADAPTER_ZDOOM=OFF \
-  -DDMCP_BUILD_ADAPTER_CRISPY=OFF
+  -DDMCP_BUILD_ADAPTER_FAKE=ON
 run_unit_tests "$FAKE_DIR"
-run_no_game_integration_tests "$FAKE_DIR"
+run_sdk_integration_tests "$FAKE_DIR"
 
-printf '\nNo-game validation matrix completed successfully.\n'
+printf '\nSDK validation matrix completed successfully.\n'

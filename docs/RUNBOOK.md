@@ -53,7 +53,7 @@ Out of scope (escalate to maintainers before editing):
 
 ## Freshness Signals
 
-- Build commands match `Makefile` and active scripts in `tests/integration/`.
+- Build commands match `Makefile` and active tests under `tests/`.
 - Tool names/examples match `src/doom/handlers/tools/` behavior.
 - Endpoint examples match registered routes in `src/doom/context.cpp`.
 - Cross-links resolve and avoid duplicate long-form API content.
@@ -68,8 +68,9 @@ Out of scope (escalate to maintainers before editing):
 
 ## Update Checklist
 
-- Verify `make check`, `make validate`, and no-game integration commands still match docs.
-- Keep real-engine headless/e2e checks documented as optional, not default CI validation.
+- Verify `make check`, `make validate`, and SDK integration commands still match docs.
+- Keep engine-backed runtime checks out of SDK CI/docs unless they are clearly
+  owned by an adapter document.
 - Verify MCP examples still work for `initialize`, `tools/list`, and `tools/call`.
 - Remove sections that duplicate another maintained document.
 - Capture owner and due date for the next review cycle.

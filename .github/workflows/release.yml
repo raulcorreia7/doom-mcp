@@ -70,9 +70,9 @@ jobs:
         shell: bash
         run: scripts/ci/source_consumer_smoke.sh --build-dir "build/source-consumer-${{ matrix.linkage }}" --shared "${{ matrix.shared }}"
 
-      - name: Verify CI stayed headless
+      - name: Verify SDK boundary
         shell: bash
-        run: scripts/ci/verify_headless.sh
+        run: scripts/ci/verify_sdk_boundary.sh
 
       - name: Verify release tag
         if: startsWith(github.ref, 'refs/tags/dmcp-v')
@@ -97,31 +97,6 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.asset_name }}
           if-no-files-found: error
-
-  adapters:
-    name: Adapter build/link checks
-    if: ${{ !startsWith(github.ref, 'refs/tags/dmcp-v') }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout DMCP
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            libsdl2-dev \
-            libpng-dev \
-            libsamplerate0-dev
-
-      - name: Build and test adapters
-        shell: bash
-        run: scripts/ci/check_adapters.sh
 
   release:
     name: Publish SDK release

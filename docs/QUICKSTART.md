@@ -17,7 +17,7 @@ DMCP (Doom Model Context Protocol SDK) is a C/C++ library that exposes Doom game
 | Use Case | Benefit |
 |----------|---------|
 | AI game playing | Agents can read state and send inputs |
-| Automated testing | Headless game control and verification |
+| Automated testing | State/control verification through engine adapters |
 | Research | Low-latency state access for ML training |
 | Streaming | Real-time game state via HTTP/SSE |
 
@@ -26,7 +26,7 @@ DMCP (Doom Model Context Protocol SDK) is a C/C++ library that exposes Doom game
 DMCP keeps the agent-facing protocol separate from engine hooks:
 
 ```text
-Crispy/Engine -> Adapter -> Doom MCP -> Generic MCP -> Core API/runtime
+Engine -> Engine Adapter -> Doom MCP -> Generic MCP -> Core API/runtime
 ```
 
 The public integration boundary is a C99-compatible API. C++ consumers can use
@@ -37,7 +37,6 @@ source-level protocol-name wrappers from `include/dmcp/doom/protocol.h`.
 - CMake 3.25+
 - C99 compiler for public C headers and adapter glue
 - C++17 compiler for the SDK implementation
-- SDL2 (for engine adapters)
 - `jq` (for the quick MCP session verification command)
 
 Ubuntu/Debian:
@@ -50,29 +49,24 @@ sudo apt-get install -y \
   pkg-config \
   git \
   curl \
-  jq \
-  libsdl2-dev \
-  libpng-dev \
-  libsamplerate0-dev
+  jq
 ```
 
 macOS with Homebrew:
 
 ```bash
-brew install cmake ninja pkg-config jq sdl2 libpng libsamplerate
+brew install cmake ninja pkg-config jq
 ```
 
 Windows:
 
-Use Visual Studio Build Tools 2022 or newer plus CMake. For adapter
-dependencies, use the repository CMake presets with vcpkg or install SDL2,
-libpng, and libsamplerate through your package manager.
+Use Visual Studio Build Tools 2022 or newer plus CMake.
 
 ## Quick Install
 
 ```bash
 # Clone
-git clone https://github.com/anomalyco/doom-mcp.git
+git clone https://github.com/raulcorreia7/doom-mcp.git
 cd doom-mcp
 
 # Build + test
@@ -82,7 +76,7 @@ make check
 make run
 ```
 
-For CI and local validation that must not launch a game process, use no-game
+For CI and local validation that must not launch a game process, use SDK-only
 validation:
 
 ```bash
@@ -91,12 +85,12 @@ cmake -B build/default \
   -DDMCP_BUILD_INTEGRATION_TESTS=ON \
   -DDMCP_BUILD_ADAPTER_FAKE=ON
 cmake --build build/default --parallel
-ctest --test-dir build/default -L "unit|no_game" -LE "requires_game|headless|e2e" --output-on-failure
+ctest --test-dir build/default -L "unit|sdk" -LE "requires_game" --output-on-failure
 ```
 
 Default validation uses C/C++ unit tests plus the fake-adapter MCP transport
-integration path. Real-engine headless checks are optional e2e checks, not the
-default path, because they can require Crispy Doom and an IWAD.
+integration path. Engine-backed runtime checks belong in the consuming engine
+repository and are not part of the SDK default path.
 
 ## Verify Installation
 

@@ -141,8 +141,8 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 
 | Requirement | Status | Implementation | Test Location |
 |-------------|--------|----------------|---------------|
-| Unknown endpoint → generic error | ✅ | `src/mcp/http_sse_transport.cpp` | Unit/no-game integration coverage |
-| No implementation details in errors | ✅ | No transport internals in responses | Unit/no-game integration coverage |
+| Unknown endpoint → generic error | ✅ | `src/mcp/http_sse_transport.cpp` | Unit/SDK integration coverage |
+| No implementation details in errors | ✅ | No transport internals in responses | Unit/SDK integration coverage |
 
 ---
 
@@ -269,5 +269,4 @@ MCP is built on JSON-RPC 2.0. All JSON-RPC requirements apply.
 - JSON-RPC 2.0 Specification: https://www.jsonrpc.org/specification
 - Implementation: `src/mcp/server.cpp`, `src/mcp/http_sse_transport.cpp`
 - Unit Tests: `tests/unit/test_mcp_server.cpp`
-- No-game Integration Tests: `tests/integration/test_fake_mcp_transport.cpp`
-- Optional Engine E2E: `tests/integration/run_headless.sh`
+- SDK Integration Tests: `tests/integration/test_fake_mcp_transport.cpp`

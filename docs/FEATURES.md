@@ -72,10 +72,8 @@ dmcp_context_destroy(ctx);
 
 ### Engine Adapters
 
-| Adapter | Engine | Status |
-|---------|--------|--------|
-| Crispy Doom | Enhanced vanilla port | Stable |
-| ZDoom | GZDoom/ZDoom family | Beta |
+DMCP adapter source lives under `adapters/`. Adapter-specific requirements,
+build flags, and engine hook examples are documented in each adapter directory.
 
 ### MCP Client Support
 
@@ -142,13 +140,11 @@ dmcp_context_destroy(ctx);
 |--------------|---------|-------------|
 | `DMCP_BUILD_EXAMPLES` | OFF | Build example servers |
 | `DMCP_BUILD_TESTS` | OFF | Build unit test suite |
-| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build C/C++ no-game integration tests |
+| `DMCP_BUILD_INTEGRATION_TESTS` | OFF | Build C/C++ SDK integration tests |
 | `DMCP_BUILD_ADAPTER_FAKE` | OFF | Build fake adapter for smoke/integration |
 | `DMCP_BUILD_SHARED` | OFF | Build shared libraries |
 | `DMCP_BUILD_SINGLE_DLL` | ON | Build single `libdmcp` runtime surface |
 | `DMCP_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer |
-| `DMCP_BUILD_ADAPTER_ZDOOM` | OFF | Build ZDoom adapter |
-| `DMCP_BUILD_ADAPTER_CRISPY` | OFF | Build Crispy adapter |
 
 ## Security & Safety
 
