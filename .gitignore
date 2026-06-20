@@ -59,6 +59,7 @@ release_package/
 # -----------------------------------------------------------------------------
 # Python
 # -----------------------------------------------------------------------------
+.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -111,4 +112,3 @@ clang-tidy-report.xml
 
 # Keep repository test sources tracked
 !tests/unit/test_*.cpp
-!tests/e2e/test_*.py

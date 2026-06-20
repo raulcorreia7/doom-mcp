@@ -1,0 +1,15 @@
+[project]
+name = "dmcp-agent"
+version = "0.1.0"
+description = "Token-efficient helper CLI for Doom MCP agent workflows"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.27,<2",
+]
+
+[project.scripts]
+dmcp-agent = "dmcp_agent.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

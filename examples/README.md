@@ -1,6 +1,8 @@
 # Doom MCP Examples
 
 This directory contains example implementations showing how to integrate the Doom MCP SDK with your game engine.
+Examples use the public C API from `include/dmcp/doom/` so the same patterns
+apply from C or C++ engine code.
 
 ## Examples
 
@@ -70,8 +72,8 @@ if (dmcp_screenshot_is_requested(ctx)) {
         .height = height,
         .stride = width * 4
     };
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
-    if (result.code != MCP_RESULT_CODE_OK) {
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+    if (result.code != MCP_STATUS_CODE_OK) {
         fprintf(stderr, "Screenshot failed: %s\n", result.message);
     }
 }
@@ -87,8 +89,8 @@ printf("Clients: %llu, Dropped: %llu\n",
 
 ### Error Handling
 ```c
-mcp_result_generic_t result = dmcp_push_command(ctx, &cmd);
-if (result.code != MCP_RESULT_CODE_OK) {
+mcp_status_t result = dmcp_push_command(ctx, &cmd);
+if (result.code != MCP_STATUS_CODE_OK) {
     fprintf(stderr, "Error: %s\n", result.message);
 }
 ```
