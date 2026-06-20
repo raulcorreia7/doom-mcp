@@ -74,7 +74,7 @@ static inline dmcp_config_t dmcp_config_default(void) {
   cfg.target_hz                          = DMCP_DEFAULT_TARGET_HZ;
   cfg.snapshot_pool_size                 = DMCP_DEFAULT_SNAPSHOT_POOL_SIZE;
   cfg.command_queue_slots                = DMCP_DEFAULT_QUEUE_SLOTS;
-  cfg.screenshot.enable                  = true;
+  cfg.screenshot.enable                  = false;
   cfg.screenshot.width                   = DMCP_DEFAULT_SCREENSHOT_WIDTH;
   cfg.screenshot.height                  = DMCP_DEFAULT_SCREENSHOT_HEIGHT;
   cfg.tools.game                         = true;

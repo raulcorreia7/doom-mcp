@@ -609,7 +609,7 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
     REQUIRE(config.target_hz == DMCP_DEFAULT_TARGET_HZ);
     REQUIRE(config.snapshot_pool_size == DMCP_DEFAULT_SNAPSHOT_POOL_SIZE);
     REQUIRE(config.command_queue_slots == DMCP_DEFAULT_QUEUE_SLOTS);
-    REQUIRE(config.screenshot.enable == true);
+    REQUIRE(config.screenshot.enable == false);
     REQUIRE(config.screenshot.width == DMCP_DEFAULT_SCREENSHOT_WIDTH);
     REQUIRE(config.screenshot.height == DMCP_DEFAULT_SCREENSHOT_HEIGHT);
     REQUIRE(config.on_snapshot == nullptr);

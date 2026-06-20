@@ -119,10 +119,13 @@ settings are configured the same way as the core API:
 dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
 config.base.port = 6060;
 config.base.target_hz = 35;
-config.base.screenshot.enable = true;
+config.base.screenshot.enable = false;
 config.base.permissions.allow_cheats = false;
 config.base.permissions.allow_console_commands = false;
 ```
+
+Set `config.base.screenshot.enable = true` only after wiring
+`DMCP_CaptureFrame()` to a real renderer frame source.
 
 ## Adapter Responsibilities
 

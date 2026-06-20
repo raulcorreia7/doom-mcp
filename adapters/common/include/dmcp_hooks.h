@@ -22,7 +22,7 @@ static inline dmcp_engine_config_t dmcp_engine_config_default(void) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.port                   = 6060;
   cfg.target_hz              = 35;
-  cfg.screenshot_enabled     = true;
+  cfg.screenshot_enabled     = false;
   cfg.allow_console_commands = false;
   cfg.allow_cheats           = false;
   return cfg;

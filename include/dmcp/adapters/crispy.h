@@ -26,7 +26,6 @@ static inline dmcp_crispy_config_t dmcp_crispy_config_default(void) {
   cfg.struct_size            = sizeof(dmcp_crispy_config_t);
   cfg.base                   = dmcp_config_default();
   cfg.base.target_hz         = DMCP_CRISPY_DEFAULT_TARGET_HZ;
-  cfg.base.screenshot.enable = true;
   return cfg;
 }
 

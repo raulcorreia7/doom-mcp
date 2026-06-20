@@ -119,7 +119,7 @@ build flags, and engine hook examples are documented in each adapter directory.
 | `get_available_giveable` | Available classes accepted by `give_item` | optional `game_mode` |
 | `get_state` | Unified section query | `section`, `kind`, `status` |
 | `get_state_batch` | Multi-section query | `requests[]` |
-| `get_screenshot` | ASCII screenshot | None |
+| `get_screenshot` | ASCII screenshot when enabled by the embedder | None |
 
 ### Action Tools
 

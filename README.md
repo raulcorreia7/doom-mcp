@@ -16,7 +16,7 @@ conveniences over the C API.
 ## What It Provides
 
 - State tools for player, enemies, entities, items, map, inventory, game info,
-  available content, and screenshots.
+  available content, and opt-in screenshots.
 - Command tools for spawning, giving items, changing levels, moving the player,
   player input, and batched commands.
 - HTTP/SSE MCP transport with JSON-RPC lifecycle handling.

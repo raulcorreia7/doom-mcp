@@ -92,6 +92,7 @@ The hook parser currently understands:
 | `-dmcp_port <port>` | Override the MCP HTTP port |
 | `-dmcp_allow_cheats` | Enable cheat-gated tools |
 | `-dmcp_allow_console` | Enable console command execution |
+| `-dmcp_enable_screenshots` | Enable screenshot tools when frame capture is compiled in |
 
 Console commands are enabled automatically when cheats are enabled.
 
@@ -101,7 +102,8 @@ Console commands are enabled automatically when cheats are enabled.
 - `DMCP_Tick()` publishes snapshots and drains queued commands/input.
 - `DMCP_CaptureFrame()` submits a screenshot only when the MCP layer requested
   one and `DMCP_CRISPY_ENABLE_FRAME_CAPTURE=1` was set by the engine build. It
-  is an empty hook when frame capture is off.
+  is an empty hook when frame capture is off. Screenshot tools remain disabled
+  unless the engine also passes `-dmcp_enable_screenshots`.
 - `DMCP_Shutdown()` destroys the adapter context and is safe to call during
   engine shutdown.
 

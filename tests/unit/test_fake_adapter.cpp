@@ -6,6 +6,7 @@
 
 #include "dmcp/adapters/fake.h"
 #include "dmcp/doom/constants.h"
+#include "dmcp_hooks.h"
 
 namespace {
 
@@ -80,6 +81,21 @@ TEST_CASE("Fake adapter simple: default config", "[adapter][fake][simple]") {
   REQUIRE(cfg.seed == DMCP_FAKE_DEFAULT_SEED);
   REQUIRE(cfg.max_enemies == DMCP_MAX_ENEMIES);
   REQUIRE(cfg.max_entities == DMCP_MAX_ENTITIES);
+}
+
+TEST_CASE("Adapter common simple: screenshots are opt-in from argv", "[adapter][common][simple]") {
+  dmcp_engine_config_t default_config = dmcp_engine_config_default();
+  REQUIRE(default_config.screenshot_enabled == false);
+
+  char                 program[]      = "engine";
+  char*                no_args[]      = {program};
+  dmcp_engine_config_t parsed_default = dmcp_engine_config_from_argv(1, no_args);
+  REQUIRE(parsed_default.screenshot_enabled == false);
+
+  char                 screenshot_flag[] = "-dmcp_enable_screenshots";
+  char*                screenshot_args[] = {program, screenshot_flag};
+  dmcp_engine_config_t parsed_screenshot = dmcp_engine_config_from_argv(2, screenshot_args);
+  REQUIRE(parsed_screenshot.screenshot_enabled == true);
 }
 
 TEST_CASE("Fake adapter simple: lifecycle", "[adapter][fake][simple]") {

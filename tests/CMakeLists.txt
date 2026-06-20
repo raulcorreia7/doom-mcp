@@ -44,6 +44,11 @@ target_include_directories(dmcp_tests
     ${PROJECT_SOURCE_DIR}/src
 )
 
+if(TARGET dmcp_adapter_common)
+  target_include_directories(dmcp_tests PRIVATE ${PROJECT_SOURCE_DIR}/adapters/common/include)
+  target_link_libraries(dmcp_tests PRIVATE dmcp_adapter_common)
+endif()
+
 target_compile_definitions(dmcp_tests
   PRIVATE
     DMCP_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

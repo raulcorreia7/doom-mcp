@@ -58,6 +58,10 @@ endif()
 # ------------------------------------------------------------------------------
 include(DMCPBuildConfig)
 
+if(NOT DMCP_BUILD_SHARED)
+  add_compile_definitions(MCP_CORE_STATIC MCP_STATIC MCP_GAME_STATIC DMCP_STATIC)
+endif()
+
 # ------------------------------------------------------------------------------
 # Source discovery
 # ------------------------------------------------------------------------------

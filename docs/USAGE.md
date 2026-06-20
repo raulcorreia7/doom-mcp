@@ -284,6 +284,9 @@ Weapon slots: `1` Fist/Chainsaw, `2` Pistol, `3` Shotgun/SuperShotgun,
 
 ## Screenshots
 
+Screenshots are disabled by default. Embedders must enable
+`config.screenshot.enable` and submit frames from the engine adapter.
+
 ### ASCII Screenshot
 
 ```bash
