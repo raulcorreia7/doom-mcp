@@ -306,6 +306,14 @@ copy_docs() {
   copy_tree "$REPO_ROOT/docs" "$root/docs"
 }
 
+copy_agent_examples() {
+  local root="$1"
+  copy_tree "$REPO_ROOT/examples/agents/python" "$root/examples/agents/python"
+  rm -rf "$root/examples/agents/python/.venv" \
+         "$root/examples/agents/python/__pycache__" \
+         "$root/examples/agents/python/dmcp_agent/__pycache__"
+}
+
 create_archive() {
   if [[ "$platform" == "windows" ]]; then
     (cd "$package_root" && 7z a "$asset_name" "$artifact_name")
@@ -327,6 +335,7 @@ main() {
   write_cmake_config "$root"
   write_sdk_info "$root"
   copy_docs "$root"
+  copy_agent_examples "$root"
   create_archive
 
   "$SCRIPT_DIR/verify_sdk_package.sh" \

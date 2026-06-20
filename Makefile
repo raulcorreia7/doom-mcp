@@ -12,6 +12,8 @@
 BUILD_DIR             ?= build/default
 INTEGRATION_BUILD_DIR ?= build/integration
 BUILD_TYPE            ?= Release
+AGENT_PROJECT         ?= examples/agents/python
+PROJECT_VERSION       := $(shell grep -E '^project.dmcp .*VERSION ' CMakeLists.txt | tr ' ' '\n' | grep -E '^[0-9]+[.][0-9]+[.][0-9]+' | sed -E 's/[^0-9.].*//' | head -n 1)
 
 # CMake arguments
 CMAKE_ARGS = \
@@ -54,10 +56,14 @@ help:
 	@echo "Run targets:"
 	@echo "  make run          - Run dummy server"
 	@echo "  make run-bg       - Run server in background"
+	@echo "  make agent-help   - Show Python dmcp-agent help"
+	@echo "  make agent-brief  - Call dmcp-agent brief against a running server"
+	@echo "  make agent-shell  - Open a persistent dmcp-agent shell"
 	@echo ""
 	@echo "Quality targets:"
 	@echo "  make check        - Build + test (full verification)"
 	@echo "  make validate     - Run validation matrix (core defaults + opt-in paths)"
+	@echo "  make agent-smoke  - Verify Python helper without launching a game"
 	@echo "  make format       - Format source code"
 	@echo "  make lint         - Run clang-tidy"
 	@echo ""
@@ -97,7 +103,7 @@ release:
 # Clean
 # ==============================================================================
 
-.PHONY: clean distclean
+.PHONY: clean distclean compdb-refresh
 clean:
 	rm -rf $(BUILD_DIR) $(INTEGRATION_BUILD_DIR) build/validate
 
@@ -105,6 +111,11 @@ distclean: clean
 	rm -rf build
 	rm -rf .cache
 	rm -f compile_commands.json
+
+compdb-refresh:
+	@if [ -f "$(BUILD_DIR)/compile_commands.json" ]; then \
+		ln -sf "$(BUILD_DIR)/compile_commands.json" compile_commands.json; \
+	fi
 
 # ==============================================================================
 # Testing
@@ -174,6 +185,19 @@ run-bg: configure-run
 	@./$(BUILD_DIR)/dummy_server &
 	@echo "Server running on http://localhost:6060 (PID: $$!)"
 
+.PHONY: agent-help agent-brief agent-shell agent-smoke
+agent-help:
+	uv run --project $(AGENT_PROJECT) --frozen dmcp-agent --help
+
+agent-brief:
+	uv run --project $(AGENT_PROJECT) --frozen dmcp-agent --pretty brief
+
+agent-shell:
+	uv run --project $(AGENT_PROJECT) --frozen dmcp-agent --pretty shell
+
+agent-smoke:
+	./scripts/ci/agent_cli_smoke.sh --agent-dir $(AGENT_PROJECT)
+
 # ==============================================================================
 # Code Quality
 # ==============================================================================
@@ -210,7 +234,7 @@ validate:
 
 .PHONY: info size
 info:
-	@echo "DMCP SDK v0.6.0"
+	@echo "DMCP SDK v$(PROJECT_VERSION)"
 	@echo ""
 	@echo "Configuration:"
 	@echo "  Build type:    $(BUILD_TYPE)"

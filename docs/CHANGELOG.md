@@ -11,6 +11,17 @@ history.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-20
+
+### Added
+- Packaged the optional Python `dmcp-agent` helper with SDK release archives.
+- Added SDK release CI smoke coverage for the Python agent helper.
+
+### Fixed
+- SDK packages now include the generated version header required by public
+  version macros.
+- `make run` no longer references a missing compile-database refresh target.
+
 ## [0.7.0] - 2026-06-20
 
 ### Breaking Changes

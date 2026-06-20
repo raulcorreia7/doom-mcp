@@ -129,9 +129,13 @@ main() {
   assert_file "$root/include/dmcp/doom/api.h"
   assert_file "$root/include/mcp/generic/server.h"
   assert_file "$root/include/mcp/core/core.h"
+  assert_file "$root/include/mcp/core/version_config.h"
   assert_file "$root/cmake/dmcp-config.cmake"
   assert_file "$root/SDK_INFO.txt"
   assert_file "$root/README.md"
+  assert_file "$root/examples/agents/python/README.md"
+  assert_file "$root/examples/agents/python/pyproject.toml"
+  assert_file "$root/examples/agents/python/dmcp_agent/cli.py"
 
   if [[ "$platform" == "windows" ]]; then
     assert_file "$root/lib/dmcp.lib"
@@ -152,6 +156,11 @@ main() {
 
   if [[ -d "$root/assets/wads" ]]; then
     die "SDK package contains game asset directory"
+  fi
+
+  if find "$root/examples/agents/python" -type d \( -name '.venv' -o -name '__pycache__' \) \
+      -print -quit | grep -q .; then
+    die "SDK package contains Python virtualenvs or bytecode caches"
   fi
 }
 

@@ -98,10 +98,27 @@ jobs:
           path: ${{ matrix.asset_name }}
           if-no-files-found: error
 
+  agent:
+    name: Python agent smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout DMCP
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+
+      - name: Verify Python agent CLI
+        shell: bash
+        run: scripts/ci/agent_cli_smoke.sh
+
   release:
     name: Publish SDK release
     if: startsWith(github.ref, 'refs/tags/dmcp-v')
-    needs: sdk
+    needs:
+      - sdk
+      - agent
     runs-on: ubuntu-latest
     permissions:
       contents: write

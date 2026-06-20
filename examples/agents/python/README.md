@@ -8,6 +8,21 @@ Prefer this helper over raw MCP calls for normal CLI-agent gameplay workflows.
 It returns compact, structured output and hides verbose schemas so models spend
 fewer tokens on plumbing.
 
+Install `uv` from <https://docs.astral.sh/uv/> if it is not already available.
+Start a DMCP-enabled game or server first, then verify:
+
+```bash
+curl http://localhost:6060/health
+```
+
+Run from the DMCP repository root:
+
+```bash
+uv run --project examples/agents/python dmcp-agent --help
+uv run --project examples/agents/python dmcp-agent --pretty brief
+uv run --project examples/agents/python dmcp-agent --pretty shell
+```
+
 Run from this directory:
 
 ```bash
@@ -33,6 +48,12 @@ For one-off execution without creating a local environment:
 
 ```bash
 uvx --from . dmcp-agent brief
+```
+
+From the repository root, use:
+
+```bash
+uvx --from examples/agents/python dmcp-agent brief
 ```
 
 The helper keeps output compact but readable:

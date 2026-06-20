@@ -109,15 +109,24 @@ SESSION_ID=$(printf '%s' "$INIT" | jq -r '.result.sessionId')
 curl -s -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
   -H "MCP-Protocol-Version: 2025-11-25" \
-  -H "MCP-Session-Id: $SESSION_ID" \
+  -H "MCP-Session-Id: ${SESSION_ID}" \
   -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' >/dev/null
 
 # List MCP tools (strict lifecycle/session mode)
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
   -H "MCP-Protocol-Version: 2025-11-25" \
-  -H "MCP-Session-Id: $SESSION_ID" \
+  -H "MCP-Session-Id: ${SESSION_ID}" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+```
+
+For CLI-agent gameplay, prefer the token-efficient Python helper after the
+server health check passes:
+
+```bash
+uv run --project examples/agents/python dmcp-agent --pretty brief
+uv run --project examples/agents/python dmcp-agent --pretty content enemies
+uv run --project examples/agents/python dmcp-agent --pretty shell
 ```
 
 ## Next Steps

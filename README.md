@@ -35,6 +35,18 @@ make run
 curl http://localhost:6060/health
 ```
 
+Use the optional Python helper when a DMCP-enabled engine is already running:
+
+```bash
+uv run --project examples/agents/python dmcp-agent tools --compact
+uv run --project examples/agents/python dmcp-agent --pretty brief
+uv run --project examples/agents/python dmcp-agent --pretty shell
+```
+
+The helper uses `uv` and the official MCP Python SDK. It is the preferred
+interface for CLI agents because it wraps verbose MCP schemas in compact,
+structured commands. See [examples/agents/python/README.md](examples/agents/python/README.md).
+
 SDK validation never launches a game:
 
 ```bash

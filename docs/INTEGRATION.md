@@ -38,18 +38,42 @@ SESSION_ID=$(printf '%s' "$INIT" | jq -r '.result.sessionId')
 curl -s -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
   -H "MCP-Protocol-Version: 2025-11-25" \
-  -H "MCP-Session-Id: $SESSION_ID" \
+  -H "MCP-Session-Id: ${SESSION_ID}" \
   -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' >/dev/null
 
 curl -X POST http://localhost:6060/mcp \
   -H "Content-Type: application/json" \
   -H "MCP-Protocol-Version: 2025-11-25" \
-  -H "MCP-Session-Id: $SESSION_ID" \
+  -H "MCP-Session-Id: ${SESSION_ID}" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
 Strict mode is the default: after `initialize`, include both
 `MCP-Protocol-Version` and `MCP-Session-Id` on every `/mcp` request.
+
+## Python Agent Helper
+
+For Codex, OpenCode, Claude Code, and similar CLI agents, prefer the optional
+Python helper before raw MCP calls. It keeps repeated commands compact and
+avoids dumping tool schemas into the model context.
+
+From the repository root:
+
+```bash
+uv run --project examples/agents/python dmcp-agent tools --compact
+uv run --project examples/agents/python dmcp-agent --pretty brief
+uv run --project examples/agents/python dmcp-agent --pretty shell
+```
+
+For one-off execution without creating a persistent project environment:
+
+```bash
+uvx --from examples/agents/python dmcp-agent brief
+```
+
+The helper expects a running DMCP server at `http://localhost:6060/mcp` by
+default. Install `uv` from <https://docs.astral.sh/uv/> if it is not already
+available.
 
 ## Codex
 
