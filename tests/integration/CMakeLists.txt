@@ -32,3 +32,4 @@ set_tests_properties(dmcp_fake_transport_integration PROPERTIES
   LABELS "integration;sdk;fake;transport"
   TIMEOUT 30
 )
+dmcp_set_test_runtime_path(dmcp_fake_transport_integration)

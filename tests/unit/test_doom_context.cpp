@@ -1,6 +1,8 @@
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <thread>
+#include <vector>
 
 #include "dmcp/adapter/entities.h"
 #include "dmcp/doom/api.h"
@@ -66,6 +68,10 @@ static dmcp_config_t TestConfig() {
   config.port            = dmcp::test::allocate_loopback_port();
   config.start_transport = false;
   return config;
+}
+
+static std::unique_ptr<dmcp_snapshot_t> MakeSnapshot() {
+  return std::make_unique<dmcp_snapshot_t>();
 }
 
 TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
@@ -225,13 +231,13 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit valid screenshot succeeds") {
-    uint8_t pixels[640 * 480 * 4];
-    for (size_t i = 0; i < sizeof(pixels); i++) {
+    std::vector<uint8_t> pixels(640 * 480 * 4);
+    for (size_t i = 0; i < pixels.size(); i++) {
       pixels[i] = (uint8_t)(i % 256);
     }
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 640;
     frame.height                  = 480;
     frame.stride                  = 640 * 4;
@@ -246,10 +252,10 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     REQUIRE(dmcp_screenshot_request(ctx) == true);
     REQUIRE(dmcp_screenshot_is_requested(ctx) == true);
 
-    uint8_t pixels[2 * 2 * 4] = {};
+    std::vector<uint8_t> pixels(2 * 2 * 4);
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 2;
     frame.height                  = 2;
     frame.stride                  = 2 * 4;
@@ -259,13 +265,13 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Copy ASCII screenshot uses caller buffer") {
-    uint8_t pixels[4 * 4 * 4] = {};
-    for (size_t i = 0; i < sizeof(pixels); ++i) {
+    std::vector<uint8_t> pixels(4 * 4 * 4);
+    for (size_t i = 0; i < pixels.size(); ++i) {
       pixels[i] = static_cast<uint8_t>(i % 255);
     }
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 4;
     frame.height                  = 4;
     frame.stride                  = 4 * 4;
@@ -285,10 +291,10 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("JSON screenshot reads stable dimensions") {
-    uint8_t pixels[2 * 2 * 4] = {};
+    std::vector<uint8_t> pixels(2 * 2 * 4);
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 2;
     frame.height                  = 2;
     frame.stride                  = 2 * 4;
@@ -305,10 +311,10 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit screenshot with custom dimensions succeeds") {
-    uint8_t pixels[1280 * 720 * 4];
+    std::vector<uint8_t> pixels(1280 * 720 * 4);
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 1280;
     frame.height                  = 720;
     frame.stride                  = 1280 * 4;
@@ -331,9 +337,9 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit screenshot with zero dimensions") {
-    uint8_t                 pixels[1];
+    std::vector<uint8_t>    pixels(1);
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 0;
     frame.height                  = 0;
     frame.stride                  = 1;
@@ -344,10 +350,10 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
   }
 
   SECTION("Submit screenshot with short stride returns error") {
-    uint8_t pixels[2 * 2 * 4] = {};
+    std::vector<uint8_t> pixels(2 * 2 * 4);
 
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 2;
     frame.height                  = 2;
     frame.stride                  = 2;
@@ -364,9 +370,9 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     dmcp_context_t* ctx_no_ss = dmcp_context_create(&no_screenshot);
     REQUIRE(ctx_no_ss != nullptr);
 
-    uint8_t                 pixels[1];
+    std::vector<uint8_t>    pixels(1);
     dmcp_screenshot_frame_t frame = {};
-    frame.pixels                  = pixels;
+    frame.pixels                  = pixels.data();
     frame.width                   = 1;
     frame.height                  = 1;
     frame.stride                  = 1;
@@ -411,9 +417,10 @@ TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
 
 TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   SECTION("Clear snapshot zeros all fields") {
-    dmcp_snapshot_t snapshot = {};
-    snapshot.player.hp       = 100;
-    snapshot.enemy_count     = 5;
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
+    snapshot.player.hp                = 100;
+    snapshot.enemy_count              = 5;
 
     dmcp_snapshot_clear(&snapshot);
 
@@ -431,7 +438,8 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   SECTION("Clear snapshot with null pointer is safe") { dmcp_snapshot_clear(nullptr); }
 
   SECTION("Add enemy to empty snapshot succeeds") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     dmcp_enemy_t enemy = create_test_enemy(1, 60, "DoomImp");
@@ -446,7 +454,8 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add multiple enemies to snapshot") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     dmcp_enemy_t enemy1 = create_test_enemy(1, 60, "DoomImp");
@@ -460,7 +469,8 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy beyond max limit fails") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     for (uint32_t i = 0; i < DMCP_MAX_ENEMIES; i++) {
@@ -483,14 +493,16 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy with null enemy fails") {
-    dmcp_snapshot_t snapshot = {};
-    bool            result   = dmcp_snapshot_add_enemy(&snapshot, nullptr);
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
+    bool             result           = dmcp_snapshot_add_enemy(&snapshot, nullptr);
 
     REQUIRE(result == false);
   }
 
   SECTION("Add item to empty inventory succeeds") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     dmcp_item_t item = create_test_item("Clip", 50);
@@ -504,7 +516,8 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add multiple items to inventory") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     dmcp_item_t item1 = create_test_item("Clip", 50);
@@ -518,7 +531,8 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add item beyond max limit fails") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     for (uint32_t i = 0; i < DMCP_MAX_INVENTORY; i++) {
@@ -541,8 +555,9 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add item with null item fails") {
-    dmcp_snapshot_t snapshot = {};
-    bool            result   = dmcp_snapshot_add_item(&snapshot, nullptr);
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
+    bool             result           = dmcp_snapshot_add_item(&snapshot, nullptr);
 
     REQUIRE(result == false);
   }
@@ -785,7 +800,8 @@ TEST_CASE("Doom MCP: Content availability by mode", "[doom][content]") {
 
 TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   SECTION("Convert valid snapshot to JSON") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     snapshot.player.hp         = 100;
@@ -820,14 +836,16 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with null buffer returns error") {
-    dmcp_snapshot_t snapshot = {};
-    int             result   = dmcp_snapshot_to_json(&snapshot, nullptr, MCP_MAX_JSON_SIZE);
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
+    int              result = dmcp_snapshot_to_json(&snapshot, nullptr, MCP_MAX_JSON_SIZE);
 
     REQUIRE(result == -1);
   }
 
   SECTION("Convert snapshot with small buffer truncates") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     char buffer[10];
@@ -837,7 +855,8 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert empty snapshot to JSON") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     char buffer[MCP_MAX_JSON_SIZE];
@@ -847,7 +866,8 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with many enemies to JSON") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     for (int i = 0; i < 10; i++) {
@@ -862,7 +882,8 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
   }
 
   SECTION("Convert snapshot with inventory to JSON") {
-    dmcp_snapshot_t snapshot = {};
+    auto             snapshot_storage = MakeSnapshot();
+    dmcp_snapshot_t& snapshot         = *snapshot_storage;
     dmcp_snapshot_clear(&snapshot);
 
     dmcp_item_t clip_item  = create_test_item("Clip", 50);

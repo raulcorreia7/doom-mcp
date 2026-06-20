@@ -60,7 +60,35 @@ endif()
 
 include(CTest)
 include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
-catch_discover_tests(dmcp_tests PROPERTIES LABELS "unit")
+
+set(DMCP_TEST_RUNTIME_DIRS)
+if(WIN32 AND DMCP_BUILD_SHARED)
+  if(TARGET single)
+    list(APPEND DMCP_TEST_RUNTIME_DIRS "$<TARGET_FILE_DIR:single>")
+  endif()
+  if(TARGET adapter_fake)
+    list(APPEND DMCP_TEST_RUNTIME_DIRS "$<TARGET_FILE_DIR:adapter_fake>")
+  endif()
+endif()
+
+set(DMCP_TEST_PATH_MODIFICATIONS)
+foreach(dmcp_test_runtime_dir IN LISTS DMCP_TEST_RUNTIME_DIRS)
+  list(APPEND DMCP_TEST_PATH_MODIFICATIONS "PATH=path_list_prepend:${dmcp_test_runtime_dir}")
+endforeach()
+
+function(dmcp_set_test_runtime_path test_name)
+  if(DMCP_TEST_PATH_MODIFICATIONS)
+    set_tests_properties("${test_name}" PROPERTIES
+      ENVIRONMENT_MODIFICATION "${DMCP_TEST_PATH_MODIFICATIONS}"
+    )
+  endif()
+endfunction()
+
+set(DMCP_CATCH_DISCOVERY_ARGS PROPERTIES LABELS "unit")
+if(DMCP_TEST_RUNTIME_DIRS)
+  list(APPEND DMCP_CATCH_DISCOVERY_ARGS DL_PATHS ${DMCP_TEST_RUNTIME_DIRS})
+endif()
+catch_discover_tests(dmcp_tests ${DMCP_CATCH_DISCOVERY_ARGS})
 
 add_executable(public_c_headers public_c_headers.c)
 target_include_directories(public_c_headers PRIVATE ${PROJECT_SOURCE_DIR}/include)
@@ -71,6 +99,7 @@ if(WIN32)
 endif()
 add_test(NAME public_c_headers COMMAND public_c_headers)
 set_tests_properties(public_c_headers PROPERTIES LABELS "unit")
+dmcp_set_test_runtime_path(public_c_headers)
 
 # Integration tests use the deterministic fake adapter and do not launch engines.
 if(DMCP_BUILD_INTEGRATION_TESTS)
