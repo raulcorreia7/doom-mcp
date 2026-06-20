@@ -12,6 +12,7 @@
 #include "dmcp_adapter_command_queue.h"
 #include "dmcp/adapter/utils.h"
 #include "dmcp/doom/api.h"
+#include "mcp/core/memory.h"
 #include "mcp/core/string.h"
 
 #include "doomdef.h"
@@ -156,7 +157,7 @@ dmcp_crispy_t* dmcp_crispy_create(const dmcp_crispy_config_t* config) {
     if (copy_size == 0 || copy_size > sizeof(dmcp_crispy_config_t)) {
       copy_size = sizeof(dmcp_crispy_config_t);
     }
-    memcpy(&effective_config, config, copy_size);
+    mcp_memcpy_safe(&effective_config, sizeof(effective_config), config, copy_size);
     effective_config.struct_size = sizeof(dmcp_crispy_config_t);
   }
 
@@ -248,7 +249,7 @@ static bool crispy_execute_command_for_queue(void* adapter_ctx, const dmcp_comma
   ctx     = (dmcp_crispy_t*)adapter_ctx;
   success = dmcp_crispy_command_execute(ctx, cmd);
 
-  dmcp_strcpy_safe(out_message, crispy_command_message(cmd, success), out_message_size);
+  mcp_strcpy_safe(out_message, out_message_size, crispy_command_message(cmd, success));
   dmcp_adapter_log(MCP_LOG_DEBUG, "command executed: type=%d result=%s", cmd->type,
                    success ? "success" : "failed");
   return success;

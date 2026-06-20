@@ -18,6 +18,8 @@
 #include <vector>
 
 #include "json/json.hpp"
+#include "mcp/core/memory.h"
+#include "mcp/core/string.h"
 #include "mcp/generic/constants.h"
 #include "mcp/generic/transport.h"
 #include "mcp/json_rpc.hpp"
@@ -166,7 +168,7 @@ static void ServerLog(const Server* server, int level, const char* fmt, ...) {
   va_end(args);
 
   if (result >= static_cast<int>(sizeof(buffer))) {
-    std::strcpy(buffer + sizeof(buffer) - 4, "...");
+    mcp_strcpy_safe(buffer + sizeof(buffer) - 4, 4, "...");
   }
 
   server->config.on_log(server->config.log_user_data, level, buffer);
@@ -251,7 +253,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -264,7 +266,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -280,7 +282,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -297,7 +299,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -310,7 +312,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -326,7 +328,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -341,7 +343,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -353,7 +355,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -373,7 +375,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -385,7 +387,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -397,7 +399,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -409,7 +411,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -422,7 +424,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -464,7 +466,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_handled++;
     return true;
   }
@@ -489,7 +491,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       server->requests_failed++;
       return true;
     }
@@ -507,7 +509,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     }
     server->requests_handled++;
     return true;
@@ -537,7 +539,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       return false;
     }
 
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -556,7 +558,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         *http_status = 500;
         return false;
       }
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     }
     server->requests_handled++;
     return true;
@@ -609,7 +611,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
         return false;
       }
 
-      std::strcpy(response_buffer, resp.c_str());
+      mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
       handled = true;
     }
   }
@@ -629,7 +631,7 @@ static bool HandleMCPRequest(Server* server, const char* body, char* response_bu
       *http_status = 500;
       return false;
     }
-    std::strcpy(response_buffer, resp.c_str());
+    mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
     server->requests_failed++;
     return true;
   }
@@ -656,7 +658,7 @@ static bool HandleHealthRequest(Server* server, char* response_buffer, size_t re
     return false;
   }
 
-  std::strcpy(response_buffer, resp.c_str());
+  mcp_strcpy_safe(response_buffer, response_size, resp.c_str());
   *http_status = 200;
   return true;
 }
@@ -713,7 +715,7 @@ static bool DispatchHttpRoute(Server* server, const char* method, const char* pa
           "{\"error\":{\"code\":\"internal_error\",\"message\":\"Internal "
           "server error\"}}";
       if (std::strlen(payload) < response_size) {
-        std::strcpy(response_buffer, payload);
+        mcp_strcpy_safe(response_buffer, response_size, payload);
       }
     }
     return true;
@@ -785,7 +787,7 @@ mcp_server_t* mcp_server_create(const mcp_server_config_t* config) {
     if (copy_size == 0 || copy_size > sizeof(mcp_server_config_t)) {
       copy_size = sizeof(mcp_server_config_t);
     }
-    std::memcpy(&server->config, config, copy_size);
+    mcp_memcpy_safe(&server->config, sizeof(server->config), config, copy_size);
   }
   // Seed RNG for session ID generation
   {
@@ -1030,7 +1032,7 @@ size_t mcp_format_success_response(char* buffer, size_t buffer_size, const char*
   std::string response = mcp::BuildJsonRpcResult(id_json, result_part);
 
   if (response.size() >= buffer_size) return 0;
-  std::strcpy(buffer, response.c_str());
+  mcp_strcpy_safe(buffer, buffer_size, response.c_str());
   return response.size();
 }
 
@@ -1052,7 +1054,7 @@ size_t mcp_format_error_response(char* buffer, size_t buffer_size, const char* i
       mcp::BuildJsonRpcError(id_json, error_code, error_message ? error_message : "Unknown error");
 
   if (response.size() >= buffer_size) return 0;
-  std::strcpy(buffer, response.c_str());
+  mcp_strcpy_safe(buffer, buffer_size, response.c_str());
   return response.size();
 }
 

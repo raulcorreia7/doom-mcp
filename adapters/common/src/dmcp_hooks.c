@@ -3,6 +3,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+dmcp_engine_config_t dmcp_engine_config_from_argv(int argc, char** argv) {
+  dmcp_engine_config_t cfg;
+  int                  port;
+
+  cfg = dmcp_engine_config_default();
+
+  port = dmcp_engine_port_from_argv(argc, argv, "dmcp_port");
+  if (port > 0) {
+    cfg.port = port;
+  }
+
+  cfg.allow_cheats = dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_cheats");
+  cfg.allow_console_commands =
+      cfg.allow_cheats || dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_console");
+
+  return cfg;
+}
+
 int dmcp_engine_port_from_argv(int argc, char** argv, const char* flag) {
   char needle[64];
   int  i;

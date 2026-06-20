@@ -26,7 +26,7 @@ using namespace dmcp::zdoom;
 namespace {
 
 static void CopyCommandMessage(char* out, size_t out_size, const char* message) {
-  dmcp_strcpy_safe(out, message ? message : "", out_size);
+  mcp_strcpy_safe(out, out_size, message ? message : "");
 }
 
 static player_t* GetConsolePlayer() {

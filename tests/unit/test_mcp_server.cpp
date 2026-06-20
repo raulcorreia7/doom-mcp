@@ -9,6 +9,7 @@
 #include "mcp/generic/protocol.h"
 #include "mcp/generic/server.h"
 #include "mcp/json/json.hpp"
+#include "mcp/core/string.h"
 #include "support/network.hpp"
 #include "test_utils.hpp"
 
@@ -30,7 +31,7 @@ static bool simple_handler(void* user_data, const char* method, const char* requ
 
   const char* response = "{\"result\":\"ok\"}";
   if (response_size > std::strlen(response)) {
-    std::strcpy(response_buffer, response);
+    mcp_strcpy_safe(response_buffer, response_size, response);
     return true;
   }
   return false;
@@ -45,7 +46,7 @@ static bool data_handler(void* user_data, const char* /*method*/, const char* /*
 
   const char* response = "{\"result\":\"data received\"}";
   if (response_size > std::strlen(response)) {
-    std::strcpy(response_buffer, response);
+    mcp_strcpy_safe(response_buffer, response_size, response);
     return true;
   }
   return false;
@@ -68,7 +69,7 @@ static bool route_handler(void* user_data, const char* method, const char* path,
   }
 
   *http_status = 200;
-  std::strcpy(response_buffer, response);
+  mcp_strcpy_safe(response_buffer, response_size, response);
   return true;
 }
 
@@ -721,7 +722,7 @@ static bool overflow_handler(void* user_data, const char* method, const char* re
   if (response_size < needed) {
     return false;
   }
-  std::strcpy(response_buffer, large_response);
+  mcp_strcpy_safe(response_buffer, response_size, large_response);
   return true;
 }
 

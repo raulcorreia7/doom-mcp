@@ -136,14 +136,14 @@ static bool crispy_execute_input_for_queue(void* adapter_ctx, const dmcp_command
   bool           success;
 
   if (!adapter_ctx || !cmd || cmd->type != DMCP_CMD_PLAYER_INPUT) {
-    dmcp_strcpy_safe(out_message, "Invalid player input", out_message_size);
+    mcp_strcpy_safe(out_message, out_message_size, "Invalid player input");
     return false;
   }
 
   ctx     = (dmcp_crispy_t*)adapter_ctx;
   success = dmcp_crispy_input_execute(ctx, cmd);
   if (!success) {
-    dmcp_strcpy_safe(out_message, "Input failed in engine", out_message_size);
+    mcp_strcpy_safe(out_message, out_message_size, "Input failed in engine");
   }
   return success;
 }

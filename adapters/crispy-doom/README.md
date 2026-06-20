@@ -1,29 +1,113 @@
-# Crispy Doom DMCP Adapter
+# crispy-doom Adapter
+
+This adapter provides a narrow C hook layer for a crispy-doom engine fork. The
+adapter source lives in DMCP; the consuming crispy-doom repository owns the
+actual game build, packaging, release flow, and runtime assets.
+
+## Boundary
+
+```text
+crispy-doom engine hooks
+  <-> DMCP_* hook API (`include/engine_hooks.h`)
+  <-> dmcp_crispy_* adapter internals
+  <-> Doom MCP context
+```
+
+Engine code should call the `DMCP_*` hook API. The lower-level
+`dmcp_crispy_*` lifecycle is adapter implementation detail for tests and
+advanced embedding.
 
 ## Files
 
-- `include/` - C headers used by the Crispy engine hook points.
-- `src/` - Adapter lifecycle, state extraction, command execution, and input
-  handling.
+| Path | Purpose |
+|------|---------|
+| `include/engine_hooks.h` | Engine-facing hook API |
+| `include/dmcp_crispy.h` | Lower-level adapter lifecycle |
+| `src/engine_hooks.c` | Argument parsing, init/tick/frame/shutdown glue |
+| `src/adapter_lifecycle.c` | DMCP context lifecycle and queue processing |
+| `src/state_player.c` | Player snapshot extraction |
+| `src/state_level.c` | Level/game metadata extraction |
+| `src/state_enemies.c` | Enemy and world entity enumeration |
+| `src/command_exec.c` | Command execution bridge |
+| `src/input.c` | Tick-level input bridge |
+| `src/dmcp_ascii.c` | Framebuffer-to-ASCII conversion |
 
-The pinned `crispy-doom/` submodule already contains the minimal engine hook
-points and CMake options needed to build these adapter sources. This adapter
-directory is the reusable implementation; there is no tracked patch file to
-apply.
+## Build
 
-## Build Workflow
-
-From the repository root:
+Enable this adapter from an engine build that provides the required source and
+generated-header include directories:
 
 ```bash
-make submodules
-make crispy-doom
+cmake -S /path/to/doom-mcp -B build/dmcp-crispy \
+  -DDMCP_BUILD_SHARED=ON \
+  -DDMCP_BUILD_SINGLE_DLL=ON \
+  -DDMCP_BUILD_ADAPTER_CRISPY=ON \
+  -DDMCP_CRISPY_SRC_DIR=/path/to/crispy/src \
+  -DDMCP_CRISPY_DOOM_DIR=/path/to/crispy/src/doom \
+  -DDMCP_CRISPY_GEN_INCLUDE_DIR=/path/to/crispy/build
+cmake --build build/dmcp-crispy --parallel
 ```
 
-`make crispy-doom` automatically runs
-`tests/integration/build_crispy_doom.sh`, which validates the checked-in hooks,
-builds DMCP, and configures Crispy with `DMCP_ENABLE=ON`.
+## Engine Hook Example
 
-This is a build/integration check only: it does not apply patches, download a
-WAD, or launch the game. Runtime/headless Crispy checks are optional engine e2e
-validation and should stay separate from the default no-game test path.
+Keep the engine-side changes minimal:
+
+```c
+#include "engine_hooks.h"
+
+void D_DoomMain(void) {
+  dmcp_engine_config_t config = DMCP_ParseArgs(myargc, myargv);
+  DMCP_Init(config);
+
+  /* continue normal engine startup */
+}
+
+void G_Ticker(void) {
+  DMCP_Tick();
+
+  /* continue normal game tick */
+}
+
+void D_Display(void) {
+  DMCP_CaptureFrame();
+
+  /* continue normal frame presentation */
+}
+
+void I_Quit(void) {
+  DMCP_Shutdown();
+}
+```
+
+`DMCP_ParseArgs()` returns a value-owned config, so the engine can inspect or
+override it before calling `DMCP_Init(config)` without heap ownership or parse
+cleanup.
+
+## Supported Runtime Switches
+
+The hook parser currently understands:
+
+| Switch | Purpose |
+|--------|---------|
+| `-dmcp_port <port>` | Override the MCP HTTP port |
+| `-dmcp_allow_cheats` | Enable cheat-gated tools |
+| `-dmcp_allow_console` | Enable console command execution |
+
+Console commands are enabled automatically when cheats are enabled.
+
+## Hook Responsibilities
+
+- `DMCP_Init(config)` creates the adapter and registers shutdown cleanup.
+- `DMCP_Tick()` publishes snapshots and drains queued commands/input.
+- `DMCP_CaptureFrame()` submits a screenshot only when the MCP layer requested
+  one.
+- `DMCP_Shutdown()` destroys the adapter context and is safe to call during
+  engine shutdown.
+
+## Notes
+
+- This SDK repository does not launch crispy-doom or download game data.
+- Adapter compile checks need crispy-doom headers from the consuming engine
+  build.
+- The adapter exposes canonical DMCP tool/content names rather than engine-local
+  aliases.

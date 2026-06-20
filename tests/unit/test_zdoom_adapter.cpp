@@ -246,7 +246,7 @@ TEST_CASE("Adapter: Command execution", "[adapter][commands]") {
     cmd.flags          = 0;
 
     dmcp_cmd_spawn_t* spawn = &cmd.data.spawn;
-    dmcp_strcpy(spawn->entity_class, "DoomImp", 128);
+    mcp_strcpy_safe(spawn->entity_class, 128, "DoomImp");
     spawn->position.x = 100.0f;
     spawn->position.y = 200.0f;
     spawn->angle      = 0.0f;
@@ -263,7 +263,7 @@ TEST_CASE("Adapter: Command execution", "[adapter][commands]") {
     cmd.flags          = 0;
 
     dmcp_cmd_console_t* console = &cmd.data.console;
-    dmcp_strcpy(console->command, "echo \"test\"", 256);
+    mcp_strcpy_safe(console->command, 256, "echo \"test\"");
 
     bool result = dmcp_zdoom_command_execute(mcp, &cmd);
 
@@ -314,7 +314,7 @@ TEST_CASE("Adapter: Command execution", "[adapter][commands]") {
     cmd.flags          = 0;
 
     dmcp_cmd_give_item_t* give = &cmd.data.give_item;
-    dmcp_strcpy(give->item_class, "Clip", 128);
+    mcp_strcpy_safe(give->item_class, 128, "Clip");
     give->amount = 50;
 
     bool result = dmcp_zdoom_command_execute(mcp, &cmd);
@@ -328,7 +328,7 @@ TEST_CASE("Adapter: Command execution", "[adapter][commands]") {
     cmd.flags          = 0;
 
     dmcp_cmd_change_level_t* change = &cmd.data.change_level;
-    dmcp_strcpy(change->map_name, "MAP01", 32);
+    mcp_strcpy_safe(change->map_name, 32, "MAP01");
     change->skill_level     = 2;
     change->reset_inventory = false;
 
@@ -499,7 +499,7 @@ TEST_CASE("Adapter: Command flags", "[adapter][commands][flags]") {
     cmd.flags          = DMCP_CMD_FLAG_IMMEDIATE;
 
     dmcp_cmd_console_t* console = &cmd.data.console;
-    dmcp_strcpy(console->command, "echo \"test\"", 256);
+    mcp_strcpy_safe(console->command, 256, "echo \"test\"");
 
     bool result = dmcp_zdoom_command_execute(mcp, &cmd);
     REQUIRE((result == true || result == false));
@@ -522,7 +522,7 @@ TEST_CASE("Adapter: Command flags", "[adapter][commands][flags]") {
     cmd.flags          = DMCP_CMD_FLAG_IMMEDIATE | DMCP_CMD_FLAG_RELIABLE;
 
     dmcp_cmd_spawn_t* spawn = &cmd.data.spawn;
-    dmcp_strcpy(spawn->entity_class, "DoomImp", 128);
+    mcp_strcpy_safe(spawn->entity_class, 128, "DoomImp");
     spawn->position.x = 100.0f;
     spawn->position.y = 200.0f;
     spawn->angle      = 0.0f;

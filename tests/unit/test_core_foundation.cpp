@@ -15,3 +15,16 @@ TEST_CASE("MCP core string helpers define null ordering", "[core][string]") {
   REQUIRE(mcp_strcmp_ci(nullptr, "value") < 0);
   REQUIRE(mcp_strcmp_ci("value", nullptr) > 0);
 }
+
+TEST_CASE("MCP core memory helper checks destination capacity", "[core][memory]") {
+  char dest[4] = {};
+
+  REQUIRE(mcp_memcpy_safe(dest, sizeof(dest), "abc", 4) == true);
+  REQUIRE(dest[0] == 'a');
+  REQUIRE(dest[3] == '\0');
+
+  REQUIRE(mcp_memcpy_safe(dest, sizeof(dest), "overflow", 9) == false);
+  REQUIRE(mcp_memcpy_safe(nullptr, sizeof(dest), "abc", 4) == false);
+  REQUIRE(mcp_memcpy_safe(dest, sizeof(dest), nullptr, 4) == false);
+  REQUIRE(mcp_memcpy_safe(nullptr, 0, nullptr, 0) == true);
+}

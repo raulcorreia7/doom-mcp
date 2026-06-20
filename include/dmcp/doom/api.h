@@ -4,6 +4,7 @@
 #include "commands.h"
 #include "config.h"
 #include "types.h"
+#include "mcp/core/string.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -361,7 +362,7 @@ static inline void dmcp_snapshot_clear(dmcp_snapshot_t* snapshot) {
  *         .position = {enemy->x, enemy->y},
  *         .max_hp = enemy->max_health,
  *     };
- *     dmcp_strcpy(enemy.type, enemy->className, sizeof(enemy.type));
+ *     mcp_strcpy_safe(enemy.type, sizeof(enemy.type), enemy->className);
  *
  *     if (!dmcp_snapshot_add_enemy(&snapshot, &enemy)) {
  *         fprintf(stderr, "Enemy array full\n");
@@ -418,7 +419,7 @@ static inline bool dmcp_snapshot_add_entity(dmcp_snapshot_t*     snapshot,
  *     dmcp_item_t inv_item = {
  *         .amount = item->amount,
  *     };
- *     strcpy(inv_item.name, item->name, sizeof(inv_item.name));
+ *     mcp_strcpy_safe(inv_item.name, sizeof(inv_item.name), item->name);
  *
  *     if (!dmcp_snapshot_add_item(&snapshot, &inv_item)) {
  *         fprintf(stderr, "Inventory full\n");
@@ -432,38 +433,6 @@ static inline bool dmcp_snapshot_add_item(dmcp_snapshot_t* snapshot, const dmcp_
   if (snapshot->inventory_count >= DMCP_MAX_INVENTORY) return false;
   snapshot->inventory[snapshot->inventory_count++] = *item;
   return true;
-}
-
-/**
- * @brief Safe string copy
- *
- * Copies a source string to destination with bounds checking.
- * Unlike strcpy(), this function ensures the destination is always
- * null-terminated and never overflows the buffer.
- *
- * @param dest Destination buffer
- * @param src Source string
- * @param dest_size Size of destination buffer
- *
- * @note Safe to call with NULL pointers (no-op)
- * @note Always null-terminates dest
- *
- * Example:
- * @code
- * char level_name[DMCP_MAX_LEVEL_NAME];
- * dmcp_strcpy(level_name, "E1M1: Hangar", sizeof(level_name));
- * printf("Level: %s\n", level_name);
- * @endcode
- */
-static inline void dmcp_strcpy(char* dest, const char* src, size_t dest_size) {
-  size_t i;
-  if (!dest || !src || dest_size == 0) return;
-  i = 0;
-  while (i < dest_size - 1 && src[i] != '\0') {
-    dest[i] = src[i];
-    i++;
-  }
-  dest[i] = '\0';
 }
 
 /**
@@ -481,8 +450,8 @@ static inline void dmcp_strcpy(char* dest, const char* src, size_t dest_size) {
 static inline bool dmcp_snapshot_add_map(dmcp_snapshot_t* snapshot, const char* map_name) {
   if (!snapshot || !map_name || map_name[0] == '\0') return false;
   if (snapshot->map_count >= DMCP_MAX_MAPS) return false;
-  dmcp_strcpy(snapshot->maps[snapshot->map_count].name, map_name,
-              sizeof(snapshot->maps[snapshot->map_count].name));
+  mcp_strcpy_safe(snapshot->maps[snapshot->map_count].name,
+                  sizeof(snapshot->maps[snapshot->map_count].name), map_name);
   snapshot->map_count++;
   return true;
 }

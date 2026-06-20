@@ -27,15 +27,21 @@ target_include_directories(adapter_zdoom
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../common/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${DMCP_ZDOOM_INCLUDE_DIRS}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
 )
 
 target_link_libraries(adapter_zdoom
     PUBLIC
         dmcp::core
+    PRIVATE
+        dmcp_adapter_common
 )
+
+if(DMCP_BUILD_SHARED)
+    target_compile_definitions(adapter_zdoom PRIVATE DMCP_BUILDING)
+endif()
 
 dmcp_enable_warnings(adapter_zdoom)

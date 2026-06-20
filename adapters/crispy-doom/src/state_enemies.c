@@ -178,7 +178,7 @@ int dmcp_crispy_populate_enemies(dmcp_snapshot_t* snap) {
 
       // Get current enemy type name
       type_name = dmcp_enemy_type_name(mo->type);
-      dmcp_strcpy_safe(enemy.type, type_name, sizeof(enemy.type));
+      mcp_strcpy_safe(enemy.type, sizeof(enemy.type), type_name);
 
       dmcp_snapshot_add_enemy(snap, &enemy);
       count++;
@@ -221,7 +221,7 @@ int dmcp_crispy_populate_entities(dmcp_snapshot_t* snap) {
     entity.position.z = dmcp_fixed_to_float(mo->z);
     entity.angle      = dmcp_angle_to_radians(mo->angle);
 
-    dmcp_strcpy_safe(entity.type, dmcp_world_entity_type_name(mo->type), sizeof(entity.type));
+    mcp_strcpy_safe(entity.type, sizeof(entity.type), dmcp_world_entity_type_name(mo->type));
     dmcp_snapshot_add_entity(snap, &entity);
     count++;
   }

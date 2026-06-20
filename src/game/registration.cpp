@@ -3,6 +3,8 @@
 #include <cstring>
 #include <vector>
 
+#include "mcp/core/memory.h"
+
 namespace {
 
 mcp_game_registration_t copy_registration(const mcp_game_registration_t* registration) {
@@ -16,7 +18,7 @@ mcp_game_registration_t copy_registration(const mcp_game_registration_t* registr
     copy_size = sizeof(mcp_game_registration_t);
   }
 
-  std::memcpy(&local, registration, copy_size);
+  mcp_memcpy_safe(&local, sizeof(local), registration, copy_size);
   return local;
 }
 
@@ -46,8 +48,7 @@ bool validate_registration(const mcp_game_registration_t& registration) {
 
 extern "C" {
 
-mcp_status_t mcp_game_register(mcp_server_t* server,
-                               const mcp_game_registration_t* registration) {
+mcp_status_t mcp_game_register(mcp_server_t* server, const mcp_game_registration_t* registration) {
   if (!server || !registration) {
     return MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
   }
@@ -69,8 +70,8 @@ mcp_status_t mcp_game_register(mcp_server_t* server,
 
   for (size_t i = 0; i < local.route_count; ++i) {
     const mcp_game_route_registration_t& route = local.routes[i];
-    status = mcp_server_route_register(server, route.method, route.path, route.handler,
-                                       route.user_data);
+    status =
+        mcp_server_route_register(server, route.method, route.path, route.handler, route.user_data);
     if (!mcp_status_is_ok(status)) {
       for (size_t registered_index : registered_routes) {
         const mcp_game_route_registration_t& registered = local.routes[registered_index];
@@ -110,5 +111,4 @@ void mcp_game_unregister(mcp_server_t* server, const mcp_game_registration_t* re
     }
   }
 }
-
 }

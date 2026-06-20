@@ -1,100 +1,143 @@
-# ZDoom Adapter for DMCP
+# zdoom Adapter
 
-This adapter integrates ZDoom/GZDoom-based source ports with the DMCP SDK, enabling MCP protocol support for AI agents.
+This adapter provides a C++ bridge between zdoom-family engine internals and the
+DMCP SDK. The consuming engine repository owns the final game build, runtime
+assets, packaging, and release flow.
 
-## Structure
+## Boundary
 
-```
-adapters/zdoom/
-├── include/
-│   ├── dmcp_adapter.h # Canonical local adapter include
-│   └── internal.h     # Shared internals (AdapterContext, logging)
-├── src/
-│   ├── adapter.cpp    # Lifecycle + state extraction
-│   └── commands.cpp   # Command execution
-├── CMakeLists.txt
-└── README.md
+```text
+zdoom-family engine hooks
+  <-> dmcp_zdoom_* adapter API (`include/dmcp/adapters/zdoom.h`)
+  <-> Doom MCP context
 ```
 
-## Design
+## Files
 
-The ZDoom adapter uses a streamlined C++ implementation:
-
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `include/internal.h` | Shared utilities (AdapterContext, logging helpers) |
-| `src/adapter.cpp` | Lifecycle + state extraction |
-| `src/commands.cpp` | Command execution |
+| `include/engine_hooks.h` | Engine-facing easy hook API |
+| `include/dmcp_zdoom.h` | Adapter-local include over the public C API |
+| `include/internal.h` | Internal adapter context and logging helpers |
+| `src/adapter.cpp` | Lifecycle, snapshot extraction, stats |
+| `src/commands.cpp` | Command execution and queue processing |
+| `src/engine_hooks.cpp` | Parse/init/tick/frame/shutdown glue |
 
-## Requirements
+## Build
 
-- ZDoom or GZDoom source code
-- DMCP SDK (built with `DMCP_BUILD_ADAPTER_ZDOOM=ON`)
-- CMake 3.25+
-
-## Building
+Enable the adapter from a build that can provide zdoom-family include paths:
 
 ```bash
-# From doom-mcp root
-cmake -B build/default \
-  -DDMCP_BUILD_TESTS=ON \
+cmake -S /path/to/doom-mcp -B build/dmcp-zdoom \
+  -DDMCP_BUILD_SHARED=ON \
+  -DDMCP_BUILD_SINGLE_DLL=ON \
   -DDMCP_BUILD_ADAPTER_ZDOOM=ON \
   -DDMCP_ZDOOM_INCLUDE_DIRS=/path/to/zdoom/src
-cmake --build build/default --parallel
+cmake --build build/dmcp-zdoom --parallel
 ```
 
-In your ZDoom-based engine's CMakeLists.txt:
+For multiple include roots, pass a CMake semicolon-separated list:
 
-Add the DMCP source tree as a local subdirectory and link `dmcp::adapter_zdoom`.
+```bash
+-DDMCP_ZDOOM_INCLUDE_DIRS="/path/to/src;/path/to/generated"
+```
 
-## Integration Points
+## Engine Hook Example
 
-Integrate the adapter into your ZDoom engine at:
+Prefer the easy hook layer for engine-side integration:
 
-1. **Startup** - Initialize DMCP via `dmcp_zdoom_create()`
-2. **G_Ticker()** - Tick DMCP every game tic via `dmcp_zdoom_tick()`
-3. **Shutdown** - Cleanup DMCP via `dmcp_zdoom_destroy()`
+```cpp
+#include "engine_hooks.h"
 
-## API
+void D_DoomMain() {
+  dmcp_engine_config_t config = DMCP_ParseArgs(myargc, myargv);
+  DMCP_Init(config);
+
+  // continue normal engine startup
+}
+
+void G_Ticker() {
+  DMCP_Tick();
+
+  // continue normal game tick
+}
+
+void D_Display() {
+  DMCP_CaptureFrame();
+
+  // continue normal frame presentation
+}
+
+void I_Quit() {
+  DMCP_Shutdown();
+}
+```
+
+`DMCP_CaptureFrame()` is currently a no-op in this adapter until screenshot
+capture is wired to zdoom-family rendering APIs.
+
+## Lower-Level API
+
+Use this only when the engine needs direct ownership of the adapter handle:
 
 ```cpp
 #include "dmcp/adapters/zdoom.h"
 
-// Configuration
-dmcp_zdoom_config_t cfg = dmcp_zdoom_config_default();
-cfg.base.port = 6060;
+static dmcp_zdoom_t* g_dmcp = nullptr;
 
-// Lifecycle
-dmcp_zdoom_t* ctx = dmcp_zdoom_create(&cfg);
+void EngineStartup() {
+  dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
+  config.base.port = 6060;
+  config.base.permissions.allow_cheats = false;
+  config.base.permissions.allow_console_commands = false;
 
-// In G_Ticker (35 Hz)
-mcp_status_t result = dmcp_zdoom_tick(ctx);
-if (result.code != MCP_STATUS_CODE_OK) {
-    // Handle error
+  g_dmcp = dmcp_zdoom_create(&config);
 }
 
-// Process pending commands
-dmcp_zdoom_commands_process(ctx);
+void G_Ticker() {
+  if (g_dmcp == nullptr) {
+    return;
+  }
 
-// Queries
-bool running = dmcp_zdoom_is_running(ctx);
-dmcp_stats_t stats;
-dmcp_zdoom_get_stats(ctx, &stats);
+  (void)dmcp_zdoom_tick(g_dmcp);
+  dmcp_zdoom_commands_process(g_dmcp);
+  dmcp_zdoom_inputs_process(g_dmcp);
+}
 
-// Cleanup
-dmcp_zdoom_destroy(ctx);
+void EngineShutdown() {
+  dmcp_zdoom_destroy(g_dmcp);
+  g_dmcp = nullptr;
+}
 ```
 
-## Human-Friendly Output
+## Configuration
 
-All enum values are output as readable strings:
+`dmcp_zdoom_config_t` embeds `dmcp_config_t` as `base`, so the generic DMCP
+settings are configured the same way as the core API:
 
-- **Difficulty**: `"Hurt Me Plenty"`, `"Ultra-Violence"`, etc.
-- **Weapons**: `"Pistol"`, `"Shotgun"`, `"RocketLauncher"`, etc.
-- **Player State**: `"alive"`, `"dead"`, `"reborn"`
-- **Game State**: `"in_level"`, `"intermission"`, `"finale"`
-- **Enemy Types**: `"Zombieman"`, `"DoomImp"`, `"Cacodemon"`, etc.
+```cpp
+dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
+config.base.port = 6060;
+config.base.target_hz = 35;
+config.base.screenshot.enable = true;
+config.base.permissions.allow_cheats = false;
+config.base.permissions.allow_console_commands = false;
+```
 
-## License
+## Adapter Responsibilities
 
-MIT License - See LICENSE file for details.
+- `dmcp_zdoom_tick()` updates the DMCP context and publishes current state.
+- `dmcp_zdoom_commands_process()` drains queued mutating commands in engine
+  context.
+- `dmcp_zdoom_inputs_process()` is present for API symmetry; unsupported input
+  actions should fail cleanly rather than being silently accepted.
+- `dmcp_zdoom_get_context()` exposes the underlying `dmcp_context_t` for advanced
+  engine integration.
+
+## Notes
+
+- This SDK repository does not launch an engine or download game data.
+- Engine-header validation belongs in the consuming engine build or explicit
+  local adapter builds.
+- The adapter should return canonical DMCP content/tool names, not engine-local
+  aliases.

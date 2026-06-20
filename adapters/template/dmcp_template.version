@@ -1,0 +1,7 @@
+{
+  global:
+    DMCP_*;
+    dmcp_template_*;
+  local:
+    *;
+};

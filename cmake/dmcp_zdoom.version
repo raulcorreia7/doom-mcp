@@ -1,5 +1,6 @@
 {
     global:
+        DMCP_*;
         dmcp_zdoom_*;
     local:
         *;

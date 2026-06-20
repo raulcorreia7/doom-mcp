@@ -1,8 +1,8 @@
-#ifndef DMCP_CRISPY_ENGINE_HOOKS_H
-#define DMCP_CRISPY_ENGINE_HOOKS_H
+#ifndef DMCP_ZDOOM_ENGINE_HOOKS_H
+#define DMCP_ZDOOM_ENGINE_HOOKS_H
 
-#include "dmcp_crispy.h"
 #include "dmcp_hooks.h"
+#include "dmcp_zdoom.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,7 +12,7 @@ extern "C" {
  *
  * These functions intentionally have simple DMCP_* names because an engine
  * binary should link exactly one real DMCP engine adapter. Adapter internals use
- * dmcp_crispy_* directly; engine hook points should prefer this small surface.
+ * dmcp_zdoom_* directly; engine hook points should prefer this small surface.
  */
 DMCP_API dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv);
 DMCP_API void                 DMCP_Init(dmcp_engine_config_t config);

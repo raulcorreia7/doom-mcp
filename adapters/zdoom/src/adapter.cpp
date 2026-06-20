@@ -7,6 +7,8 @@
 #include <cstring>
 #include <memory>
 
+#include "mcp/core/memory.h"
+
 // ZDoom headers - these come from the engine build
 #include "common/engine/printf.h"
 #include "common/utility/name.h"
@@ -67,7 +69,7 @@ static dmcp_zdoom_config_t CopyConfig(const dmcp_zdoom_config_t* config) {
   if (copy_size == 0 || copy_size > sizeof(dmcp_zdoom_config_t)) {
     copy_size = sizeof(dmcp_zdoom_config_t);
   }
-  std::memcpy(&effective, config, copy_size);
+  mcp_memcpy_safe(&effective, sizeof(effective), config, copy_size);
   effective.struct_size = sizeof(dmcp_zdoom_config_t);
   return effective;
 }
@@ -150,15 +152,15 @@ static void BindPlayerAmmo(dmcp_snapshot_t* snapshot, const PlayerView& view) {
 static void BindLevel(dmcp_snapshot_t* snapshot, const PlayerView& view) {
   if (view.HasLevel()) {
     snapshot->level.tic = view.level->time;
-    dmcp_strcpy(snapshot->level.level_id, view.level->MapName.GetChars(),
-                sizeof(snapshot->level.level_id));
+    mcp_strcpy_safe(snapshot->level.level_id, sizeof(snapshot->level.level_id),
+                    view.level->MapName.GetChars());
 
     if (view.level->LevelName.IsNotEmpty()) {
-      dmcp_strcpy(snapshot->level.level_name, view.level->LevelName.GetChars(),
-                  sizeof(snapshot->level.level_name));
+      mcp_strcpy_safe(snapshot->level.level_name, sizeof(snapshot->level.level_name),
+                      view.level->LevelName.GetChars());
     } else {
-      dmcp_strcpy(snapshot->level.level_name, view.level->MapName.GetChars(),
-                  sizeof(snapshot->level.level_name));
+      mcp_strcpy_safe(snapshot->level.level_name, sizeof(snapshot->level.level_name),
+                      view.level->MapName.GetChars());
     }
   } else {
     snapshot->level.tic           = 0;
@@ -197,7 +199,7 @@ static void BindEnemies(dmcp_snapshot_t* snapshot, const PlayerView& view) {
 
     enemy.position.x = static_cast<float>(actor->Pos().X);
     enemy.position.y = static_cast<float>(actor->Pos().Y);
-    dmcp_strcpy(enemy.type, actor->GetClass()->TypeName.GetChars(), sizeof(enemy.type));
+    mcp_strcpy_safe(enemy.type, sizeof(enemy.type), actor->GetClass()->TypeName.GetChars());
 
     dmcp_snapshot_add_enemy(snapshot, &enemy);
   }
@@ -213,7 +215,7 @@ static void BindInventory(dmcp_snapshot_t* snapshot, const PlayerView& view) {
     if (amount <= 0) continue;
 
     dmcp_item_t dest = {};
-    dmcp_strcpy(dest.name, ItemLabel(item), sizeof(dest.name));
+    mcp_strcpy_safe(dest.name, sizeof(dest.name), ItemLabel(item));
     dest.amount = amount;
 
     dmcp_snapshot_add_item(snapshot, &dest);

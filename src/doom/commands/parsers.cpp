@@ -104,7 +104,7 @@ bool copy_checked_string(char* dst, size_t dst_size, std::string_view value) {
   if (!dst || dst_size == 0 || value.empty() || value.size() >= dst_size) {
     return false;
   }
-  dmcp_strcpy(dst, value.data(), dst_size);
+  mcp_strcpy_safe(dst, dst_size, value.data());
   return true;
 }
 

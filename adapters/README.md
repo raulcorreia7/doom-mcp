@@ -17,9 +17,10 @@ Keep a strict balance between shared and engine-specific code:
 ```text
 adapters/
   common/                 # Shared adapter-only helpers
-  crispy-doom/            # Crispy integration
-  zdoom/                  # ZDoom integration
+  crispy-doom/            # crispy-doom adapter
+  zdoom/                  # zdoom adapter
   fake/                   # Deterministic test adapter
+  template/               # New-adapter guide
 ```
 
 Public adapter headers live in:
@@ -56,18 +57,44 @@ Public adapter headers live in:
 - `adapters/common/include/dmcp_adapter_command_queue.h`
   - `dmcp_adapter_process_command_queue()`
   - `dmcp_adapter_process_input_queue()`
+- `adapters/common/include/dmcp_hooks.h`
+  - `dmcp_engine_config_default()`
+  - `dmcp_engine_config_from_argv()`
+  - `dmcp_engine_port_from_argv()`
+  - `dmcp_engine_flag_from_argv()`
 - `include/dmcp/adapter/utils.h`
 - `include/dmcp/adapter/validation.h`
 
 ## Engine Loop Pattern
 
+Prefer a small engine-facing hook layer for each adapter:
+
 ```c
-if (adapter) {
-  dmcp_<engine>_tick(adapter);
-  dmcp_<engine>_commands_process(adapter);
-  dmcp_<engine>_inputs_process(adapter);
+void Engine_Init(int argc, char** argv) {
+  adapter_config_t config = Adapter_ParseArgs(argc, argv);
+  Adapter_Init(config);
+}
+
+void Engine_Tick(void) {
+  Adapter_Tick();
+}
+
+void Engine_AfterRender(void) {
+  Adapter_CaptureFrame();
+}
+
+void Engine_Shutdown(void) {
+  Adapter_Shutdown();
 }
 ```
+
+The concrete `crispy-doom` and `zdoom` adapters both expose this as `DMCP_*`
+hooks through adapter-local `engine_hooks.h` headers. Lower-level
+`dmcp_<engine>_*` APIs remain available for tests and advanced embedders.
+
+Link only one real engine adapter into a game binary when using the `DMCP_*`
+hook names. The symbols are intentionally simple at the engine boundary and are
+not a multi-adapter plugin ABI.
 
 ## Integration Note
 

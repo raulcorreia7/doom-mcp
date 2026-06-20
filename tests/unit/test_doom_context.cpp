@@ -33,8 +33,8 @@ static void test_snapshot_callback(void* user_data, dmcp_snapshot_t* snapshot) {
   snapshot->player.ammo[0]    = 100;
 
   snapshot->level.tic = 12345;
-  dmcp_strcpy(snapshot->level.level_id, "MAP01", DMCP_MAX_LEVEL_ID);
-  dmcp_strcpy(snapshot->level.level_name, "Entryway", DMCP_MAX_LEVEL_NAME);
+  mcp_strcpy_safe(snapshot->level.level_id, DMCP_MAX_LEVEL_ID, "MAP01");
+  mcp_strcpy_safe(snapshot->level.level_name, DMCP_MAX_LEVEL_NAME, "Entryway");
   snapshot->level.kill_count   = 5;
   snapshot->level.item_count   = 10;
   snapshot->level.secret_count = 2;
@@ -50,13 +50,13 @@ static dmcp_enemy_t create_test_enemy(int id, int hp, const char* type) {
   enemy.position.z = 0.0f;
   enemy.angle      = 0.0f;
   enemy.target_id  = -1;
-  dmcp_strcpy(enemy.type, type, DMCP_MAX_ENEMY_TYPE);
+  mcp_strcpy_safe(enemy.type, DMCP_MAX_ENEMY_TYPE, type);
   return enemy;
 }
 
 static dmcp_item_t create_test_item(const char* name, int amount) {
   dmcp_item_t item;
-  dmcp_strcpy(item.name, name, DMCP_MAX_ITEM_NAME);
+  mcp_strcpy_safe(item.name, DMCP_MAX_ITEM_NAME, name);
   item.amount = amount;
   return item;
 }
@@ -550,43 +550,52 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
 TEST_CASE("Doom MCP: String utilities", "[doom][string]") {
   SECTION("Copy string to buffer succeeds") {
     char dest[64];
-    dmcp_strcpy(dest, "Hello, World!", 64);
+    bool copied = mcp_strcpy_safe(dest, 64, "Hello, World!");
 
+    REQUIRE(copied == true);
     REQUIRE(std::strcmp(dest, "Hello, World!") == 0);
   }
 
   SECTION("Copy string with exact buffer size null-terminates") {
     char dest[14];
-    dmcp_strcpy(dest, "Hello, World!", 14);
+    bool copied = mcp_strcpy_safe(dest, 14, "Hello, World!");
 
+    REQUIRE(copied == true);
     REQUIRE(std::strlen(dest) == 13);
     REQUIRE(std::strcmp(dest, "Hello, World!") == 0);
   }
 
   SECTION("Copy string truncates if too long") {
     char dest[6];
-    dmcp_strcpy(dest, "Hello, World!", 6);
+    bool copied = mcp_strcpy_safe(dest, 6, "Hello, World!");
 
+    REQUIRE(copied == false);
     REQUIRE(std::strcmp(dest, "Hello") == 0);
     REQUIRE(dest[5] == '\0');
   }
 
-  SECTION("Copy string with null destination is safe") { dmcp_strcpy(nullptr, "test", 10); }
+  SECTION("Copy string with null destination is safe") {
+    REQUIRE(mcp_strcpy_safe(nullptr, 10, "test") == false);
+  }
 
   SECTION("Copy string with null source is safe") {
     char dest[10] = "original";
-    dmcp_strcpy(dest, nullptr, 10);
+    bool copied   = mcp_strcpy_safe(dest, 10, nullptr);
+
+    REQUIRE(copied == false);
+    REQUIRE(dest[0] == '\0');
   }
 
   SECTION("Copy string with zero buffer size is safe") {
     char dest[10];
-    dmcp_strcpy(dest, "test", 0);
+    REQUIRE(mcp_strcpy_safe(dest, 0, "test") == false);
   }
 
   SECTION("Copy empty string") {
     char dest[10] = "original";
-    dmcp_strcpy(dest, "", 10);
+    bool copied   = mcp_strcpy_safe(dest, 10, "");
 
+    REQUIRE(copied == true);
     REQUIRE(dest[0] == '\0');
   }
 }
@@ -610,12 +619,12 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
   }
 
   SECTION("Custom config values") {
-    dmcp_config_t config         = TestConfig();
-    config.target_hz             = 30;
-    config.snapshot_pool_size    = 32;
-    config.command_queue_slots   = 8;
-    config.screenshot.width      = 1920;
-    config.screenshot.height     = 1080;
+    dmcp_config_t config       = TestConfig();
+    config.target_hz           = 30;
+    config.snapshot_pool_size  = 32;
+    config.command_queue_slots = 8;
+    config.screenshot.width    = 1920;
+    config.screenshot.height   = 1080;
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
@@ -785,8 +794,8 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
     snapshot.player.ammo[0]    = 100;
 
     snapshot.level.tic = 12345;
-    dmcp_strcpy(snapshot.level.level_id, "MAP01", DMCP_MAX_LEVEL_ID);
-    dmcp_strcpy(snapshot.level.level_name, "Entryway", DMCP_MAX_LEVEL_NAME);
+    mcp_strcpy_safe(snapshot.level.level_id, DMCP_MAX_LEVEL_ID, "MAP01");
+    mcp_strcpy_safe(snapshot.level.level_name, DMCP_MAX_LEVEL_NAME, "Entryway");
     snapshot.level.kill_count = 5;
 
     dmcp_enemy_t enemy = create_test_enemy(1, 60, "DoomImp");
@@ -966,7 +975,7 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
 
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
-    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
     REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
 
     dmcp_command_t health{};
@@ -986,7 +995,7 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
 
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
-    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
     REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
 
     dmcp_context_destroy(ctx);
@@ -1002,7 +1011,7 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
 
     dmcp_command_t console{};
     console.type = DMCP_CMD_EXECUTE_CONSOLE;
-    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command), "iddqd");
     REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
 
     dmcp_command_t health{};
@@ -1015,9 +1024,9 @@ TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissi
 }
 
 TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
+  dmcp_config_t config       = TestConfig();
   config.command_queue_slots = 64;
-  dmcp_context_t* ctx    = dmcp_context_create(&config);
+  dmcp_context_t* ctx        = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
   dmcp_command_t cmd = {};

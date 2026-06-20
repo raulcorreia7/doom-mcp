@@ -17,10 +17,12 @@ if(NOT WIN32 AND DMCP_BUILD_SHARED)
     )
 endif()
 
-if(NOT EXISTS "${DMCP_CRISPY_GEN_INCLUDE_DIR}/config.h")
+if(NOT DMCP_CRISPY_SRC_DIR OR NOT DMCP_CRISPY_DOOM_DIR OR
+   NOT EXISTS "${DMCP_CRISPY_GEN_INCLUDE_DIR}/config.h")
     message(FATAL_ERROR
-        "DMCP_BUILD_ADAPTER_CRISPY=ON requires generated Crispy Doom headers. "
-        "Expected: ${DMCP_CRISPY_GEN_INCLUDE_DIR}/config.h"
+        "DMCP_BUILD_ADAPTER_CRISPY=ON requires explicit Crispy Doom include paths. "
+        "Set DMCP_CRISPY_SRC_DIR, DMCP_CRISPY_DOOM_DIR, and "
+        "DMCP_CRISPY_GEN_INCLUDE_DIR with config.h."
     )
 endif()
 
@@ -28,12 +30,12 @@ target_include_directories(adapter_crispy
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../common/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${DMCP_CRISPY_SRC_DIR}
         ${DMCP_CRISPY_DOOM_DIR}
         ${DMCP_CRISPY_GEN_INCLUDE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
 )
 
 target_link_libraries(adapter_crispy
@@ -47,5 +49,9 @@ target_compile_definitions(adapter_crispy
     PRIVATE
         CRISPY_DOOM_BUILD
 )
+
+if(DMCP_BUILD_SHARED)
+    target_compile_definitions(adapter_crispy PRIVATE DMCP_BUILDING)
+endif()
 
 dmcp_enable_warnings(adapter_crispy)

@@ -146,8 +146,8 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 
   // Level info
   snapshot->level.tic = state->tic;
-  dmcp_strcpy(snapshot->level.level_id, "E1M1", sizeof(snapshot->level.level_id));
-  dmcp_strcpy(snapshot->level.level_name, "Hangar", sizeof(snapshot->level.level_name));
+  mcp_strcpy_safe(snapshot->level.level_id, sizeof(snapshot->level.level_id), "E1M1");
+  mcp_strcpy_safe(snapshot->level.level_name, sizeof(snapshot->level.level_name), "Hangar");
   snapshot->level.kill_count   = 5;
   snapshot->level.item_count   = 2;
   snapshot->level.secret_count = 1;
@@ -161,12 +161,12 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
 
   // Inventory
   dmcp_item_t shells = {};
-  dmcp_strcpy(shells.name, "Shells", sizeof(shells.name));
+  mcp_strcpy_safe(shells.name, sizeof(shells.name), "Shells");
   shells.amount = 24;
   dmcp_snapshot_add_item(snapshot, &shells);
 
   dmcp_item_t stimpack = {};
-  dmcp_strcpy(stimpack.name, "Stimpack", sizeof(stimpack.name));
+  mcp_strcpy_safe(stimpack.name, sizeof(stimpack.name), "Stimpack");
   stimpack.amount = 2;
   dmcp_snapshot_add_item(snapshot, &stimpack);
 
@@ -178,7 +178,7 @@ void SnapshotCallback(void* user_data, dmcp_snapshot_t* snapshot) {
     enemy.max_hp       = 60.0f;
     enemy.position.x   = e.x;
     enemy.position.y   = e.y;
-    dmcp_strcpy(enemy.type, "DoomImp", sizeof(enemy.type));
+    mcp_strcpy_safe(enemy.type, sizeof(enemy.type), "DoomImp");
     dmcp_snapshot_add_enemy(snapshot, &enemy);
   }
 }

@@ -11,8 +11,9 @@ extern "C" {
 #include <stdint.h>
 #include <string.h>
 
-#include "mcp/generic/constants.h"
+#include "mcp/core/string.h"
 #include "mcp/core/status.h"
+#include "mcp/generic/constants.h"
 
 // ============================================================================
 // MCP Protocol Version
@@ -183,10 +184,9 @@ static inline mcp_server_config_t mcp_default_config(void) {
   cfg.max_payload_size        = MCP_MAX_PAYLOAD_SIZE;
   cfg.on_log                  = NULL;
   cfg.log_user_data           = NULL;
-  strncpy(cfg.server_name, "mcp-server", sizeof(cfg.server_name) - 1);
-  cfg.server_name[sizeof(cfg.server_name) - 1] = '\0';
-  cfg.start_transport                          = true;
-  cfg.transport                                = NULL;
+  mcp_strcpy_safe(cfg.server_name, sizeof(cfg.server_name), "mcp-server");
+  cfg.start_transport = true;
+  cfg.transport       = NULL;
   return cfg;
 }
 

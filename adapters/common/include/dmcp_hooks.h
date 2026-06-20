@@ -20,16 +20,17 @@ typedef struct {
 static inline dmcp_engine_config_t dmcp_engine_config_default(void) {
   dmcp_engine_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
-  cfg.port               = 6060;
-  cfg.target_hz          = 35;
-  cfg.screenshot_enabled = true;
+  cfg.port                   = 6060;
+  cfg.target_hz              = 35;
+  cfg.screenshot_enabled     = true;
   cfg.allow_console_commands = false;
   cfg.allow_cheats           = false;
   return cfg;
 }
 
-int dmcp_engine_port_from_argv(int argc, char** argv, const char* flag);
-bool dmcp_engine_flag_from_argv(int argc, char** argv, const char* flag);
+dmcp_engine_config_t dmcp_engine_config_from_argv(int argc, char** argv);
+int                  dmcp_engine_port_from_argv(int argc, char** argv, const char* flag);
+bool                 dmcp_engine_flag_from_argv(int argc, char** argv, const char* flag);
 
 #ifdef __cplusplus
 }

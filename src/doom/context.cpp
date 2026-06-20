@@ -10,6 +10,8 @@
 #include "internal.hpp"
 #include "internal/mcp_registration.hpp"
 #include "internal/serialization.hpp"
+#include "mcp/core/memory.h"
+#include "mcp/core/string.h"
 #include "mcp/generic/server.h"
 
 // Bring dmcp_log into scope for use inside extern "C" block
@@ -26,7 +28,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
     if (copy_size == 0 || copy_size > sizeof(dmcp_config_t)) {
       copy_size = sizeof(dmcp_config_t);
     }
-    std::memcpy(&ctx->config, config, copy_size);
+    mcp_memcpy_safe(&ctx->config, sizeof(ctx->config), config, copy_size);
   }
 
   if (ctx->config.target_hz == 0) {
@@ -56,8 +58,8 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
 
   ctx->screenshot.enabled.store(ctx->config.screenshot.enable);
 
-  ctx->cmd_queue   = std::make_unique<dmcp::command_queue>();
-  ctx->input_queue = std::make_unique<dmcp::command_queue>();
+  ctx->cmd_queue             = std::make_unique<dmcp::command_queue>();
+  ctx->input_queue           = std::make_unique<dmcp::command_queue>();
   ctx->cmd_queue->max_size   = static_cast<uint32_t>(ctx->config.command_queue_slots);
   ctx->input_queue->max_size = static_cast<uint32_t>(ctx->config.command_queue_slots);
 
@@ -66,8 +68,7 @@ dmcp_context_t* dmcp_context_create(const dmcp_config_t* config) {
   server_config.on_log              = ctx->config.on_log;
   server_config.log_user_data       = ctx->config.user_data;
   server_config.start_transport     = ctx->config.start_transport;
-  std::strncpy(server_config.server_name, "doom-mcp", sizeof(server_config.server_name) - 1);
-  server_config.server_name[sizeof(server_config.server_name) - 1] = '\0';
+  mcp_strcpy_safe(server_config.server_name, sizeof(server_config.server_name), "doom-mcp");
 
   ctx->server = mcp_server_create(&server_config);
   if (!ctx->server) {
@@ -140,7 +141,7 @@ void dmcp_context_tick(dmcp_context_t* ctx_handle) {
 
   {
     std::lock_guard<std::mutex> lock(ctx->last_snapshot_mutex);
-    std::memcpy(&ctx->last_snapshot, &snapshot->data, sizeof(dmcp_snapshot_t));
+    ctx->last_snapshot = snapshot->data;
   }
 
   const std::string json = dmcp::snapshot_to_json(snapshot->data);
@@ -209,11 +210,18 @@ mcp_status_t dmcp_screenshot_submit(dmcp_context_t*                ctx_handle,
     ctx->screenshot.latest_pixels.resize(total_size);
 
     if (frame->stride == row_bytes) {
-      std::memcpy(ctx->screenshot.latest_pixels.data(), frame->pixels, total_size);
+      if (!mcp_memcpy_safe(ctx->screenshot.latest_pixels.data(),
+                           ctx->screenshot.latest_pixels.size(), frame->pixels, total_size)) {
+        return MCP_STATUS_ERROR(MCP_STATUS_CODE_INTERNAL, "Screenshot copy failed");
+      }
     } else {
       uint8_t* dest = ctx->screenshot.latest_pixels.data();
       for (uint32_t y = 0; y < frame->height; ++y) {
-        std::memcpy(dest + y * row_bytes, frame->pixels + y * frame->stride, row_bytes);
+        const size_t dest_offset = static_cast<size_t>(y) * row_bytes;
+        if (!mcp_memcpy_safe(dest + dest_offset, ctx->screenshot.latest_pixels.size() - dest_offset,
+                             frame->pixels + static_cast<size_t>(y) * frame->stride, row_bytes)) {
+          return MCP_STATUS_ERROR(MCP_STATUS_CODE_INTERNAL, "Screenshot row copy failed");
+        }
       }
     }
   }
@@ -264,7 +272,9 @@ int dmcp_screenshot_copy_ascii(dmcp_context_t* ctx_handle, char* buffer, size_t 
     return -1;
   }
 
-  std::memcpy(buffer, ascii.c_str(), ascii.size() + 1);
+  if (!mcp_memcpy_safe(buffer, buffer_size, ascii.c_str(), ascii.size() + 1)) {
+    return -1;
+  }
   return static_cast<int>(ascii.size());
 }
 
@@ -314,7 +324,7 @@ int dmcp_screenshot_to_json(dmcp_context_t* ctx_handle, char* buffer, size_t buf
     return -1;
   }
 
-  std::strcpy(buffer, json.c_str());
+  mcp_strcpy_safe(buffer, buffer_size, json.c_str());
   return static_cast<int>(json.size());
 }
 
@@ -342,7 +352,7 @@ int dmcp_snapshot_to_json(const dmcp_snapshot_t* snapshot, char* buffer, size_t 
     return -1;
   }
 
-  std::strcpy(buffer, json.c_str());
+  mcp_strcpy_safe(buffer, buffer_size, json.c_str());
   return static_cast<int>(json.size());
 }
 }

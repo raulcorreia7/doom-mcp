@@ -29,4 +29,8 @@ target_link_libraries(adapter_fake
         dmcp::core
 )
 
+if(DMCP_BUILD_SHARED)
+    target_compile_definitions(adapter_fake PRIVATE DMCP_BUILDING)
+endif()
+
 dmcp_enable_warnings(adapter_fake)

@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mcp/core/memory.h"
+
 static const char* CHARSET_STANDARD =
     "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 static const char* CHARSET_BLOCK = " ░▒▓█";
@@ -168,7 +170,9 @@ const char* dmcp_ascii_render(const uint8_t* pixels, int width, int height,
   }
 
   rgb = cfg->rgb_buffers[cfg->rgb_buffer_idx];
-  memcpy(rgb, pixels, rgb_needed);
+  if (!mcp_memcpy_safe(rgb, cfg->rgb_buffer_size, pixels, rgb_needed)) {
+    return NULL;
+  }
   cfg->rgb_buffer_idx = 1 - cfg->rgb_buffer_idx;
 
   max_escape_len = cfg->color == DMCP_ASCII_COLOR_24BIT ? 32 : 20;

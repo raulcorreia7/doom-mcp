@@ -208,7 +208,8 @@ TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medi
 
   dmcp_command_t spawn{};
   spawn.type = DMCP_CMD_SPAWN_ENTITY;
-  dmcp_strcpy(spawn.data.spawn.entity_class, kSpawnClass, sizeof(spawn.data.spawn.entity_class));
+  mcp_strcpy_safe(spawn.data.spawn.entity_class, sizeof(spawn.data.spawn.entity_class),
+                  kSpawnClass);
   spawn.data.spawn.tid      = kSpawnedEnemyTid;
   spawn.data.spawn.position = {before.player.position.x + kSpawnOffset,
                                before.player.position.y + kSpawnOffset};
@@ -239,15 +240,16 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
 
   dmcp_command_t change_level{};
   change_level.type = DMCP_CMD_CHANGE_LEVEL;
-  dmcp_strcpy(change_level.data.change_level.map_name, kScenarioMap,
-              sizeof(change_level.data.change_level.map_name));
+  mcp_strcpy_safe(change_level.data.change_level.map_name,
+                  sizeof(change_level.data.change_level.map_name), kScenarioMap);
   change_level.data.change_level.skill_level     = DMCP_SKILL_MIN;
   change_level.data.change_level.reset_inventory = false;
   REQUIRE(dmcp_push_command(ctx, &change_level).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t spawn{};
   spawn.type = DMCP_CMD_SPAWN_ENTITY;
-  dmcp_strcpy(spawn.data.spawn.entity_class, kSpawnClass, sizeof(spawn.data.spawn.entity_class));
+  mcp_strcpy_safe(spawn.data.spawn.entity_class, sizeof(spawn.data.spawn.entity_class),
+                  kSpawnClass);
   spawn.data.spawn.tid      = kSpawnedEnemyTid;
   spawn.data.spawn.position = {kScenarioSpawnX, kScenarioSpawnY};
   spawn.data.spawn.angle    = kScenarioSpawnAngle;
@@ -257,8 +259,8 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
   damage.type                   = DMCP_CMD_DAMAGE_ENTITY;
   damage.data.damage.target_tid = kSpawnedEnemyTid;
   damage.data.damage.damage     = kDamageAmount;
-  dmcp_strcpy(damage.data.damage.damage_type, kDamageTypeNormal,
-              sizeof(damage.data.damage.damage_type));
+  mcp_strcpy_safe(damage.data.damage.damage_type, sizeof(damage.data.damage.damage_type),
+                  kDamageTypeNormal);
   REQUIRE(dmcp_push_command(ctx, &damage).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t kill{};
@@ -268,15 +270,15 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
 
   dmcp_command_t give_item{};
   give_item.type = DMCP_CMD_GIVE_ITEM;
-  dmcp_strcpy(give_item.data.give_item.item_class, kScenarioItem,
-              sizeof(give_item.data.give_item.item_class));
+  mcp_strcpy_safe(give_item.data.give_item.item_class, sizeof(give_item.data.give_item.item_class),
+                  kScenarioItem);
   give_item.data.give_item.amount = kExpectedInventoryAmount;
   REQUIRE(dmcp_push_command(ctx, &give_item).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t console{};
   console.type = DMCP_CMD_EXECUTE_CONSOLE;
-  dmcp_strcpy(console.data.console.command, kScenarioConsoleCommand,
-              sizeof(console.data.console.command));
+  mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command),
+                  kScenarioConsoleCommand);
   REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
 
   for (uint32_t i = 0; i < kScenarioTicks; ++i) {
@@ -313,8 +315,8 @@ TEST_CASE("Fake adapter medium: give all fills every Doom ammo pool", "[adapter]
 
   dmcp_command_t console{};
   console.type = DMCP_CMD_EXECUTE_CONSOLE;
-  dmcp_strcpy(console.data.console.command, kScenarioConsoleCommand,
-              sizeof(console.data.console.command));
+  mcp_strcpy_safe(console.data.console.command, sizeof(console.data.console.command),
+                  kScenarioConsoleCommand);
   REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
 
   dmcp_fake_commands_process(fake);

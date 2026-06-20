@@ -7,20 +7,7 @@
 static dmcp_crispy_t* g_dmcp_ctx = NULL;
 
 dmcp_engine_config_t DMCP_ParseArgs(int argc, char** argv) {
-  dmcp_engine_config_t cfg;
-  int                  port;
-
-  cfg = dmcp_engine_config_default();
-
-  port = dmcp_engine_port_from_argv(argc, argv, "dmcp_port");
-  if (port > 0) {
-    cfg.port = port;
-  }
-
-  cfg.allow_cheats = dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_cheats");
-  cfg.allow_console_commands =
-      cfg.allow_cheats || dmcp_engine_flag_from_argv(argc, argv, "dmcp_allow_console");
-  return cfg;
+  return dmcp_engine_config_from_argv(argc, argv);
 }
 
 void DMCP_Init(dmcp_engine_config_t cfg) {

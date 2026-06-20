@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "dmcp_adapter_command_queue.h"
+#include "mcp/core/memory.h"
 
 struct dmcp_fake_s {
   dmcp_context_t*    dmcp_ctx = nullptr;
@@ -113,7 +114,7 @@ dmcp_fake_config_t CopyConfig(const dmcp_fake_config_t* config) {
   if (copy_size == 0 || copy_size > sizeof(dmcp_fake_config_t)) {
     copy_size = sizeof(dmcp_fake_config_t);
   }
-  std::memcpy(&effective, config, copy_size);
+  mcp_memcpy_safe(&effective, sizeof(effective), config, copy_size);
   effective.struct_size = sizeof(dmcp_fake_config_t);
   return effective;
 }
@@ -151,7 +152,7 @@ void set_text(char* destination, size_t destination_size, std::string_view value
   if (!destination || destination_size == 0) {
     return;
   }
-  dmcp_strcpy(destination, value.data(), destination_size);
+  mcp_strcpy_safe(destination, destination_size, value.data());
 }
 
 bool add_enemy(dmcp_fake_t* fake, int32_t enemy_id, std::string_view enemy_type,

@@ -14,6 +14,8 @@
 #include "doom/internal/content_catalog.hpp"
 #include "doom/internal/context.hpp"
 #include "doom/internal/json_types.hpp"
+#include "mcp/core/memory.h"
+#include "mcp/core/string.h"
 #include "mcp/generic/constants.h"
 
 namespace dmcp {
@@ -140,7 +142,7 @@ void dmcp_log(const context* ctx, int level, const char* fmt, ...) {
   va_end(args);
 
   if (result >= static_cast<int>(sizeof(buffer))) {
-    std::strcpy(buffer + sizeof(buffer) - 4, "...");
+    mcp_strcpy_safe(buffer + sizeof(buffer) - 4, 4, "...");
   }
 
   ctx->config.on_log(ctx->config.user_data, level, buffer);
@@ -171,7 +173,9 @@ bool write_json_response(std::string_view payload, char* response_buffer, size_t
     return false;
   }
 
-  std::memcpy(response_buffer, payload.data(), payload.size());
+  if (!mcp_memcpy_safe(response_buffer, response_size, payload.data(), payload.size())) {
+    return false;
+  }
   response_buffer[payload.size()] = '\0';
   return true;
 }
@@ -373,7 +377,9 @@ bool write_route_response(std::string_view json, int status, char* response_buff
     return false;
   }
 
-  std::memcpy(response_buffer, json.data(), json.size());
+  if (!mcp_memcpy_safe(response_buffer, response_size, json.data(), json.size())) {
+    return false;
+  }
   response_buffer[json.size()] = '\0';
   *http_status                 = status;
   return true;

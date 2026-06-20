@@ -56,13 +56,13 @@ inline dmcp_enemy_t make_test_enemy(int id = 1, float hp = 60.0f, const char* ty
   enemy.position  = {100.0f * id, 200.0f, 0.0f};
   enemy.angle     = 0.0f;
   enemy.target_id = -1;
-  dmcp_strcpy(enemy.type, type, sizeof(enemy.type));
+  mcp_strcpy_safe(enemy.type, sizeof(enemy.type), type);
   return enemy;
 }
 
 inline dmcp_item_t make_test_item(const char* name = "Clip", int amount = 50) {
   dmcp_item_t item{};
-  dmcp_strcpy(item.name, name, sizeof(item.name));
+  mcp_strcpy_safe(item.name, sizeof(item.name), name);
   item.amount = amount;
   return item;
 }

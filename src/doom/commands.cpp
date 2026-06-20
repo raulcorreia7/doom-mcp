@@ -18,6 +18,7 @@
 #include "doom/commands/types/command_parsers.hpp"
 #include "internal.hpp"
 #include "internal/permissions.hpp"
+#include "mcp/core/string.h"
 #include "mcp/generic/protocol.h"
 
 namespace dmcp {
@@ -187,7 +188,7 @@ mcp_status_t dmcp_command_result_mark_queued(dmcp_context_t*       ctx_handle,
   entry.command_type          = cmd->type;
   entry.completed             = false;
   entry.success               = false;
-  dmcp_strcpy(entry.message, "Command queued (execution pending)", sizeof(entry.message));
+  mcp_strcpy_safe(entry.message, sizeof(entry.message), "Command queued (execution pending)");
 
   std::lock_guard<std::mutex> lock(ctx->command_results_mutex);
   auto                        it = ctx->command_results.find(entry.sequence);
@@ -221,11 +222,10 @@ mcp_status_t dmcp_command_result_complete(dmcp_context_t* ctx_handle, const dmcp
   entry.success               = success;
 
   if (message && message[0] != '\0') {
-    dmcp_strcpy(entry.message, message, sizeof(entry.message));
+    mcp_strcpy_safe(entry.message, sizeof(entry.message), message);
   } else {
-    dmcp_strcpy(entry.message,
-                success ? "Command executed successfully" : "Command execution failed",
-                sizeof(entry.message));
+    mcp_strcpy_safe(entry.message, sizeof(entry.message),
+                    success ? "Command executed successfully" : "Command execution failed");
   }
 
   std::lock_guard<std::mutex> lock(ctx->command_results_mutex);
@@ -516,7 +516,7 @@ mcp_status_t dmcp_format_command_result(const dmcp_command_t* cmd, bool success,
     return MCP_STATUS_ERROR(MCP_STATUS_CODE_ENCODING_FAILED, "Encoding failed");
   }
 
-  std::strcpy(buffer, result.c_str());
+  mcp_strcpy_safe(buffer, buffer_size, result.c_str());
   return MCP_STATUS_OK("Success");
 }
 
