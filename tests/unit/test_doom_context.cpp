@@ -279,8 +279,9 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     REQUIRE(ascii[written] == '\0');
     REQUIRE(std::strlen(ascii) == static_cast<size_t>(written));
 
-    char small[2] = {};
-    REQUIRE(dmcp_screenshot_copy_ascii(ctx, small, sizeof(small), 16) == -1);
+    char short_ascii_buffer[2] = {};
+    REQUIRE(dmcp_screenshot_copy_ascii(ctx, short_ascii_buffer, sizeof(short_ascii_buffer), 16) ==
+            -1);
   }
 
   SECTION("JSON screenshot reads stable dimensions") {
@@ -775,9 +776,10 @@ TEST_CASE("Doom MCP: Content availability by mode", "[doom][content]") {
     REQUIRE(std::strstr(buffer, "Item 'CellPack' not available in shareware mode") != nullptr);
     REQUIRE(buffer[written] == '\0');
 
-    char small[4] = {};
+    char short_message_buffer[4] = {};
     REQUIRE(dmcp_content_unavailable_message_copy("Item", "CellPack", DMCP_GAMEMODE_SHAREWARE,
-                                                  small, sizeof(small)) == -1);
+                                                  short_message_buffer,
+                                                  sizeof(short_message_buffer)) == -1);
   }
 }
 
