@@ -18,9 +18,10 @@ class ServerFixture {
   mcp_server_config_t config{};
 
   ServerFixture() {
-    config      = mcp_default_config();
-    config.port = TEST_PORT;
-    server      = mcp_server_create(&config);
+    config                 = mcp_default_config();
+    config.port            = TEST_PORT;
+    config.start_transport = false;
+    server                 = mcp_server_create(&config);
     REQUIRE(server != nullptr);
   }
 
@@ -35,9 +36,10 @@ class DoomContextFixture {
   dmcp_config_t   config{};
 
   DoomContextFixture() {
-    config      = dmcp_config_default();
-    config.port = TEST_PORT;
-    ctx         = dmcp_context_create(&config);
+    config                 = dmcp_config_default();
+    config.port            = TEST_PORT;
+    config.start_transport = false;
+    ctx                    = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
   }
 
@@ -46,8 +48,7 @@ class DoomContextFixture {
   }
 };
 
-inline dmcp_enemy_t make_test_enemy(int id = 1, float hp = 60.0f,
-                                    const char* type = "Imp") {
+inline dmcp_enemy_t make_test_enemy(int id = 1, float hp = 60.0f, const char* type = "DoomImp") {
   dmcp_enemy_t enemy{};
   enemy.id        = id;
   enemy.hp        = hp;
@@ -66,8 +67,8 @@ inline dmcp_item_t make_test_item(const char* name = "Clip", int amount = 50) {
   return item;
 }
 
-inline std::vector<uint8_t> make_test_screenshot_pixels(
-    int w = TEST_SCREENSHOT_W, int h = TEST_SCREENSHOT_H) {
+inline std::vector<uint8_t> make_test_screenshot_pixels(int w = TEST_SCREENSHOT_W,
+                                                        int h = TEST_SCREENSHOT_H) {
   std::vector<uint8_t> pixels(w * h * 3, 128);
   return pixels;
 }

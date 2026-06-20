@@ -12,7 +12,6 @@
 BUILD_DIR             ?= build/default
 INTEGRATION_BUILD_DIR ?= build/integration
 BUILD_TYPE            ?= Release
-PREFIX                ?= /usr/local
 
 # CMake arguments
 CMAKE_ARGS = \
@@ -20,7 +19,6 @@ CMAKE_ARGS = \
 	-DDMCP_BUILD_TESTS=OFF \
 	-DDMCP_BUILD_EXAMPLES=OFF \
 	-DDMCP_BUILD_INTEGRATION_TESTS=OFF \
-	-DDMCP_BUILD_ADAPTERS=OFF \
 	-DDMCP_BUILD_ADAPTER_FAKE=OFF \
 	-DDMCP_BUILD_ADAPTER_ZDOOM=OFF \
 	-DDMCP_BUILD_ADAPTER_CRISPY=OFF
@@ -63,12 +61,12 @@ help:
 	@echo "Test targets:"
 	@echo "  make test         - Run unit tests (default test target)"
 	@echo "  make test-unit    - Run unit tests only"
-	@echo "  make test-smoke   - Run fast headless integration smoke"
-	@echo "  make test-integration - Run integration test suite"
-	@echo "  make test-e2e     - Run Python e2e suite (fast fixture mode)"
+	@echo "  make test-smoke   - Run fast no-game fake-adapter transport smoke"
+	@echo "  make test-integration - Run no-game integration suite"
+	@echo "  make test-e2e     - Run opt-in real-engine headless e2e"
 	@echo "  make test-verbose - Run tests with details"
 	@echo "  make download-wad - Download DOOM shareware"
-	@echo "  make headless     - Run e2e headless tests"
+	@echo "  make headless     - Run real-engine headless tests"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make run          - Run dummy server"
@@ -81,7 +79,6 @@ help:
 	@echo "  make lint         - Run clang-tidy"
 	@echo ""
 	@echo "Other:"
-	@echo "  make install      - Install to $(PREFIX)"
 	@echo "  make submodules   - Init/update git submodules"
 	@echo "  make info         - Show configuration"
 	@echo "  make compdb       - Generate merged compile_commands.json for LSP"
@@ -106,7 +103,7 @@ submodules:
 dmcp: configure
 	cmake --build $(BUILD_DIR) --parallel
 
-# Alias for backward compatibility
+# Convenience alias
 build: dmcp
 
 configure:
@@ -152,22 +149,15 @@ test: configure-tests
 
 test-unit: test
 
-test-smoke: configure-integration download-wad crispy-doom
+test-smoke: configure-integration
 	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
-	ctest --test-dir $(INTEGRATION_BUILD_DIR) -R "Integration: Headless Crispy" -j1 --output-on-failure
+	ctest --test-dir $(INTEGRATION_BUILD_DIR) -R dmcp_fake_transport_integration -j1 --output-on-failure
 
-test-integration: configure-integration download-wad crispy-doom
+test-integration: configure-integration
 	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
-	ctest --test-dir $(INTEGRATION_BUILD_DIR) -L integration -j1 --output-on-failure
+	ctest --test-dir $(INTEGRATION_BUILD_DIR) -L integration -LE requires_game -j1 --output-on-failure
 
-test-e2e: configure-integration download-wad crispy-doom
-	cmake --build $(INTEGRATION_BUILD_DIR) --parallel
-	@if command -v pytest >/dev/null 2>&1; then \
-		DMCP_E2E_FAST=$${DMCP_E2E_FAST:-1} pytest -q tests/e2e; \
-	else \
-		echo "pytest not found"; \
-		exit 1; \
-	fi
+test-e2e: headless
 
 test-verbose: configure-tests
 	cmake --build $(BUILD_DIR) --parallel
@@ -188,6 +178,9 @@ configure-integration:
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DDMCP_BUILD_TESTS=ON \
 		-DDMCP_BUILD_INTEGRATION_TESTS=ON \
+		-DDMCP_BUILD_ADAPTER_FAKE=ON \
+		-DDMCP_BUILD_ADAPTER_ZDOOM=OFF \
+		-DDMCP_BUILD_ADAPTER_CRISPY=OFF \
 		-DDMCP_BUILD_EXAMPLES=OFF
 	@./scripts/refresh_compdb.sh "$(INTEGRATION_BUILD_DIR)" "$(CRISPY_BUILD_DIR)"
 
@@ -251,18 +244,6 @@ validate:
 	@./scripts/validate.sh
 
 # ==============================================================================
-# Installation
-# ==============================================================================
-
-.PHONY: install uninstall
-install: build
-	cmake --install $(BUILD_DIR) --prefix $(PREFIX)
-
-uninstall:
-	@xargs rm -vf < $(BUILD_DIR)/install_manifest.txt 2>/dev/null || \
-		echo "No install manifest found"
-
-# ==============================================================================
 # Info
 # ==============================================================================
 
@@ -274,7 +255,6 @@ info:
 	@echo "  Build type:    $(BUILD_TYPE)"
 	@echo "  Build dir:     $(BUILD_DIR)"
 	@echo "  Integration dir: $(INTEGRATION_BUILD_DIR)"
-	@echo "  Install prefix: $(PREFIX)"
 	@echo "  Parallel jobs: CMake default (--parallel)"
 	@echo ""
 	@echo "CMake: $(shell cmake --version | head -1)"
@@ -305,7 +285,6 @@ compdb-refresh:
 
 CRISPY_BUILD_DIR  ?= crispy-doom/build
 CRISPY_SOURCE_DIR ?= crispy-doom
-CRISPY_KEEP_PATCH ?= 0
 .PHONY: crispy-doom crispy-doom-clean
 crispy-doom:
 	@if [ ! -d "$(CRISPY_SOURCE_DIR)" ]; then \
@@ -314,7 +293,7 @@ crispy-doom:
 		exit 1; \
 	fi
 	@DMCP_BUILD_DIR=$$(pwd)/$(CRISPY_DMCP_BUILD_DIR) CRISPY_BUILD_DIR=$$(pwd)/$(CRISPY_BUILD_DIR) \
-		DMCP_KEEP_CRISPY_PATCH=$(CRISPY_KEEP_PATCH) ./tests/integration/build_crispy_doom.sh
+		./tests/integration/build_crispy_doom.sh
 
 crispy-doom-clean:
 	rm -rf $(CRISPY_BUILD_DIR)

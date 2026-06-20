@@ -114,8 +114,9 @@ TEST_CASE("screenshot_state conversion", "[screenshot][state]") {
   screenshot_state state;
 
   SECTION("empty state returns empty ascii") {
-    state.convert_to_ascii(80);
-    REQUIRE(state.get_ascii().empty());
+    std::string ascii;
+    REQUIRE_FALSE(state.build_ascii(80, &ascii));
+    REQUIRE(ascii.empty());
   }
 
   SECTION("with pixels converts successfully") {
@@ -127,8 +128,9 @@ TEST_CASE("screenshot_state conversion", "[screenshot][state]") {
       state.height        = 240;
     }
 
-    state.convert_to_ascii(80);
-    REQUIRE_FALSE(state.get_ascii().empty());
+    std::string ascii;
+    REQUIRE(state.build_ascii(80, &ascii));
+    REQUIRE_FALSE(ascii.empty());
   }
 
   SECTION("different target widths produce different sizes") {
@@ -140,11 +142,11 @@ TEST_CASE("screenshot_state conversion", "[screenshot][state]") {
       state.height        = 240;
     }
 
-    state.convert_to_ascii(80);
-    std::string ascii80 = state.get_ascii();
+    std::string ascii80;
+    REQUIRE(state.build_ascii(80, &ascii80));
 
-    state.convert_to_ascii(160);
-    std::string ascii160 = state.get_ascii();
+    std::string ascii160;
+    REQUIRE(state.build_ascii(160, &ascii160));
 
     REQUIRE(ascii80.size() < ascii160.size());
   }

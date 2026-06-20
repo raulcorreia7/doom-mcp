@@ -11,7 +11,6 @@
 #   DMCP_ROOT                Repo root (default: auto-detected)
 #   DMCP_BUILD_DIR           DMCP CMake build dir (default: <root>/build/default)
 #   CRISPY_BUILD_DIR         Crispy Doom build dir (default: <root>/crispy-doom/build)
-#   DMCP_KEEP_CRISPY_PATCH   Keep patch applied after build: 1 keep, 0 auto-revert (default)
 
 set -euo pipefail
 
@@ -19,18 +18,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DMCP_ROOT="${DMCP_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 DMCP_BUILD_DIR="${DMCP_BUILD_DIR:-$DMCP_ROOT/build/default}"
 CRISPY_BUILD_DIR="${CRISPY_BUILD_DIR:-$DMCP_ROOT/crispy-doom/build}"
-PATCH_FILE="$DMCP_ROOT/adapters/crispy-doom/patches/dmcp_integration.patch"
-KEEP_PATCH="${DMCP_KEEP_CRISPY_PATCH:-0}"
-PATCH_APPLIED_NOW=0
-
-cleanup() {
-	if [[ "$KEEP_PATCH" != "1" && "$PATCH_APPLIED_NOW" == "1" ]]; then
-		git -C "$DMCP_ROOT/crispy-doom" apply --reverse "$PATCH_FILE" >/dev/null 2>&1 || true
-		echo "==> Restored Crispy source tree to clean state"
-	fi
-}
-
-trap cleanup EXIT
 
 usage() {
 	cat <<EOF
@@ -63,17 +50,13 @@ if [[ ! -d "$DMCP_ROOT/crispy-doom" ]]; then
 	exit 1
 fi
 
-if [[ ! -f "$PATCH_FILE" ]]; then
-	echo "error: patch file not found at $PATCH_FILE" >&2
+if ! grep -q "DMCP_Init" "$DMCP_ROOT/crispy-doom/src/doom/d_main.c" ||
+	! grep -q "DMCP_Tick" "$DMCP_ROOT/crispy-doom/src/doom/g_game.c" ||
+	! grep -q "DMCP_ENABLE" "$DMCP_ROOT/crispy-doom/CMakeLists.txt"; then
+	echo "error: crispy-doom submodule is missing the checked-in DMCP integration" >&2
+	echo "hint: run 'git submodule update --init --recursive' and ensure the pinned DMCP fork is checked out" >&2
 	exit 1
 fi
-
-if git -C "$DMCP_ROOT/crispy-doom" apply --check "$PATCH_FILE" >/dev/null 2>&1; then
-	PATCH_APPLIED_NOW=1
-fi
-
-echo "==> Applying Crispy Doom DMCP patch"
-"$SCRIPT_DIR/apply_crispy_dmcp_patch.sh"
 
 echo "==> Configuring Crispy Doom (pre-build for headers)"
 cmake -S "$DMCP_ROOT/crispy-doom" -B "$CRISPY_BUILD_DIR" \
@@ -87,39 +70,19 @@ cmake -B "$DMCP_BUILD_DIR" \
 	-DDMCP_BUILD_SINGLE_DLL=ON \
 	-DDMCP_BUILD_TESTS=OFF \
 	-DDMCP_BUILD_EXAMPLES=OFF \
-	-DDMCP_BUILD_ADAPTERS=OFF \
-	-DDMCP_BUILD_ADAPTER_CRISPY=ON \
+	-DDMCP_BUILD_ADAPTER_CRISPY=OFF \
 	-DDMCP_BUILD_ADAPTER_ZDOOM=OFF \
 	-DDMCP_BUILD_ADAPTER_FAKE=OFF
 
 echo "==> Building DMCP core"
 cmake --build "$DMCP_BUILD_DIR" --parallel
 
-DMCP_COMPAT_BUILD_DIR="$DMCP_ROOT/build"
-if [[ "$DMCP_BUILD_DIR" != "$DMCP_COMPAT_BUILD_DIR" ]]; then
-	mkdir -p "$DMCP_COMPAT_BUILD_DIR" "$DMCP_COMPAT_BUILD_DIR/Release" "$DMCP_COMPAT_BUILD_DIR/Debug"
-	for candidate in \
-		"$DMCP_BUILD_DIR/libdmcp.so" \
-		"$DMCP_BUILD_DIR/libdmcp_core.so" \
-		"$DMCP_BUILD_DIR/libdmcp.dylib" \
-		"$DMCP_BUILD_DIR/libdmcp_core.dylib" \
-		"$DMCP_BUILD_DIR/Release/dmcp.lib" \
-		"$DMCP_BUILD_DIR/Release/dmcp_core.lib" \
-		"$DMCP_BUILD_DIR/Debug/dmcp.lib" \
-		"$DMCP_BUILD_DIR/Debug/dmcp_core.lib"; do
-		if [[ -f "$candidate" ]]; then
-			relative_path="${candidate#"$DMCP_BUILD_DIR/"}"
-			destination="$DMCP_COMPAT_BUILD_DIR/$relative_path"
-			mkdir -p "$(dirname "$destination")"
-			cp -f "$candidate" "$destination"
-		fi
-	done
-fi
-
 echo "==> Configuring Crispy Doom with DMCP"
 cmake -S "$DMCP_ROOT/crispy-doom" -B "$CRISPY_BUILD_DIR" \
 	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 	-DDMCP_ROOT="$DMCP_ROOT" \
+	-DDMCP_BUILD_DIR="$DMCP_BUILD_DIR" \
+	-DDMCP_LIBRARY_DIR="$DMCP_BUILD_DIR" \
 	-DDMCP_ENABLE=ON
 
 echo "==> Building Crispy Doom"

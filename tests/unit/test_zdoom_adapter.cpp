@@ -30,14 +30,6 @@ TEST_CASE("Adapter: ZDoom configuration", "[adapter][config]") {
     REQUIRE(config.log_user == nullptr);
     REQUIRE(config.should_tick_fn == nullptr);
     REQUIRE(config.should_tick_user == nullptr);
-    REQUIRE(config.port_override == 0);
-  }
-
-  SECTION("Custom config values") {
-    dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.port_override       = 7070;
-
-    REQUIRE(config.port_override == 7070);
   }
 
   SECTION("Config with custom log callback") {
@@ -73,22 +65,20 @@ TEST_CASE("Adapter: dmcp_zdoom_config_default", "[adapter][config]") {
     REQUIRE(config.struct_size > 0);
     REQUIRE(config.log_fn == nullptr);
     REQUIRE(config.should_tick_fn == nullptr);
-    REQUIRE(config.port_override == 0);
   }
 
   SECTION("Multiple calls return independent configs") {
     dmcp_zdoom_config_t config1 = dmcp_zdoom_config_default();
     dmcp_zdoom_config_t config2 = dmcp_zdoom_config_default();
 
-    config1.port_override = 7070;
+    config1.base.port = 7070;
 
-    REQUIRE(config1.port_override == 7070);
-    REQUIRE(config2.port_override == 0);
+    REQUIRE(config1.base.port == 7070);
+    REQUIRE(config2.base.port != 7070);
   }
 }
 
-TEST_CASE("Adapter: Lifecycle - dmcp_zdoom_create/destroy",
-          "[adapter][lifecycle]") {
+TEST_CASE("Adapter: Lifecycle - dmcp_zdoom_create/destroy", "[adapter][lifecycle]") {
   SECTION("Create with null config uses defaults") {
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(nullptr);
 
@@ -106,9 +96,9 @@ TEST_CASE("Adapter: Lifecycle - dmcp_zdoom_create/destroy",
     dmcp_zdoom_destroy(mcp);
   }
 
-  SECTION("Create with custom port override") {
+  SECTION("Create with custom base port") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.port_override       = 7070;
+    config.base.port           = 7070;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
 
@@ -170,22 +160,22 @@ TEST_CASE("Adapter: Game loop - dmcp_zdoom_tick", "[adapter][tick]") {
   REQUIRE(mcp != nullptr);
 
   SECTION("Tick with valid context succeeds") {
-    mcp_result_t result = dmcp_zdoom_tick(mcp);
+    mcp_status_t result = dmcp_zdoom_tick(mcp);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Multiple ticks succeed") {
     for (int i = 0; i < 10; i++) {
-      mcp_result_t result = dmcp_zdoom_tick(mcp);
-      REQUIRE(result.code == MCP_RESULT_CODE_OK);
+      mcp_status_t result = dmcp_zdoom_tick(mcp);
+      REQUIRE(result.code == MCP_STATUS_CODE_OK);
     }
   }
 
   SECTION("Tick with null context returns error") {
-    mcp_result_t result = dmcp_zdoom_tick(nullptr);
+    mcp_status_t result = dmcp_zdoom_tick(nullptr);
 
-    REQUIRE(result.code != MCP_RESULT_CODE_OK);
+    REQUIRE(result.code != MCP_STATUS_CODE_OK);
   }
 
   SECTION("Tick after destroy is handled correctly") {
@@ -225,9 +215,7 @@ TEST_CASE("Adapter: State queries", "[adapter][state]") {
     dmcp_zdoom_get_stats(nullptr, &stats);
   }
 
-  SECTION("Get stats with null stats pointer") {
-    dmcp_zdoom_get_stats(mcp, nullptr);
-  }
+  SECTION("Get stats with null stats pointer") { dmcp_zdoom_get_stats(mcp, nullptr); }
 
   dmcp_zdoom_destroy(mcp);
 }
@@ -357,13 +345,9 @@ TEST_CASE("Adapter: Command processing", "[adapter][commands][process]") {
   dmcp_zdoom_t*       mcp    = dmcp_zdoom_create(&config);
   REQUIRE(mcp != nullptr);
 
-  SECTION("Process commands with valid context") {
-    dmcp_zdoom_commands_process(mcp);
-  }
+  SECTION("Process commands with valid context") { dmcp_zdoom_commands_process(mcp); }
 
-  SECTION("Process commands with null context") {
-    dmcp_zdoom_commands_process(nullptr);
-  }
+  SECTION("Process commands with null context") { dmcp_zdoom_commands_process(nullptr); }
 
   SECTION("Process commands after tick") {
     dmcp_zdoom_tick(mcp);
@@ -403,7 +387,7 @@ TEST_CASE("Adapter: Integration with callbacks", "[adapter][integration]") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
     config.log_fn              = test_log_callback;
     config.should_tick_fn      = test_should_tick;
-    config.port_override       = 8080;
+    config.base.port           = 8080;
     config.log_user            = (void*)0x1234;
     config.should_tick_user    = (void*)0x5678;
 
@@ -486,14 +470,6 @@ TEST_CASE("Adapter: Command type validation", "[adapter][commands][types]") {
 
     dmcp_cmd_pause_t* pause = &cmd.data.pause;
     REQUIRE(pause != nullptr);
-  }
-
-  SECTION("Timescale command structure") {
-    dmcp_command_t cmd = {};
-    cmd.type           = DMCP_CMD_SET_TIMESCALE;
-
-    dmcp_cmd_timescale_t* timescale = &cmd.data.timescale;
-    REQUIRE(timescale != nullptr);
   }
 
   SECTION("Damage entity command structure") {
@@ -586,23 +562,10 @@ TEST_CASE("Adapter: Statistics tracking", "[adapter][stats]") {
   dmcp_zdoom_destroy(mcp);
 }
 
-TEST_CASE("Adapter: Port override functionality", "[adapter][config][port]") {
-  SECTION("Port override takes precedence") {
-    dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.base.port           = 6060;
-    config.port_override       = 9090;
-
-    dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
-
-    REQUIRE(mcp != nullptr);
-
-    dmcp_zdoom_destroy(mcp);
-  }
-
-  SECTION("No port override uses base config port") {
+TEST_CASE("Adapter: Port configuration", "[adapter][config][port]") {
+  SECTION("Custom base config port") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
     config.base.port           = 8080;
-    config.port_override       = 0;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
 
@@ -611,9 +574,8 @@ TEST_CASE("Adapter: Port override functionality", "[adapter][config][port]") {
     dmcp_zdoom_destroy(mcp);
   }
 
-  SECTION("No port override uses default config port") {
+  SECTION("Default config port") {
     dmcp_zdoom_config_t config = dmcp_zdoom_config_default();
-    config.port_override       = 0;
 
     dmcp_zdoom_t* mcp = dmcp_zdoom_create(&config);
 
@@ -639,9 +601,9 @@ TEST_CASE("Adapter: Error handling", "[adapter][error]") {
     dmcp_zdoom_t*       mcp    = dmcp_zdoom_create(&config);
 
     if (mcp) {
-      mcp_result_t result = dmcp_zdoom_tick(mcp);
+      mcp_status_t result = dmcp_zdoom_tick(mcp);
 
-      if (result.code != MCP_RESULT_CODE_OK) {
+      if (result.code != MCP_STATUS_CODE_OK) {
       }
 
       dmcp_zdoom_destroy(mcp);

@@ -1,171 +1,151 @@
-name: Release Crispy Doom
+name: DMCP CI
 
 on:
+  pull_request:
   push:
+    branches:
+      - main
+      - dev
     tags:
-      - 'v*'
+      - 'dmcp-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build ${{ matrix.os }}
+  sdk:
+    name: SDK build/test (${{ matrix.os }}, ${{ matrix.linkage }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: crispy-doom-linux
-            asset_name: crispy-doom-linux.tar.gz
-            bin_path: crispy-doom/build/src/crispy-doom
+            platform: linux
+            linkage: static
+            shared: OFF
+            artifact_name: dmcp-sdk-linux-static
+            asset_name: dmcp-sdk-linux-static.tar.gz
+          - os: ubuntu-latest
+            platform: linux
+            linkage: shared
+            shared: ON
+            artifact_name: dmcp-sdk-linux-shared
+            asset_name: dmcp-sdk-linux-shared.tar.gz
           - os: macos-latest
-            artifact_name: crispy-doom-macos
-            asset_name: crispy-doom-macos.zip
-            bin_path: crispy-doom/build/src/crispy-doom
+            platform: macos
+            linkage: static
+            shared: OFF
+            artifact_name: dmcp-sdk-macos-static
+            asset_name: dmcp-sdk-macos-static.tar.gz
+          - os: macos-latest
+            platform: macos
+            linkage: shared
+            shared: ON
+            artifact_name: dmcp-sdk-macos-shared
+            asset_name: dmcp-sdk-macos-shared.tar.gz
           - os: windows-latest
-            artifact_name: crispy-doom-windows
-            asset_name: crispy-doom-windows.zip
-            bin_path: crispy-doom/build/src/Release/crispy-doom.exe
+            platform: windows
+            linkage: static
+            shared: OFF
+            artifact_name: dmcp-sdk-windows-static
+            asset_name: dmcp-sdk-windows-static.zip
+          - os: windows-latest
+            platform: windows
+            linkage: shared
+            shared: ON
+            artifact_name: dmcp-sdk-windows-shared
+            asset_name: dmcp-sdk-windows-shared.zip
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout DMCP
+        uses: actions/checkout@v7
+
+      - name: Build and test SDK
+        shell: bash
+        run: scripts/ci/build_sdk_entry.sh --build-dir "build/${{ matrix.linkage }}" --shared "${{ matrix.shared }}"
+
+      - name: Local source consumer smoke
+        shell: bash
+        run: scripts/ci/source_consumer_smoke.sh --build-dir "build/source-consumer-${{ matrix.linkage }}" --shared "${{ matrix.shared }}"
+
+      - name: Verify CI stayed headless
+        shell: bash
+        run: scripts/ci/verify_headless.sh
+
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/dmcp-v')
+        shell: bash
+        run: scripts/ci/verify_release_tag.sh --tag "${{ github.ref_name }}"
+
+      - name: Package SDK
+        if: startsWith(github.ref, 'refs/tags/dmcp-v')
+        shell: bash
+        run: >
+          scripts/ci/package_sdk.sh
+          --build-dir "build/${{ matrix.linkage }}"
+          --platform "${{ matrix.platform }}"
+          --linkage "${{ matrix.linkage }}"
+          --asset-name "${{ matrix.asset_name }}"
+          --release-tag "${{ github.ref_name }}"
+
+      - name: Upload SDK artifact
+        if: startsWith(github.ref, 'refs/tags/dmcp-v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  adapters:
+    name: Adapter build/link checks
+    if: ${{ !startsWith(github.ref, 'refs/tags/dmcp-v') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout DMCP
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - name: Install Linux Dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             cmake \
             libsdl2-dev \
-            libsdl2-net-dev \
-            libsdl2-mixer-dev \
             libpng-dev \
             libsamplerate0-dev
 
-      - name: Install macOS Dependencies
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install sdl2 sdl2_net sdl2_mixer libpng libsamplerate
-
-      - name: Install Windows Dependencies
-        if: matrix.os == 'windows-latest'
-        run: |
-          vcpkg install sdl2 sdl2-net sdl2-mixer libpng libsamplerate --triplet x64-windows
-
-      - name: Download WAD
+      - name: Build and test adapters
         shell: bash
-        run: |
-          mkdir -p assets/wads
-          ./scripts/download_wad.sh assets/wads
-
-      - name: Apply Patch
-        shell: bash
-        run: |
-          ./tests/integration/apply_crispy_dmcp_patch.sh
-
-      - name: Pre-configure Crispy Doom (for headers)
-        shell: bash
-        run: |
-          CMAKE_ARGS=""
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          fi
-          cmake -S crispy-doom -B crispy-doom/build -DCMAKE_BUILD_TYPE=Release $CMAKE_ARGS
-
-      - name: Configure DMCP
-        shell: bash
-        run: |
-          CMAKE_ARGS=""
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          fi
-          cmake -B build \
-            -DDMCP_BUILD_SHARED=ON \
-            -DDMCP_BUILD_SINGLE_DLL=ON \
-            -DDMCP_BUILD_EXAMPLES=OFF \
-            -DCMAKE_BUILD_TYPE=Release \
-            $CMAKE_ARGS
-
-      - name: Build DMCP
-        shell: bash
-        run: |
-          cmake --build build --config Release --parallel
-
-      - name: Configure Crispy Doom
-        shell: bash
-        run: |
-          CMAKE_ARGS=""
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-             CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          fi
-          cmake -S crispy-doom -B crispy-doom/build \
-            -DDMCP_ENABLE=ON \
-            -DDMCP_ROOT="$(pwd)" \
-            -DCMAKE_BUILD_TYPE=Release \
-            $CMAKE_ARGS
-
-      - name: Build Crispy Doom
-        shell: bash
-        run: |
-          cmake --build crispy-doom/build --config Release --parallel
-
-      - name: Package Artifacts
-        shell: bash
-        run: |
-          mkdir -p release_package
-          
-          # Binary and libraries
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp crispy-doom/build/src/Release/crispy-doom.exe release_package/
-            cp build/Release/dmcp.dll release_package/ 2>/dev/null || cp build/dmcp.dll release_package/ 2>/dev/null || true
-            cp crispy-doom/build/src/Release/*.dll release_package/ || true
-            cp scripts/go.bat release_package/
-          else
-            cp crispy-doom/build/src/crispy-doom release_package/
-            cp build/libdmcp.so release_package/ 2>/dev/null || true
-            cp build/libdmcp.dylib release_package/ 2>/dev/null || true
-            cp scripts/go.sh release_package/
-            chmod +x release_package/go.sh
-          fi
-          
-          # Bundled WAD
-          cp assets/wads/doom1.wad release_package/
-          
-          # README
-          cp scripts/RELEASE_README.md release_package/README.md
-
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            7z a "${{ matrix.asset_name }}" ./release_package/*
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            ditto -c -k --sequesterRsrc --keepParent release_package "${{ matrix.asset_name }}"
-          else
-            tar -czf "${{ matrix.asset_name }}" release_package
-          fi
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.asset_name }}
-          compression-level: 0
+        run: scripts/ci/check_adapters.sh
 
   release:
-    needs: build
+    name: Publish SDK release
+    if: startsWith(github.ref, 'refs/tags/dmcp-v')
+    needs: sdk
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+    steps:
+      - name: Checkout DMCP
+        uses: actions/checkout@v7
+
+      - name: Download SDK artifacts
+        uses: actions/download-artifact@v8
         with:
-          files: |
-            */*.tar.gz
-            */*.zip
+          path: dist
+
+      - name: Publish SDK release
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          scripts/ci/publish_sdk_release.sh
+          --tag "${{ github.ref_name }}"
+          --artifacts-dir dist
+          --title "DMCP SDK ${{ github.ref_name }}"

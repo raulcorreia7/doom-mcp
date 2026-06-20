@@ -326,15 +326,15 @@ else
 	warn "Player state may be empty (game not started)"
 fi
 
-# Test 7: direct get_player alias
-test_title "Test 7: Direct JSON-RPC get_player"
-STATE_NATIVE="$(mcp_post '{"jsonrpc":"2.0","id":5,"method":"get_player"}' "$SESSION_ID")"
-assert_contains_json "$STATE_NATIVE" '"result"' "Direct method get_player is available" "Direct get_player method failed"
+# Test 7: canonical content catalog through tools/call
+test_title "Test 7: Available content catalog"
+CONTENT="$(mcp_post '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_available_content","arguments":{}}}' "$SESSION_ID")"
+assert_contains_json "$CONTENT" '"enemies"' "Content catalog contains enemies" "Content catalog failed"
 
-# Test 8: direct execute_command alias
-test_title "Test 8: Direct JSON-RPC execute_command"
-COMMAND_NATIVE="$(mcp_post '{"jsonrpc":"2.0","id":6,"method":"execute_command","params":{"type":"pause_game","params":{"paused":false}}}' "$SESSION_ID")"
-assert_contains_json "$COMMAND_NATIVE" '"queued"' "Direct method execute_command is available" "Direct execute_command method failed"
+# Test 8: direct command tool through tools/call
+test_title "Test 8: Direct pause_game tool"
+COMMAND_NATIVE="$(mcp_post '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"pause_game","arguments":{"paused":false}}}' "$SESSION_ID")"
+assert_contains_json "$COMMAND_NATIVE" '"queued"' "pause_game tool queued" "pause_game tool failed"
 
 # Test 9: /game/state route
 test_title "Test 9: GET /game/state"

@@ -1,51 +1,23 @@
-#include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
 #include <cstring>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <string>
 #include <thread>
-#include <unistd.h>
 #include <vector>
 
 #include "mcp/generic/constants.h"
 #include "mcp/generic/protocol.h"
 #include "mcp/generic/server.h"
 #include "mcp/json/json.hpp"
+#include "support/network.hpp"
 #include "test_utils.hpp"
 
 static int call_count = 0;
 
-static uint16_t AllocateFreePort() {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock < 0) {
-    return 0;
-  }
-
-  sockaddr_in addr{};
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons(0);
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-  if (bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-    close(sock);
-    return 0;
-  }
-
-  socklen_t len = sizeof(addr);
-  if (getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len) < 0) {
-    close(sock);
-    return 0;
-  }
-
-  close(sock);
-  return ntohs(addr.sin_port);
-}
-
 static mcp_server_config_t TestServerConfig() {
   mcp_server_config_t config = mcp_default_config();
-  config.port                = AllocateFreePort();
+  config.port                = dmcp::test::allocate_loopback_port();
+  config.start_transport     = false;
   return config;
 }
 
@@ -101,19 +73,19 @@ static bool route_handler(void* user_data, const char* method, const char* path,
 }
 
 TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
-  SECTION("Create and destroy server with default config") {
+  SECTION("Create and destroy server without starting transport") {
     mcp_server_config_t config = TestServerConfig();
     mcp_server_t*       server = mcp_server_create(&config);
 
     REQUIRE(server != nullptr);
-    REQUIRE(mcp_server_is_running(server) == true);
+    REQUIRE(mcp_server_is_running(server) == false);
 
     mcp_server_destroy(server);
   }
 
   SECTION("Create server with custom port") {
-    mcp_server_config_t config = mcp_default_config();
-    config.port                = AllocateFreePort();
+    mcp_server_config_t config = TestServerConfig();
+    config.port                = dmcp::test::allocate_loopback_port();
 
     mcp_server_t* server = mcp_server_create(&config);
     REQUIRE(server != nullptr);
@@ -126,6 +98,7 @@ TEST_CASE("Generic MCP: Server lifecycle", "[api][server][lifecycle]") {
     REQUIRE(config.struct_size == sizeof(mcp_server_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
     REQUIRE(config.max_payload_size == MCP_MAX_PAYLOAD_SIZE);
+    REQUIRE(config.start_transport == true);
   }
 
   SECTION("Create server with custom max payload size") {
@@ -152,39 +125,39 @@ TEST_CASE("Generic MCP: Single method registration", "[api][server][method]") {
 
   SECTION("Register valid method succeeds") {
     call_count = 0;
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_method_register(server, "test_method", simple_handler, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
     REQUIRE(result.message != nullptr);
     REQUIRE(std::strcmp(result.message, "Success") == 0);
   }
 
   SECTION("Register method with user data") {
     int          counter = 0;
-    mcp_result_t result = mcp_server_method_register(server, "data_method", data_handler, &counter);
+    mcp_status_t result = mcp_server_method_register(server, "data_method", data_handler, &counter);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Register method with null server returns error") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_method_register(nullptr, "test_method", simple_handler, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
     REQUIRE(result.message != nullptr);
   }
 
   SECTION("Register method with null name returns error") {
-    mcp_result_t result = mcp_server_method_register(server, nullptr, simple_handler, nullptr);
+    mcp_status_t result = mcp_server_method_register(server, nullptr, simple_handler, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Register method with null handler returns error") {
-    mcp_result_t result = mcp_server_method_register(server, "test_method", nullptr, nullptr);
+    mcp_status_t result = mcp_server_method_register(server, "test_method", nullptr, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Unregister existing method succeeds") {
@@ -207,8 +180,8 @@ TEST_CASE("Generic MCP: Batch method registration", "[api][server][batch]") {
   SECTION("Register single method via batch") {
     mcp_method_registration_t methods[] = {{"method1", simple_handler, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(server, methods, 1);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = mcp_server_methods_register(server, methods, 1);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Register five methods via batch") {
@@ -218,8 +191,8 @@ TEST_CASE("Generic MCP: Batch method registration", "[api][server][batch]") {
                                             {"method4", simple_handler, nullptr},
                                             {"method5", simple_handler, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(server, methods, 5);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = mcp_server_methods_register(server, methods, 5);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Register ten methods via batch") {
@@ -230,53 +203,53 @@ TEST_CASE("Generic MCP: Batch method registration", "[api][server][batch]") {
         {"method7", simple_handler, nullptr}, {"method8", simple_handler, nullptr},
         {"method9", simple_handler, nullptr}, {"method10", simple_handler, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(server, methods, 10);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = mcp_server_methods_register(server, methods, 10);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Register zero methods succeeds") {
-    mcp_result_t result = mcp_server_methods_register(server, nullptr, 0);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = mcp_server_methods_register(server, nullptr, 0);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Batch with null server returns error") {
     mcp_method_registration_t methods[] = {{"test", simple_handler, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(nullptr, methods, 1);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_methods_register(nullptr, methods, 1);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Batch with null methods array but count > 0 returns error") {
-    mcp_result_t result = mcp_server_methods_register(server, nullptr, 5);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_methods_register(server, nullptr, 5);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Batch with null method name returns error") {
     mcp_method_registration_t methods[] = {{nullptr, simple_handler, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(server, methods, 1);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_methods_register(server, methods, 1);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Batch with null handler returns error") {
     mcp_method_registration_t methods[] = {{"test", nullptr, nullptr}};
 
-    mcp_result_t result = mcp_server_methods_register(server, methods, 1);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_methods_register(server, methods, 1);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Mixed single and batch registration works") {
-    mcp_result_t result1 = mcp_server_method_register(server, "single1", simple_handler, nullptr);
-    REQUIRE(result1.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result1 = mcp_server_method_register(server, "single1", simple_handler, nullptr);
+    REQUIRE(result1.code == MCP_STATUS_CODE_OK);
 
     mcp_method_registration_t batch[3] = {{"batch1", simple_handler, nullptr},
                                           {"batch2", simple_handler, nullptr},
                                           {"batch3", simple_handler, nullptr}};
-    mcp_result_t              result2  = mcp_server_methods_register(server, batch, 3);
-    REQUIRE(result2.code == MCP_RESULT_CODE_OK);
+    mcp_status_t              result2  = mcp_server_methods_register(server, batch, 3);
+    REQUIRE(result2.code == MCP_STATUS_CODE_OK);
 
-    mcp_result_t result3 = mcp_server_method_register(server, "single2", simple_handler, nullptr);
-    REQUIRE(result3.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result3 = mcp_server_method_register(server, "single2", simple_handler, nullptr);
+    REQUIRE(result3.code == MCP_STATUS_CODE_OK);
   }
 
   mcp_server_destroy(server);
@@ -289,43 +262,43 @@ TEST_CASE("Generic MCP: Route registration", "[api][server][route]") {
 
   SECTION("Register valid route succeeds") {
     int          counter = 0;
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_route_register(server, "GET", "/game/state", route_handler, &counter);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   }
 
   SECTION("Register route with null server returns error") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_route_register(nullptr, "GET", "/game/state", route_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Register route with null method returns error") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_route_register(server, nullptr, "/game/state", route_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Register route with null path returns error") {
-    mcp_result_t result = mcp_server_route_register(server, "GET", nullptr, route_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_route_register(server, "GET", nullptr, route_handler, nullptr);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Register route with null handler returns error") {
-    mcp_result_t result = mcp_server_route_register(server, "GET", "/game/state", nullptr, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    mcp_status_t result = mcp_server_route_register(server, "GET", "/game/state", nullptr, nullptr);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Reserved route registration fails") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_route_register(server, "POST", MCP_ENDPOINT_MCP, route_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Unregister custom route is safe") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_route_register(server, "GET", "/game/state", route_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
     mcp_server_route_unregister(server, "GET", "/game/state");
   }
 
@@ -370,7 +343,7 @@ TEST_CASE("Generic MCP: Event broadcasting", "[api][server][events]") {
     const char* complex_json = R"({
       "player": {"hp": 100, "armor": 50},
       "enemies": [
-        {"id": 1, "type": "Imp", "hp": 60},
+        {"id": 1, "type": "DoomImp", "hp": 60},
         {"id": 2, "type": "Demon", "hp": 150}
       ]
     })";
@@ -513,18 +486,11 @@ TEST_CASE("Generic MCP: Constants", "[api][constants]") {
 
   SECTION("Default port constant") { REQUIRE(MCP_DEFAULT_PORT == 6060); }
 
-  SECTION("Default target Hz constant") { REQUIRE(MCP_DEFAULT_TARGET_HZ == 10); }
-
   SECTION("Buffer size constants") {
     REQUIRE(MCP_BUFFER_SIZE_DEFAULT == 16384);
     REQUIRE(MCP_MAX_JSON_SIZE == 16384);
     REQUIRE(MCP_HEALTH_BUFFER_SIZE == 256);
     REQUIRE(MCP_MAX_PAYLOAD_SIZE == (1024 * 1024));
-  }
-
-  SECTION("Screenshot defaults") {
-    REQUIRE(MCP_DEFAULT_SCREENSHOT_WIDTH == 640);
-    REQUIRE(MCP_DEFAULT_SCREENSHOT_HEIGHT == 480);
   }
 
   SECTION("Endpoint constants") {
@@ -539,33 +505,33 @@ TEST_CASE("Generic MCP: Constants", "[api][constants]") {
 
 TEST_CASE("Generic MCP: Result codes", "[api][result]") {
   SECTION("Result code constants") {
-    REQUIRE(MCP_RESULT_CODE_OK == 0);
-    REQUIRE(MCP_RESULT_CODE_INVALID_ARGS == -1);
-    REQUIRE(MCP_RESULT_CODE_ENCODING_FAILED == -2);
-    REQUIRE(MCP_RESULT_CODE_DISABLED == -3);
-    REQUIRE(MCP_RESULT_CODE_QUEUE_FULL == -4);
-    REQUIRE(MCP_RESULT_CODE_NOT_FOUND == -5);
-    REQUIRE(MCP_RESULT_CODE_INTERNAL == -6);
+    REQUIRE(MCP_STATUS_CODE_OK == 0);
+    REQUIRE(MCP_STATUS_CODE_INVALID_ARGS == -1);
+    REQUIRE(MCP_STATUS_CODE_ENCODING_FAILED == -2);
+    REQUIRE(MCP_STATUS_CODE_DISABLED == -3);
+    REQUIRE(MCP_STATUS_CODE_QUEUE_FULL == -4);
+    REQUIRE(MCP_STATUS_CODE_NOT_FOUND == -5);
+    REQUIRE(MCP_STATUS_CODE_INTERNAL == -6);
   }
 
   SECTION("Convenience macros create valid results") {
-    mcp_result_t ok = MCP_OK;
+    mcp_status_t ok = MCP_STATUS_OK("Success");
     REQUIRE(ok.code == 0);
     REQUIRE(ok.message != nullptr);
 
-    mcp_result_t error = MCP_ERROR_INVALID_ARGS;
+    mcp_status_t error = MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
     REQUIRE(error.code == -1);
     REQUIRE(error.message != nullptr);
   }
 
   SECTION("Result macros with custom message") {
-    mcp_result_t result = MCP_RESULT_ERROR(-100, "Custom error");
+    mcp_status_t result = MCP_STATUS_ERROR(-100, "Custom error");
     REQUIRE(result.code == -100);
     REQUIRE(std::strcmp(result.message, "Custom error") == 0);
   }
 
   SECTION("Result macro with null message") {
-    mcp_result_t result = MCP_RESULT_ERROR(-200, nullptr);
+    mcp_status_t result = MCP_STATUS_ERROR(-200, nullptr);
     REQUIRE(result.code == -200);
     REQUIRE(result.message != nullptr);
   }
@@ -581,6 +547,7 @@ TEST_CASE("Generic MCP: Server configuration", "[api][config]") {
     REQUIRE(config.max_payload_size == MCP_MAX_PAYLOAD_SIZE);
     REQUIRE(config.on_log == nullptr);
     REQUIRE(config.log_user_data == nullptr);
+    REQUIRE(config.start_transport == true);
   }
 
   SECTION("Custom config values") {
@@ -601,17 +568,17 @@ TEST_CASE("Generic MCP: Error messages", "[api][error]") {
   REQUIRE(server != nullptr);
 
   SECTION("Invalid args error message is descriptive") {
-    mcp_result_t result = mcp_server_method_register(nullptr, "test", simple_handler, nullptr);
+    mcp_status_t result = mcp_server_method_register(nullptr, "test", simple_handler, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
     REQUIRE(result.message != nullptr);
     REQUIRE(std::strlen(result.message) > 0);
   }
 
   SECTION("Success message is present") {
-    mcp_result_t result = mcp_server_method_register(server, "test", simple_handler, nullptr);
+    mcp_status_t result = mcp_server_method_register(server, "test", simple_handler, nullptr);
 
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
     REQUIRE(result.message != nullptr);
   }
 
@@ -633,9 +600,9 @@ TEST_CASE("Generic MCP: Thread safety", "[api][thread]") {
       threads.emplace_back([&, t]() {
         for (int i = 0; i < methods_per_thread; ++i) {
           std::string  name = "thread_" + std::to_string(t) + "_method_" + std::to_string(i);
-          mcp_result_t result =
+          mcp_status_t result =
               mcp_server_method_register(server, name.c_str(), simple_handler, nullptr);
-          if (result.code == MCP_RESULT_CODE_OK) {
+          if (result.code == MCP_STATUS_CODE_OK) {
             success_count++;
           }
         }
@@ -704,7 +671,7 @@ TEST_CASE("Generic MCP: Thread safety", "[api][thread]") {
 
 TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error]") {
   SECTION("Port zero - implementation allows (auto-assign)") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = TestServerConfig();
     config.port                = 0;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -713,7 +680,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Negative port - implementation behavior") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = TestServerConfig();
     config.port                = -1;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -722,7 +689,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Port out of range - implementation behavior") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = TestServerConfig();
     config.port                = 65535;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -731,7 +698,7 @@ TEST_CASE("Generic MCP: Server create with invalid config", "[api][server][error
   }
 
   SECTION("Zero max payload size - implementation behavior") {
-    mcp_server_config_t config = mcp_default_config();
+    mcp_server_config_t config = TestServerConfig();
     config.max_payload_size    = 0;
 
     mcp_server_t* server = mcp_server_create(&config);
@@ -764,9 +731,9 @@ TEST_CASE("Generic MCP: Response buffer overflow", "[api][server][error][buffer]
   REQUIRE(server != nullptr);
 
   SECTION("Handler returns false when buffer too small") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_method_register(server, "overflow_test", overflow_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
 
     char small_buffer[10];
     bool success =
@@ -775,9 +742,9 @@ TEST_CASE("Generic MCP: Response buffer overflow", "[api][server][error][buffer]
   }
 
   SECTION("Handler succeeds with sufficient buffer") {
-    mcp_result_t result =
+    mcp_status_t result =
         mcp_server_method_register(server, "overflow_test", overflow_handler, nullptr);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
 
     char large_buffer[256];
     bool success =

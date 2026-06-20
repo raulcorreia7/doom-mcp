@@ -1,6 +1,0 @@
-__pycache__/
-.pytest_cache/
-.doom.lock
-doom*.log
-doom*.stdout
-doom*.stderr

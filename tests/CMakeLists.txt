@@ -1,21 +1,14 @@
 cmake_minimum_required(VERSION 3.25)
 
 # Unit tests
-set(UNIT_TEST_SOURCES
-  unit/test_mcp_server.cpp
-  unit/test_mcp_protocol.cpp
-  unit/test_doom_context.cpp
-  unit/test_screenshot.cpp
-  unit/test_layer_boundaries.cpp
-  unit/test_layers.cpp
-)
+dmcp_collect_sources(UNIT_TEST_SOURCES unit)
 
-if(DMCP_BUILD_ADAPTER_ZDOOM)
-  list(APPEND UNIT_TEST_SOURCES unit/test_zdoom_adapter.cpp)
+if(NOT DMCP_BUILD_ADAPTER_ZDOOM)
+  list(FILTER UNIT_TEST_SOURCES EXCLUDE REGEX "/test_zdoom_adapter\\.cpp$")
 endif()
 
-if(TARGET adapter_fake OR TARGET dmcp::adapter_fake)
-  list(APPEND UNIT_TEST_SOURCES unit/test_fake_adapter.cpp)
+if(NOT TARGET adapter_fake AND NOT TARGET dmcp::adapter_fake)
+  list(FILTER UNIT_TEST_SOURCES EXCLUDE REGEX "/test_fake_adapter\\.cpp$")
 endif()
 
 add_executable(dmcp_tests ${UNIT_TEST_SOURCES})
@@ -26,12 +19,14 @@ if(DMCP_BUILD_SHARED)
       core_static
       generic_static
       Catch2::Catch2WithMain
+      httplib::httplib
   )
 else()
   target_link_libraries(dmcp_tests
     PRIVATE
       dmcp::core
       Catch2::Catch2WithMain
+      httplib::httplib
   )
 endif()
 
@@ -39,15 +34,19 @@ if(TARGET dmcp::adapter_fake)
   target_link_libraries(dmcp_tests PRIVATE dmcp::adapter_fake)
 endif()
 
+if(WIN32)
+  target_link_libraries(dmcp_tests PRIVATE ws2_32)
+endif()
+
 target_include_directories(dmcp_tests
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src
 )
 
 target_compile_definitions(dmcp_tests
   PRIVATE
-    DMCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DMCP_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
 
 if(NOT MSVC)
@@ -58,8 +57,21 @@ include(CTest)
 include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(dmcp_tests PROPERTIES LABELS "unit")
 
-# Integration tests (optional, requires network and WAD)
+add_executable(public_c_headers public_c_headers.c)
+target_include_directories(public_c_headers PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(public_c_headers PRIVATE c_std_99)
+target_link_libraries(public_c_headers PRIVATE dmcp::core)
+if(WIN32)
+  target_link_libraries(public_c_headers PRIVATE ws2_32)
+endif()
+add_test(NAME public_c_headers COMMAND public_c_headers)
+set_tests_properties(public_c_headers PROPERTIES LABELS "unit")
+
+# Integration tests are no-game by default. Real-engine checks stay opt-in through
+# scripts such as tests/integration/run_headless.sh.
 if(DMCP_BUILD_INTEGRATION_TESTS)
-  # Add integration test subdirectory
+  if(NOT TARGET dmcp::adapter_fake)
+    message(FATAL_ERROR "DMCP_BUILD_INTEGRATION_TESTS requires DMCP_BUILD_ADAPTER_FAKE=ON")
+  endif()
   add_subdirectory(integration)
 endif()

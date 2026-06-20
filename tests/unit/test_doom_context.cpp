@@ -1,17 +1,15 @@
-#include <arpa/inet.h>
 #include <chrono>
 #include <cstring>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <thread>
-#include <unistd.h>
 
+#include "dmcp/adapter/entities.h"
 #include "dmcp/doom/api.h"
 #include "dmcp/doom/content.h"
 #include "dmcp/doom/commands.h"
 #include "dmcp/doom/constants.h"
 #include "dmcp/doom/types.h"
 #include "mcp/generic/constants.h"
+#include "support/network.hpp"
 #include "test_utils.hpp"
 
 static int              snapshot_call_count = 0;
@@ -63,35 +61,10 @@ static dmcp_item_t create_test_item(const char* name, int amount) {
   return item;
 }
 
-static uint16_t AllocateFreePort() {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock < 0) {
-    return 0;
-  }
-
-  sockaddr_in addr{};
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons(0);
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-  if (bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-    close(sock);
-    return 0;
-  }
-
-  socklen_t len = sizeof(addr);
-  if (getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len) < 0) {
-    close(sock);
-    return 0;
-  }
-
-  close(sock);
-  return ntohs(addr.sin_port);
-}
-
 static dmcp_config_t TestConfig() {
-  dmcp_config_t config = dmcp_config_default();
-  config.port          = AllocateFreePort();
+  dmcp_config_t config   = dmcp_config_default();
+  config.port            = dmcp::test::allocate_loopback_port();
+  config.start_transport = false;
   return config;
 }
 
@@ -101,7 +74,7 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
     dmcp_context_t* ctx    = dmcp_context_create(&config);
 
     REQUIRE(ctx != nullptr);
-    REQUIRE(dmcp_context_is_running(ctx) == true);
+    REQUIRE(dmcp_context_is_running(ctx) == false);
 
     dmcp_context_destroy(ctx);
   }
@@ -110,12 +83,15 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
     dmcp_config_t config = dmcp_config_default();
     REQUIRE(config.struct_size == sizeof(dmcp_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
-    REQUIRE(config.target_hz == MCP_DEFAULT_TARGET_HZ);
+    REQUIRE(config.target_hz == DMCP_DEFAULT_TARGET_HZ);
+    REQUIRE(config.start_transport == true);
+    REQUIRE(config.permissions.allow_console_commands == false);
+    REQUIRE(config.permissions.allow_cheats == false);
   }
 
   SECTION("Create context with custom port") {
-    dmcp_config_t config = dmcp_config_default();
-    config.port          = AllocateFreePort();
+    dmcp_config_t config = TestConfig();
+    config.port          = dmcp::test::allocate_loopback_port();
 
     dmcp_context_t* ctx = dmcp_context_create(&config);
     REQUIRE(ctx != nullptr);
@@ -131,6 +107,14 @@ TEST_CASE("Doom MCP: Context lifecycle", "[doom][context][lifecycle]") {
     REQUIRE(ctx != nullptr);
 
     dmcp_context_destroy(ctx);
+  }
+
+  SECTION("Create context rejects zero target Hz") {
+    dmcp_config_t config = TestConfig();
+    config.target_hz     = 0;
+
+    dmcp_context_t* ctx = dmcp_context_create(&config);
+    REQUIRE(ctx == nullptr);
   }
 
   SECTION("Create context with screenshot disabled") {
@@ -229,13 +213,13 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
 
   SECTION("Submit screenshot with null context returns error") {
     dmcp_screenshot_frame_t frame  = {};
-    mcp_result_generic_t    result = dmcp_screenshot_submit(nullptr, &frame);
+    mcp_status_t            result = dmcp_screenshot_submit(nullptr, &frame);
 
     REQUIRE(result.code != 0);
   }
 
   SECTION("Submit screenshot with null frame returns error") {
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, nullptr);
+    mcp_status_t result = dmcp_screenshot_submit(ctx, nullptr);
 
     REQUIRE(result.code != 0);
   }
@@ -252,9 +236,71 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     frame.height                  = 480;
     frame.stride                  = 640 * 4;
 
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
 
     REQUIRE(result.code == 0);
+  }
+
+  SECTION("Screenshot request is consumed by submitted frame") {
+    REQUIRE(dmcp_screenshot_is_requested(ctx) == false);
+    REQUIRE(dmcp_screenshot_request(ctx) == true);
+    REQUIRE(dmcp_screenshot_is_requested(ctx) == true);
+
+    uint8_t pixels[2 * 2 * 4] = {};
+
+    dmcp_screenshot_frame_t frame = {};
+    frame.pixels                  = pixels;
+    frame.width                   = 2;
+    frame.height                  = 2;
+    frame.stride                  = 2 * 4;
+
+    REQUIRE(dmcp_screenshot_submit(ctx, &frame).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_screenshot_is_requested(ctx) == false);
+  }
+
+  SECTION("Copy ASCII screenshot uses caller buffer") {
+    uint8_t pixels[4 * 4 * 4] = {};
+    for (size_t i = 0; i < sizeof(pixels); ++i) {
+      pixels[i] = static_cast<uint8_t>(i % 255);
+    }
+
+    dmcp_screenshot_frame_t frame = {};
+    frame.pixels                  = pixels;
+    frame.width                   = 4;
+    frame.height                  = 4;
+    frame.stride                  = 4 * 4;
+
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+    REQUIRE(result.code == 0);
+
+    char ascii[128] = {};
+    int  written    = dmcp_screenshot_copy_ascii(ctx, ascii, sizeof(ascii), 4);
+    REQUIRE(written > 0);
+    REQUIRE(ascii[written] == '\0');
+    REQUIRE(std::strlen(ascii) == static_cast<size_t>(written));
+
+    char small[2] = {};
+    REQUIRE(dmcp_screenshot_copy_ascii(ctx, small, sizeof(small), 16) == -1);
+  }
+
+  SECTION("JSON screenshot reads stable dimensions") {
+    uint8_t pixels[2 * 2 * 4] = {};
+
+    dmcp_screenshot_frame_t frame = {};
+    frame.pixels                  = pixels;
+    frame.width                   = 2;
+    frame.height                  = 2;
+    frame.stride                  = 2 * 4;
+
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+    REQUIRE(result.code == 0);
+
+    char json[512] = {};
+    int  written   = dmcp_screenshot_to_json(ctx, json, sizeof(json), 2);
+    REQUIRE(written > 0);
+    REQUIRE(std::strstr(json, "\"width\":2") != nullptr);
+    REQUIRE(std::strstr(json, "\"height\":2") != nullptr);
+    REQUIRE(std::strstr(json, "\"ascii\":") != nullptr);
   }
 
   SECTION("Submit screenshot with custom dimensions succeeds") {
@@ -266,7 +312,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     frame.height                  = 720;
     frame.stride                  = 1280 * 4;
 
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
 
     REQUIRE(result.code == 0);
   }
@@ -278,9 +324,9 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     frame.height                  = 480;
     frame.stride                  = 1920;
 
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
 
-    (void)result;
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Submit screenshot with zero dimensions") {
@@ -291,9 +337,23 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     frame.height                  = 0;
     frame.stride                  = 1;
 
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx, &frame);
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
 
-    (void)result;
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
+  }
+
+  SECTION("Submit screenshot with short stride returns error") {
+    uint8_t pixels[2 * 2 * 4] = {};
+
+    dmcp_screenshot_frame_t frame = {};
+    frame.pixels                  = pixels;
+    frame.width                   = 2;
+    frame.height                  = 2;
+    frame.stride                  = 2;
+
+    mcp_status_t result = dmcp_screenshot_submit(ctx, &frame);
+
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   SECTION("Submit screenshot with disabled screenshot feature") {
@@ -310,7 +370,7 @@ TEST_CASE("Doom MCP: Screenshot functionality", "[doom][screenshot]") {
     frame.height                  = 1;
     frame.stride                  = 1;
 
-    mcp_result_generic_t result = dmcp_screenshot_submit(ctx_no_ss, &frame);
+    mcp_status_t result = dmcp_screenshot_submit(ctx_no_ss, &frame);
 
     REQUIRE(result.code != 0);
 
@@ -330,6 +390,7 @@ TEST_CASE("Doom MCP: Statistics", "[doom][stats]") {
     dmcp_stats_t stats = {};
     dmcp_stats_get(ctx, &stats);
 
+    REQUIRE(stats.struct_size == sizeof(dmcp_stats_t));
     REQUIRE(stats.dropped_snapshots == 0);
     REQUIRE(stats.dropped_screenshots == 0);
     REQUIRE(stats.connected_clients == 0);
@@ -372,7 +433,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
     dmcp_snapshot_t snapshot = {};
     dmcp_snapshot_clear(&snapshot);
 
-    dmcp_enemy_t enemy = create_test_enemy(1, 60, "Imp");
+    dmcp_enemy_t enemy = create_test_enemy(1, 60, "DoomImp");
 
     bool result = dmcp_snapshot_add_enemy(&snapshot, &enemy);
 
@@ -380,14 +441,14 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
     REQUIRE(snapshot.enemy_count == 1);
     REQUIRE(snapshot.enemies[0].id == 1);
     REQUIRE(snapshot.enemies[0].hp == 60);
-    REQUIRE(std::strcmp(snapshot.enemies[0].type, "Imp") == 0);
+    REQUIRE(std::strcmp(snapshot.enemies[0].type, "DoomImp") == 0);
   }
 
   SECTION("Add multiple enemies to snapshot") {
     dmcp_snapshot_t snapshot = {};
     dmcp_snapshot_clear(&snapshot);
 
-    dmcp_enemy_t enemy1 = create_test_enemy(1, 60, "Imp");
+    dmcp_enemy_t enemy1 = create_test_enemy(1, 60, "DoomImp");
     dmcp_enemy_t enemy2 = create_test_enemy(2, 150, "Demon");
     dmcp_enemy_t enemy3 = create_test_enemy(3, 500, "Baron");
     REQUIRE(dmcp_snapshot_add_enemy(&snapshot, &enemy1));
@@ -402,11 +463,11 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
     dmcp_snapshot_clear(&snapshot);
 
     for (uint32_t i = 0; i < DMCP_MAX_ENEMIES; i++) {
-      dmcp_enemy_t enemy = create_test_enemy((int)i, 60.0f, "Imp");
+      dmcp_enemy_t enemy = create_test_enemy((int)i, 60.0f, "DoomImp");
       dmcp_snapshot_add_enemy(&snapshot, &enemy);
     }
 
-    dmcp_enemy_t extra_enemy = create_test_enemy(999, 60, "Imp");
+    dmcp_enemy_t extra_enemy = create_test_enemy(999, 60, "DoomImp");
     bool         result      = dmcp_snapshot_add_enemy(&snapshot, &extra_enemy);
 
     REQUIRE(result == false);
@@ -414,7 +475,7 @@ TEST_CASE("Doom MCP: Snapshot utilities", "[doom][snapshot]") {
   }
 
   SECTION("Add enemy with null snapshot fails") {
-    dmcp_enemy_t enemy  = create_test_enemy(1, 60, "Imp");
+    dmcp_enemy_t enemy  = create_test_enemy(1, 60, "DoomImp");
     bool         result = dmcp_snapshot_add_enemy(nullptr, &enemy);
 
     REQUIRE(result == false);
@@ -536,22 +597,23 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
 
     REQUIRE(config.struct_size == sizeof(dmcp_config_t));
     REQUIRE(config.port == MCP_DEFAULT_PORT);
-    REQUIRE(config.target_hz == MCP_DEFAULT_TARGET_HZ);
-    REQUIRE(config.snapshot_pool_size == MCP_DEFAULT_SNAPSHOT_POOL_SIZE);
-    REQUIRE(config._reserved_queue_slots == MCP_DEFAULT_QUEUE_SLOTS);
+    REQUIRE(config.target_hz == DMCP_DEFAULT_TARGET_HZ);
+    REQUIRE(config.snapshot_pool_size == DMCP_DEFAULT_SNAPSHOT_POOL_SIZE);
+    REQUIRE(config.command_queue_slots == DMCP_DEFAULT_QUEUE_SLOTS);
     REQUIRE(config.screenshot.enable == true);
-    REQUIRE(config.screenshot.width == MCP_DEFAULT_SCREENSHOT_WIDTH);
-    REQUIRE(config.screenshot.height == MCP_DEFAULT_SCREENSHOT_HEIGHT);
+    REQUIRE(config.screenshot.width == DMCP_DEFAULT_SCREENSHOT_WIDTH);
+    REQUIRE(config.screenshot.height == DMCP_DEFAULT_SCREENSHOT_HEIGHT);
     REQUIRE(config.on_snapshot == nullptr);
     REQUIRE(config.on_log == nullptr);
     REQUIRE(config.user_data == nullptr);
+    REQUIRE(config.start_transport == true);
   }
 
   SECTION("Custom config values") {
     dmcp_config_t config         = TestConfig();
     config.target_hz             = 30;
     config.snapshot_pool_size    = 32;
-    config._reserved_queue_slots = 8;
+    config.command_queue_slots   = 8;
     config.screenshot.width      = 1920;
     config.screenshot.height     = 1080;
 
@@ -564,32 +626,31 @@ TEST_CASE("Doom MCP: Configuration", "[doom][config]") {
 
 TEST_CASE("Doom MCP: Result codes", "[doom][result]") {
   SECTION("Result code constants") {
-    REQUIRE(MCP_RESULT_CODE_OK == 0);
-    REQUIRE(MCP_RESULT_CODE_INVALID_ARGS == -1);
-    REQUIRE(MCP_RESULT_CODE_ENCODING_FAILED == -2);
-    REQUIRE(MCP_RESULT_CODE_DISABLED == -3);
-    REQUIRE(MCP_RESULT_CODE_QUEUE_FULL == -4);
+    REQUIRE(MCP_STATUS_CODE_OK == 0);
+    REQUIRE(MCP_STATUS_CODE_INVALID_ARGS == -1);
+    REQUIRE(MCP_STATUS_CODE_ENCODING_FAILED == -2);
+    REQUIRE(MCP_STATUS_CODE_DISABLED == -3);
+    REQUIRE(MCP_STATUS_CODE_QUEUE_FULL == -4);
   }
 
   SECTION("Convenience macros create valid results") {
-    mcp_result_generic_t ok = MCP_RESULT_OK("Success");
+    mcp_status_t ok = MCP_STATUS_OK("Success");
     REQUIRE(ok.code == 0);
     REQUIRE(ok.message != nullptr);
 
-    mcp_result_generic_t error =
-        MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments");
+    mcp_status_t error = MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
     REQUIRE(error.code == -1);
     REQUIRE(error.message != nullptr);
   }
 
   SECTION("Result macros with custom message") {
-    mcp_result_generic_t result = MCP_RESULT_ERROR(-100, "Custom error");
+    mcp_status_t result = MCP_STATUS_ERROR(-100, "Custom error");
     REQUIRE(result.code == -100);
     REQUIRE(std::strcmp(result.message, "Custom error") == 0);
   }
 
   SECTION("Result macro with null message") {
-    mcp_result_generic_t result = MCP_RESULT_ERROR(-200, nullptr);
+    mcp_status_t result = MCP_STATUS_ERROR(-200, nullptr);
     REQUIRE(result.code == -200);
     REQUIRE(result.message != nullptr);
   }
@@ -650,30 +711,64 @@ TEST_CASE("Doom MCP: Content availability by mode", "[doom][content]") {
   SECTION("Doom 1 modes block Doom 2-only content") {
     REQUIRE_FALSE(dmcp_is_weapon_available("SuperShotgun", DMCP_GAMEMODE_REGISTERED));
     REQUIRE_FALSE(dmcp_is_item_available("SuperShotgun", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_item_available("MegaSphere", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_item_available("MegaSphere", DMCP_GAMEMODE_RETAIL));
     REQUIRE_FALSE(dmcp_is_map_available("MAP01", DMCP_GAMEMODE_RETAIL));
 
     REQUIRE(dmcp_is_weapon_available("Shotgun", DMCP_GAMEMODE_REGISTERED));
     REQUIRE(dmcp_is_item_available("Shells", DMCP_GAMEMODE_RETAIL));
     REQUIRE(dmcp_is_map_available("E1M1", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE(dmcp_is_map_available("E4M1", DMCP_GAMEMODE_RETAIL));
   }
 
-  SECTION("Unknown custom content is not blocked preemptively") {
-    REQUIRE(dmcp_is_weapon_available("CustomLaser", DMCP_GAMEMODE_COMMERCIAL));
-    REQUIRE(dmcp_is_enemy_spawnable("CustomBoss", DMCP_GAMEMODE_RETAIL));
-    REQUIRE(dmcp_is_item_available("ModOnlyArtifact", DMCP_GAMEMODE_REGISTERED));
-    REQUIRE(dmcp_is_map_available("MAP99", DMCP_GAMEMODE_COMMERCIAL));
+  SECTION("Commercial mode blocks Doom 1 map names") {
+    REQUIRE(dmcp_is_map_available("MAP01", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_item_available("MegaSphere", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE_FALSE(dmcp_is_map_available("E1M1", DMCP_GAMEMODE_COMMERCIAL));
   }
 
-  SECTION("Alias inputs normalize to canonical behavior") {
-    REQUIRE(dmcp_is_enemy_spawnable("Imp", DMCP_GAMEMODE_SHAREWARE) ==
-            dmcp_is_enemy_spawnable("DoomImp", DMCP_GAMEMODE_SHAREWARE));
-    REQUIRE(dmcp_is_enemy_spawnable("Hell Knight", DMCP_GAMEMODE_REGISTERED) ==
-            dmcp_is_enemy_spawnable("HellKnight", DMCP_GAMEMODE_REGISTERED));
+  SECTION("Doom keys are discoverable items in all Doom modes") {
+    REQUIRE(dmcp_is_item_available("BlueKeycard", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE(dmcp_is_item_available("YellowKeycard", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE(dmcp_is_item_available("RedKeycard", DMCP_GAMEMODE_RETAIL));
+    REQUIRE(dmcp_is_item_available("BlueSkullKey", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE(dmcp_is_item_available("YellowSkullKey", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE(dmcp_is_item_available("RedSkullKey", DMCP_GAMEMODE_REGISTERED));
+  }
 
-    REQUIRE(dmcp_is_weapon_available("BFG", DMCP_GAMEMODE_SHAREWARE) ==
-            dmcp_is_weapon_available("BFG9000", DMCP_GAMEMODE_SHAREWARE));
-    REQUIRE(dmcp_is_item_available("Cell Pack", DMCP_GAMEMODE_SHAREWARE) ==
-            dmcp_is_item_available("CellPack", DMCP_GAMEMODE_SHAREWARE));
+  SECTION("Adapter monster helper accepts canonical catalog names") {
+    for (size_t i = 0; i < dmcp_all_enemies_count; ++i) {
+      REQUIRE(dmcp_entity_is_monster(dmcp_all_enemies[i]));
+    }
+    REQUIRE_FALSE(dmcp_entity_is_monster("Fatso"));
+  }
+
+  SECTION("Unknown content is rejected until exposed by the adapter catalog") {
+    REQUIRE_FALSE(dmcp_is_weapon_available("CustomLaser", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("CustomBoss", DMCP_GAMEMODE_RETAIL));
+    REQUIRE_FALSE(dmcp_is_item_available("ModOnlyArtifact", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_map_available("MAP99", DMCP_GAMEMODE_COMMERCIAL));
+  }
+
+  SECTION("Non-canonical content names are not accepted") {
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("Imp", DMCP_GAMEMODE_SHAREWARE));
+    REQUIRE_FALSE(dmcp_is_enemy_spawnable("Hell Knight", DMCP_GAMEMODE_REGISTERED));
+    REQUIRE_FALSE(dmcp_is_weapon_available("BFG", DMCP_GAMEMODE_COMMERCIAL));
+    REQUIRE_FALSE(dmcp_is_item_available("Cell Pack", DMCP_GAMEMODE_COMMERCIAL));
+  }
+
+  SECTION("Unavailable message can be copied into caller storage") {
+    char buffer[128] = {};
+    int written = dmcp_content_unavailable_message_copy("Item", "CellPack", DMCP_GAMEMODE_SHAREWARE,
+                                                        buffer, sizeof(buffer));
+
+    REQUIRE(written > 0);
+    REQUIRE(std::strstr(buffer, "Item 'CellPack' not available in shareware mode") != nullptr);
+    REQUIRE(buffer[written] == '\0');
+
+    char small[4] = {};
+    REQUIRE(dmcp_content_unavailable_message_copy("Item", "CellPack", DMCP_GAMEMODE_SHAREWARE,
+                                                  small, sizeof(small)) == -1);
   }
 }
 
@@ -694,7 +789,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
     dmcp_strcpy(snapshot.level.level_name, "Entryway", DMCP_MAX_LEVEL_NAME);
     snapshot.level.kill_count = 5;
 
-    dmcp_enemy_t enemy = create_test_enemy(1, 60, "Imp");
+    dmcp_enemy_t enemy = create_test_enemy(1, 60, "DoomImp");
     dmcp_snapshot_add_enemy(&snapshot, &enemy);
 
     char buffer[MCP_MAX_JSON_SIZE];
@@ -745,7 +840,7 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
     dmcp_snapshot_clear(&snapshot);
 
     for (int i = 0; i < 10; i++) {
-      dmcp_enemy_t enemy = create_test_enemy(i, 60.0f, "Imp");
+      dmcp_enemy_t enemy = create_test_enemy(i, 60.0f, "DoomImp");
       dmcp_snapshot_add_enemy(&snapshot, &enemy);
     }
 
@@ -774,27 +869,25 @@ TEST_CASE("Doom MCP: Snapshot to JSON", "[doom][json]") {
 
 TEST_CASE("Doom MCP: Error messages", "[doom][error]") {
   SECTION("Invalid args error message is descriptive") {
-    mcp_result_generic_t result =
-        MCP_RESULT_ERROR(MCP_RESULT_CODE_INVALID_ARGS, "Invalid arguments");
+    mcp_status_t result = MCP_STATUS_ERROR(MCP_STATUS_CODE_INVALID_ARGS, "Invalid arguments");
 
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
     REQUIRE(result.message != nullptr);
     REQUIRE(std::strlen(result.message) > 0);
   }
 
   SECTION("Encoding failed error message is descriptive") {
-    mcp_result_generic_t result =
-        MCP_RESULT_ERROR(MCP_RESULT_CODE_ENCODING_FAILED, "Encoding failed");
+    mcp_status_t result = MCP_STATUS_ERROR(MCP_STATUS_CODE_ENCODING_FAILED, "Encoding failed");
 
-    REQUIRE(result.code == MCP_RESULT_CODE_ENCODING_FAILED);
+    REQUIRE(result.code == MCP_STATUS_CODE_ENCODING_FAILED);
     REQUIRE(result.message != nullptr);
     REQUIRE(std::strlen(result.message) > 0);
   }
 
   SECTION("Success message is present") {
-    mcp_result_generic_t result = MCP_RESULT_OK("Success");
+    mcp_status_t result = MCP_STATUS_OK("Success");
 
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
     REQUIRE(result.message != nullptr);
   }
 }
@@ -827,8 +920,8 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
   cmd.sequence       = 12345;
 
   SECTION("Push command succeeds") {
-    mcp_result_generic_t result = dmcp_push_command(ctx, &cmd);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = dmcp_push_command(ctx, &cmd);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
     REQUIRE(dmcp_has_commands(ctx) == true);
     REQUIRE(dmcp_command_count(ctx) == 1);
   }
@@ -865,8 +958,65 @@ TEST_CASE("Doom MCP: Command queue push/pop", "[doom][commands]") {
   dmcp_context_destroy(ctx);
 }
 
+TEST_CASE("Doom MCP: Privileged command permissions", "[doom][commands][permissions]") {
+  SECTION("Default config rejects raw console and cheat-style mutation") {
+    dmcp_config_t   config = TestConfig();
+    dmcp_context_t* ctx    = dmcp_context_create(&config);
+    REQUIRE(ctx != nullptr);
+
+    dmcp_command_t console{};
+    console.type = DMCP_CMD_EXECUTE_CONSOLE;
+    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
+
+    dmcp_command_t health{};
+    health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
+    health.data.set_health.health = 200;
+    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_DISABLED);
+
+    dmcp_context_destroy(ctx);
+  }
+
+  SECTION("Console access alone does not allow known cheat commands") {
+    dmcp_config_t config                      = TestConfig();
+    config.permissions.allow_console_commands = true;
+
+    dmcp_context_t* ctx = dmcp_context_create(&config);
+    REQUIRE(ctx != nullptr);
+
+    dmcp_command_t console{};
+    console.type = DMCP_CMD_EXECUTE_CONSOLE;
+    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_DISABLED);
+
+    dmcp_context_destroy(ctx);
+  }
+
+  SECTION("Explicit permission flags allow privileged commands") {
+    dmcp_config_t config                      = TestConfig();
+    config.permissions.allow_console_commands = true;
+    config.permissions.allow_cheats           = true;
+
+    dmcp_context_t* ctx = dmcp_context_create(&config);
+    REQUIRE(ctx != nullptr);
+
+    dmcp_command_t console{};
+    console.type = DMCP_CMD_EXECUTE_CONSOLE;
+    dmcp_strcpy(console.data.console.command, "iddqd", sizeof(console.data.console.command));
+    REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
+
+    dmcp_command_t health{};
+    health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
+    health.data.set_health.health = 200;
+    REQUIRE(dmcp_push_command(ctx, &health).code == MCP_STATUS_CODE_OK);
+
+    dmcp_context_destroy(ctx);
+  }
+}
+
 TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
   dmcp_config_t   config = TestConfig();
+  config.command_queue_slots = 64;
   dmcp_context_t* ctx    = dmcp_context_create(&config);
   REQUIRE(ctx != nullptr);
 
@@ -876,9 +1026,9 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
   SECTION("Queue respects max size") {
     int pushed = 0;
     for (int i = 0; i < 100; i++) {
-      cmd.sequence                = i;
-      mcp_result_generic_t result = dmcp_push_command(ctx, &cmd);
-      if (result.code == MCP_RESULT_CODE_OK) {
+      cmd.sequence        = i;
+      mcp_status_t result = dmcp_push_command(ctx, &cmd);
+      if (result.code == MCP_STATUS_CODE_OK) {
         pushed++;
       } else {
         break;
@@ -892,10 +1042,10 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
     dmcp_command_result_t result = {};
     for (int i = 0; i < 70; i++) {
       cmd.sequence = i;
-      REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_RESULT_CODE_OK);
+      REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_STATUS_CODE_OK);
     }
 
-    REQUIRE(dmcp_command_result_get(ctx, 1, &result).code == MCP_RESULT_CODE_OK);
+    REQUIRE(dmcp_command_result_get(ctx, 1, &result).code == MCP_STATUS_CODE_OK);
     REQUIRE(result.completed == true);
     REQUIRE(result.success == false);
     REQUIRE(std::strcmp(result.message, "Dropped due to command queue overflow") == 0);
@@ -904,6 +1054,29 @@ TEST_CASE("Doom MCP: Command queue overflow", "[doom][commands]") {
     REQUIRE(dmcp_pop_command(ctx, &popped) == true);
     REQUIRE(popped.sequence == 7);
   }
+
+  dmcp_context_destroy(ctx);
+}
+
+TEST_CASE("Doom MCP: Command queue capacity follows config", "[doom][commands]") {
+  dmcp_config_t config       = TestConfig();
+  config.command_queue_slots = 3;
+
+  dmcp_context_t* ctx = dmcp_context_create(&config);
+  REQUIRE(ctx != nullptr);
+
+  dmcp_command_t cmd = {};
+  cmd.type           = DMCP_CMD_GIVE_ITEM;
+
+  for (int i = 0; i < 5; ++i) {
+    REQUIRE(dmcp_push_command(ctx, &cmd).code == MCP_STATUS_CODE_OK);
+  }
+
+  REQUIRE(dmcp_command_count(ctx) == 3);
+
+  dmcp_command_t popped = {};
+  REQUIRE(dmcp_pop_command(ctx, &popped) == true);
+  REQUIRE(popped.sequence == 3);
 
   dmcp_context_destroy(ctx);
 }
@@ -918,23 +1091,23 @@ TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
   cmd.data.pause.paused = true;
 
   SECTION("Track queued and completed command by sequence") {
-    mcp_result_generic_t push_result = dmcp_push_command(ctx, &cmd);
-    REQUIRE(push_result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t push_result = dmcp_push_command(ctx, &cmd);
+    REQUIRE(push_result.code == MCP_STATUS_CODE_OK);
     REQUIRE(cmd.sequence > 0);
 
     dmcp_command_result_t result = {};
-    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_RESULT_CODE_NOT_FOUND);
+    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_STATUS_CODE_NOT_FOUND);
 
-    REQUIRE(dmcp_command_result_mark_queued(ctx, &cmd).code == MCP_RESULT_CODE_OK);
-    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_RESULT_CODE_OK);
+    REQUIRE(dmcp_command_result_mark_queued(ctx, &cmd).code == MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_STATUS_CODE_OK);
     REQUIRE(result.sequence == cmd.sequence);
     REQUIRE(result.command_type == DMCP_CMD_PAUSE_GAME);
     REQUIRE(result.completed == false);
     REQUIRE(result.success == false);
 
     REQUIRE(dmcp_command_result_complete(ctx, &cmd, true, "Command executed").code ==
-            MCP_RESULT_CODE_OK);
-    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_RESULT_CODE_OK);
+            MCP_STATUS_CODE_OK);
+    REQUIRE(dmcp_command_result_get(ctx, cmd.sequence, &result).code == MCP_STATUS_CODE_OK);
     REQUIRE(result.completed == true);
     REQUIRE(result.success == true);
     REQUIRE(std::strcmp(result.message, "Command executed") == 0);
@@ -942,7 +1115,7 @@ TEST_CASE("Doom MCP: Command result tracking", "[doom][commands]") {
 
   SECTION("Reject invalid sequence") {
     dmcp_command_result_t result = {};
-    REQUIRE(dmcp_command_result_get(ctx, 0, &result).code == MCP_RESULT_CODE_INVALID_ARGS);
+    REQUIRE(dmcp_command_result_get(ctx, 0, &result).code == MCP_STATUS_CODE_INVALID_ARGS);
   }
 
   dmcp_context_destroy(ctx);
@@ -954,20 +1127,21 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   REQUIRE(ctx != nullptr);
 
   auto parse_ok = [](const char* json, dmcp_command_t* cmd) {
-    mcp_result_generic_t result = dmcp_parse_command_json(json, cmd);
-    REQUIRE(result.code == MCP_RESULT_CODE_OK);
+    mcp_status_t result = dmcp_parse_command_json(json, cmd);
+    REQUIRE(result.code == MCP_STATUS_CODE_OK);
   };
 
   auto parse_invalid = [](const char* json) {
-    dmcp_command_t       cmd    = {};
-    mcp_result_generic_t result = dmcp_parse_command_json(json, &cmd);
-    REQUIRE(result.code == MCP_RESULT_CODE_INVALID_ARGS);
+    dmcp_command_t cmd    = {};
+    mcp_status_t   result = dmcp_parse_command_json(json, &cmd);
+    REQUIRE(result.code == MCP_STATUS_CODE_INVALID_ARGS);
   };
 
-  SECTION("Parse spawn_entity with aliases") {
+  SECTION("Parse spawn_entity canonical fields") {
     dmcp_command_t cmd = {};
-    parse_ok(R"({"type":"spawn_entity","entity":"Zombieman","x":64,"y":128,"angle":90,"tid":7})",
-             &cmd);
+    parse_ok(
+        R"({"type":"spawn_entity","params":{"entity_class":"Zombieman","x":64,"y":128,"angle":90,"tid":7}})",
+        &cmd);
     REQUIRE(cmd.type == DMCP_CMD_SPAWN_ENTITY);
     REQUIRE(std::strcmp(cmd.data.spawn.entity_class, "Zombieman") == 0);
     REQUIRE(cmd.data.spawn.position.x == 64.0f);
@@ -978,13 +1152,18 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
 
   SECTION("Reject spawn_entity with missing required fields") {
     parse_invalid(R"({"type":"spawn_entity","x":0,"y":0})");
+    parse_invalid(R"({"type":"spawn_entity","params":{"entity":"Zombieman","x":0,"y":0}})");
     parse_invalid(R"({"type":"spawn_entity","entity_class":"Imp","x":"bad","y":0})");
+    parse_invalid(
+        R"({"type":"spawn_entity","params":{"entity_class":"DoomImp","x":160,"y":96,"count":4}})");
+    parse_invalid(
+        R"({"type":"spawn_entity","params":{"entity_class":"DoomImp","x":160,"y":96,"radius":96}})");
   }
 
   SECTION("Parse change_level and validate fields") {
     dmcp_command_t cmd = {};
     parse_ok(
-        R"({"type":"change_level","params":{"level":"E1M2","skill_level":4,"reset_inventory":true}})",
+        R"({"type":"change_level","params":{"map_name":"E1M2","skill_level":4,"reset_inventory":true}})",
         &cmd);
     REQUIRE(cmd.type == DMCP_CMD_CHANGE_LEVEL);
     REQUIRE(std::strcmp(cmd.data.change_level.map_name, "E1M2") == 0);
@@ -1003,21 +1182,26 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   }
 
   SECTION("Reject invalid change_level payload") {
+    parse_invalid(R"({"type":"change_level","params":{"level":"E1M1"}})");
     parse_invalid(R"({"type":"change_level","params":{"map_name":"BAD"}})");
     parse_invalid(R"({"type":"change_level","params":{"map_name":"E1M1","skill_level":7}})");
+    parse_invalid(R"({"type":"change_level","params":{"map_name":"E1M1","episode":1}})");
   }
 
-  SECTION("Parse give_item aliases") {
+  SECTION("Parse give_item canonical fields") {
     dmcp_command_t cmd = {};
-    parse_ok(R"({"type":"give_item","params":{"item":"Shotgun","quantity":2}})", &cmd);
+    parse_ok(R"({"type":"give_item","params":{"item_class":"Shotgun","amount":2}})", &cmd);
     REQUIRE(cmd.type == DMCP_CMD_GIVE_ITEM);
     REQUIRE(std::strcmp(cmd.data.give_item.item_class, "Shotgun") == 0);
     REQUIRE(cmd.data.give_item.amount == 2);
   }
 
   SECTION("Reject give_item invalid amount") {
+    parse_invalid(R"({"type":"give_item","params":{"item":"Shotgun","amount":1}})");
+    parse_invalid(R"({"type":"give_item","params":{"item_class":"Shotgun","quantity":1}})");
     parse_invalid(R"({"type":"give_item","params":{"item_class":"Shotgun","amount":0}})");
     parse_invalid(R"({"type":"give_item","params":{"item_class":"Shotgun","amount":1.5}})");
+    parse_invalid(R"({"type":"give_item","params":{"item_class":"Shotgun","amount":1,"ammo":4}})");
   }
 
   SECTION("Parse set_player_health values") {
@@ -1026,8 +1210,7 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
     REQUIRE(cmd.type == DMCP_CMD_SET_PLAYER_HEALTH);
     REQUIRE(cmd.data.set_health.health == 50);
 
-    parse_ok(R"({"type":"set_player_health","value":150})", &cmd);
-    REQUIRE(cmd.data.set_health.health == 150);
+    parse_invalid(R"({"type":"set_player_health","params":{"value":150}})");
   }
 
   SECTION("Clamp set_player_health out-of-range values") {
@@ -1041,25 +1224,22 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
     parse_invalid(R"({"type":"set_player_health","params":{"health":-5}})");
   }
 
-  SECTION("Parse set_player_position and teleport_player") {
+  SECTION("Parse set_player_position") {
     dmcp_command_t cmd = {};
-    parse_ok(
-        R"({"type":"set_player_position","params":{"position":{"x":12.5,"y":64},"angle":180}})",
-        &cmd);
+    parse_ok(R"({"type":"set_player_position","params":{"x":12.5,"y":64,"angle":180}})", &cmd);
     REQUIRE(cmd.type == DMCP_CMD_SET_PLAYER_POSITION);
     REQUIRE(cmd.data.set_position.position.x == 12.5f);
     REQUIRE(cmd.data.set_position.position.y == 64.0f);
     REQUIRE(cmd.data.set_position.angle == 180.0f);
-
-    parse_ok(R"({"type":"teleport_player","x":1,"y":2})", &cmd);
-    REQUIRE(cmd.type == DMCP_CMD_SET_PLAYER_POSITION);
-    REQUIRE(cmd.data.set_position.position.x == 1.0f);
-    REQUIRE(cmd.data.set_position.position.y == 2.0f);
   }
 
   SECTION("Reject set_player_position invalid payload") {
+    parse_invalid(R"({"type":"teleport_player","x":1,"y":2})");
+    parse_invalid(R"({"type":"teleport_player","params":{"x":1,"y":2}})");
     parse_invalid(R"({"type":"set_player_position","params":{"position":true}})");
+    parse_invalid(R"({"type":"set_player_position","params":{"position":{"x":1,"y":2}}})");
     parse_invalid(R"({"type":"set_player_position","params":{"x":1}})");
+    parse_invalid(R"({"type":"set_player_position","params":{"x":1,"y":2,"z":3}})");
   }
 
   SECTION("Parse execute_console") {
@@ -1072,27 +1252,22 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   SECTION("Reject execute_console invalid payload") {
     parse_invalid(R"({"type":"execute_console","params":{"command":""}})");
     parse_invalid(R"({"type":"execute_console","params":{"command":123}})");
+    parse_invalid(R"({"type":"execute_console","params":{"command":"iddqd","repeat":2}})");
   }
 
-  SECTION("Parse pause_game with aliases") {
+  SECTION("Parse pause_game canonical boolean") {
     dmcp_command_t cmd = {};
     parse_ok(R"({"type":"pause_game","params":{"paused":true}})", &cmd);
     REQUIRE(cmd.type == DMCP_CMD_PAUSE_GAME);
     REQUIRE(cmd.data.pause.paused == true);
-
-    parse_ok(R"({"type":"pause_game","pause":"false"})", &cmd);
-    REQUIRE(cmd.data.pause.paused == false);
   }
 
   SECTION("Reject pause_game invalid payload") {
     parse_invalid(R"({"type":"pause_game","params":{}})");
     parse_invalid(R"({"type":"pause_game","params":{"paused":2}})");
-  }
-
-  SECTION("Reject set_timescale because command is disabled") {
-    parse_invalid(R"({"type":"set_timescale","params":{"scale":1.5}})");
-    parse_invalid(R"({"type":"set_timescale","params":{"scale":0}})");
-    parse_invalid(R"({"type":"set_timescale","params":{"scale":"fast"}})");
+    parse_invalid(R"({"type":"pause_game","params":{"paused":"false"}})");
+    parse_invalid(R"({"type":"pause_game","params":{"pause":false}})");
+    parse_invalid(R"({"type":"pause_game","params":{"paused":true,"value":true}})");
   }
 
   SECTION("Parse damage_entity and default damage_type") {
@@ -1107,6 +1282,7 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   SECTION("Reject damage_entity invalid payload") {
     parse_invalid(R"({"type":"damage_entity","params":{"target_tid":-1,"damage":10}})");
     parse_invalid(R"({"type":"damage_entity","params":{"target_tid":3,"damage":-5}})");
+    parse_invalid(R"({"type":"damage_entity","params":{"target_tid":3,"damage":10,"radius":32}})");
   }
 
   SECTION("Parse kill_entity") {
@@ -1119,6 +1295,31 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   SECTION("Reject kill_entity invalid payload") {
     parse_invalid(R"({"type":"kill_entity","params":{"target_tid":1.2}})");
     parse_invalid(R"({"type":"kill_entity","params":{}})");
+    parse_invalid(R"({"type":"kill_entity","params":{"target_tid":1,"damage":1}})");
+  }
+
+  SECTION("Parse player_input canonical actions") {
+    dmcp_command_t cmd = {};
+    parse_ok(R"({"type":"player_input","params":{"action":"forward"}})", &cmd);
+    REQUIRE(cmd.type == DMCP_CMD_PLAYER_INPUT);
+    REQUIRE(cmd.data.input.action == DMCP_INPUT_FORWARD);
+
+    parse_ok(R"({"type":"player_input","params":{"action":"aim","value":90}})", &cmd);
+    REQUIRE(cmd.data.input.action == DMCP_INPUT_AIM);
+    REQUIRE(cmd.data.input.aim_angle == 90.0f);
+
+    parse_ok(R"({"type":"player_input","params":{"action":"weapon","value":3}})", &cmd);
+    REQUIRE(cmd.data.input.action == DMCP_INPUT_WEAPON);
+    REQUIRE(cmd.data.input.weapon_slot == 3);
+  }
+
+  SECTION("Reject player_input aliases and invalid weapon slots") {
+    parse_invalid(R"({"type":"player_input","params":{"a":"fwd"}})");
+    parse_invalid(R"({"type":"player_input","params":{"action":"atk"}})");
+    parse_invalid(R"({"type":"player_input","params":{"action":"aim","angle":90}})");
+    parse_invalid(R"({"type":"player_input","params":{"action":"weapon"}})");
+    parse_invalid(R"({"type":"player_input","params":{"action":"weapon","value":8}})");
+    parse_invalid(R"({"type":"player_input","params":{"action":"forward","duration":10}})");
   }
 
   SECTION("Validate flags field") {
@@ -1131,10 +1332,10 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
   }
 
   SECTION("Parse with invalid JSON returns error") {
-    dmcp_command_t       cmd    = {};
-    const char*          json   = "not valid json";
-    mcp_result_generic_t result = dmcp_parse_command_json(json, &cmd);
-    REQUIRE(result.code == MCP_RESULT_CODE_ENCODING_FAILED);
+    dmcp_command_t cmd    = {};
+    const char*    json   = "not valid json";
+    mcp_status_t   result = dmcp_parse_command_json(json, &cmd);
+    REQUIRE(result.code == MCP_STATUS_CODE_ENCODING_FAILED);
   }
 
   SECTION("Parse with missing type returns error") { parse_invalid(R"({"other":"field"})"); }
@@ -1145,39 +1346,6 @@ TEST_CASE("Doom MCP: JSON command parsing", "[doom][commands]") {
 
   SECTION("Parse unknown command type returns error") {
     parse_invalid(R"({"type":"totally_unknown","params":{}})");
-  }
-
-  dmcp_context_destroy(ctx);
-}
-
-TEST_CASE("Doom MCP: Custom command parser", "[doom][commands]") {
-  dmcp_config_t   config = TestConfig();
-  dmcp_context_t* ctx    = dmcp_context_create(&config);
-  REQUIRE(ctx != nullptr);
-
-  static bool custom_parser_called = false;
-  custom_parser_called             = false;
-
-  auto custom_parser = [](const char* /*params_json*/,
-                          dmcp_command_t* cmd) -> mcp_result_generic_t {
-    custom_parser_called = true;
-    cmd->type            = DMCP_CMD_UNKNOWN;
-    cmd->sequence        = 999;
-    return MCP_RESULT_OK("Success");
-  };
-
-  SECTION("Register and use custom parser") {
-    mcp_result_generic_t reg_result =
-        dmcp_register_command_parser(ctx, "custom_type", DMCP_CMD_UNKNOWN, custom_parser);
-    REQUIRE(reg_result.code == MCP_RESULT_CODE_OK);
-
-    dmcp_command_t       cmd          = {};
-    const char*          json         = R"({"type":"custom_type","params":{}})";
-    mcp_result_generic_t parse_result = dmcp_parse_command_json_ex(ctx, json, &cmd);
-
-    REQUIRE(custom_parser_called == true);
-    REQUIRE(cmd.sequence == 999);
-    (void)parse_result;
   }
 
   dmcp_context_destroy(ctx);

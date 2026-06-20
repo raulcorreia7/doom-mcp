@@ -64,6 +64,53 @@ static bool is_header_file(const fs::path& path) {
   return ext == ".hpp" || ext == ".h" || ext == ".hxx";
 }
 
+static bool path_contains(const fs::path& path, const std::string& segment) {
+  for (const auto& part : path) {
+    if (part.string() == segment) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void require_no_includes_matching(const fs::path&                 root,
+                                         const std::vector<std::string>& forbidden_patterns,
+                                         const char*                     message) {
+  std::vector<fs::path> violations;
+
+  if (!fs::exists(root)) {
+    return;
+  }
+
+  for (const auto& entry : fs::recursive_directory_iterator(root)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    if (!is_cpp_file(entry.path()) && !is_header_file(entry.path())) {
+      continue;
+    }
+
+    std::string content  = read_file_content(entry.path());
+    auto        includes = extract_includes(content);
+
+    for (const auto& pattern : forbidden_patterns) {
+      if (contains_include(includes, pattern)) {
+        violations.push_back(entry.path());
+        break;
+      }
+    }
+  }
+
+  if (!violations.empty()) {
+    std::string msg = message;
+    msg += "\n";
+    for (const auto& v : violations) {
+      msg += "  " + v.string() + "\n";
+    }
+    FAIL_CHECK(msg);
+  }
+}
+
 TEST_CASE("Layer boundaries: Doom core does not include mcp/json/json.hpp directly",
           "[layer][doom]") {
   fs::path              doom_src_dir = fs::path(DMCP_SOURCE_DIR) / "src" / "doom";
@@ -106,6 +153,20 @@ TEST_CASE("Layer boundaries: Doom core does not include mcp/json/json.hpp direct
   }
 }
 
+TEST_CASE("Layer boundaries: Core foundation has no generic, doom, or adapter dependencies",
+          "[layer][core]") {
+  require_no_includes_matching(
+      fs::path(DMCP_SOURCE_DIR) / "src" / "core",
+      {"mcp/generic/", "dmcp/doom/", "dmcp/adapter/", "dmcp/adapters/", "doom/"},
+      "Core foundation files must not depend on generic MCP, Doom MCP, or adapters. Violations:");
+
+  require_no_includes_matching(
+      fs::path(DMCP_SOURCE_DIR) / "include" / "mcp" / "core",
+      {"mcp/generic/", "dmcp/doom/", "dmcp/adapter/", "dmcp/adapters/", "doom/"},
+      "Core foundation public headers must not depend on generic MCP, Doom MCP, or adapters. "
+      "Violations:");
+}
+
 TEST_CASE("Layer boundaries: Doom core does not include adapter headers",
           "[layer][doom][adapter]") {
   fs::path              doom_src_dir = fs::path(DMCP_SOURCE_DIR) / "src" / "doom";
@@ -128,7 +189,9 @@ TEST_CASE("Layer boundaries: Doom core does not include adapter headers",
     auto        includes = extract_includes(content);
 
     if (contains_include(includes, "adapters/zdoom/") ||
-        contains_include(includes, "adapters/chocolate-doom/")) {
+        contains_include(includes, "adapters/crispy-doom/") ||
+        contains_include(includes, "dmcp/adapter/") ||
+        contains_include(includes, "dmcp/adapters/")) {
       violations.push_back(entry.path());
     }
   }
@@ -140,6 +203,21 @@ TEST_CASE("Layer boundaries: Doom core does not include adapter headers",
     }
     FAIL_CHECK(msg);
   }
+}
+
+TEST_CASE("Layer boundaries: Generic game layer does not include Doom or adapter headers",
+          "[layer][game]") {
+  require_no_includes_matching(
+      fs::path(DMCP_SOURCE_DIR) / "src" / "game",
+      {"dmcp/doom/", "dmcp/adapter/", "dmcp/adapters/", "doom/"},
+      "Generic game files must stay game-agnostic and not include Doom or adapter headers. "
+      "Violations:");
+
+  require_no_includes_matching(
+      fs::path(DMCP_SOURCE_DIR) / "include" / "mcp" / "game",
+      {"dmcp/doom/", "dmcp/adapter/", "dmcp/adapters/", "doom/"},
+      "Generic game public headers must stay game-agnostic and not include Doom or adapter "
+      "headers. Violations:");
 }
 
 TEST_CASE("Layer boundaries: Generic MCP does not include doom headers", "[layer][mcp]") {
@@ -171,6 +249,57 @@ TEST_CASE("Layer boundaries: Generic MCP does not include doom headers", "[layer
     std::string msg =
         "Generic MCP files must stay game-agnostic and not include doom headers. Violations:\n";
     for (const auto& v : violations) {
+      msg += "  " + v.string() + "\n";
+    }
+    FAIL_CHECK(msg);
+  }
+}
+
+TEST_CASE("Layer boundaries: Public headers keep ownership boundaries", "[layer][headers]") {
+  fs::path include_dir = fs::path(DMCP_SOURCE_DIR) / "include";
+
+  if (!fs::exists(include_dir)) {
+    FAIL_CHECK("Could not locate include directory");
+    return;
+  }
+
+  std::vector<fs::path> generic_violations;
+  std::vector<fs::path> doom_violations;
+
+  for (const auto& entry : fs::recursive_directory_iterator(include_dir)) {
+    if (!entry.is_regular_file() || !is_header_file(entry.path())) {
+      continue;
+    }
+
+    std::string content  = read_file_content(entry.path());
+    auto        includes = extract_includes(content);
+
+    if (path_contains(entry.path(), "generic") &&
+        (contains_include(includes, "dmcp/") || contains_include(includes, "doom/"))) {
+      generic_violations.push_back(entry.path());
+    }
+
+    if (path_contains(entry.path(), "doom") &&
+        (contains_include(includes, "dmcp/adapters/") ||
+         contains_include(includes, "adapters/crispy-doom/") ||
+         contains_include(includes, "adapters/zdoom/"))) {
+      doom_violations.push_back(entry.path());
+    }
+  }
+
+  if (!generic_violations.empty()) {
+    std::string msg =
+        "Generic public headers must not include Doom or adapter headers. "
+        "Violations:\n";
+    for (const auto& v : generic_violations) {
+      msg += "  " + v.string() + "\n";
+    }
+    FAIL_CHECK(msg);
+  }
+
+  if (!doom_violations.empty()) {
+    std::string msg = "Doom public headers must not include adapter headers. Violations:\n";
+    for (const auto& v : doom_violations) {
       msg += "  " + v.string() + "\n";
     }
     FAIL_CHECK(msg);

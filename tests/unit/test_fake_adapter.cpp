@@ -27,10 +27,21 @@ constexpr const char* kScenarioItem           = "Backpack";
 constexpr const char* kScenarioConsoleCommand = "give all";
 constexpr const char* kDamageTypeNormal       = "Normal";
 
+constexpr std::array<int32_t, DMCP_MAX_AMMO_TYPES> kExpectedDefaultMaxAmmo = {200, 50, 300, 50};
+constexpr std::array<int32_t, DMCP_MAX_AMMO_TYPES> kExpectedInitialAmmo    = {50, 8, 0, 0};
+
 dmcp_fake_config_t make_fake_config(void) {
-  dmcp_fake_config_t cfg = dmcp_fake_config_default();
-  cfg.base.port          = kFakeAdapterPort;
-  cfg.base.target_hz     = MCP_DEFAULT_TARGET_HZ;
+  dmcp_fake_config_t cfg   = dmcp_fake_config_default();
+  cfg.base.port            = kFakeAdapterPort;
+  cfg.base.target_hz       = DMCP_DEFAULT_TARGET_HZ;
+  cfg.base.start_transport = false;
+  return cfg;
+}
+
+dmcp_fake_config_t make_privileged_fake_config(void) {
+  dmcp_fake_config_t cfg                      = make_fake_config();
+  cfg.base.permissions.allow_console_commands = true;
+  cfg.base.permissions.allow_cheats           = true;
   return cfg;
 }
 
@@ -42,7 +53,7 @@ dmcp_snapshot_t require_snapshot(dmcp_fake_t* fake) {
 
 dmcp_command_result_t require_completed_result(dmcp_context_t* ctx, uint64_t sequence) {
   dmcp_command_result_t result{};
-  REQUIRE(dmcp_command_result_get(ctx, sequence, &result).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_command_result_get(ctx, sequence, &result).code == MCP_STATUS_CODE_OK);
   REQUIRE(result.sequence == sequence);
   REQUIRE(result.completed == true);
   return result;
@@ -86,6 +97,20 @@ TEST_CASE("Fake adapter simple: lifecycle", "[adapter][fake][simple]") {
   dmcp_fake_destroy(fake);
 }
 
+TEST_CASE("Fake adapter simple: Doom ammo model", "[adapter][fake][simple]") {
+  dmcp_fake_config_t cfg  = make_fake_config();
+  dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
+  REQUIRE(fake != nullptr);
+
+  const dmcp_snapshot_t snapshot = require_snapshot(fake);
+  for (size_t i = 0; i < kExpectedDefaultMaxAmmo.size(); ++i) {
+    REQUIRE(snapshot.player.maxammo[i] == kExpectedDefaultMaxAmmo[i]);
+    REQUIRE(snapshot.player.ammo[i] == kExpectedInitialAmmo[i]);
+  }
+
+  dmcp_fake_destroy(fake);
+}
+
 TEST_CASE("Fake adapter medium: tick advances simulation", "[adapter][fake][medium]") {
   dmcp_fake_config_t cfg  = make_fake_config();
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
@@ -94,7 +119,7 @@ TEST_CASE("Fake adapter medium: tick advances simulation", "[adapter][fake][medi
   const dmcp_snapshot_t before = require_snapshot(fake);
 
   for (uint32_t i = 0; i < kFakeTickIterations; ++i) {
-    REQUIRE(dmcp_fake_tick(fake).code == MCP_RESULT_CODE_OK);
+    REQUIRE(dmcp_fake_tick(fake).code == MCP_STATUS_CODE_OK);
   }
 
   const dmcp_snapshot_t after = require_snapshot(fake);
@@ -120,7 +145,7 @@ TEST_CASE("Fake adapter medium: input queue processing", "[adapter][fake][medium
   input_cmd.type              = DMCP_CMD_PLAYER_INPUT;
   input_cmd.data.input.action = DMCP_INPUT_FORWARD;
 
-  REQUIRE(dmcp_push_input(ctx, &input_cmd).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_input(ctx, &input_cmd).code == MCP_STATUS_CODE_OK);
   REQUIRE(input_cmd.sequence > 0);
 
   dmcp_fake_inputs_process(fake);
@@ -134,8 +159,40 @@ TEST_CASE("Fake adapter medium: input queue processing", "[adapter][fake][medium
   dmcp_fake_destroy(fake);
 }
 
-TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medium]") {
+TEST_CASE("Fake adapter medium: weapon slot validation matches Doom keys",
+          "[adapter][fake][medium]") {
   dmcp_fake_config_t cfg  = make_fake_config();
+  dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
+  REQUIRE(fake != nullptr);
+
+  dmcp_context_t* ctx = dmcp_fake_get_context(fake);
+  REQUIRE(ctx != nullptr);
+
+  dmcp_command_t valid_input{};
+  valid_input.type                   = DMCP_CMD_PLAYER_INPUT;
+  valid_input.data.input.action      = DMCP_INPUT_WEAPON;
+  valid_input.data.input.weapon_slot = 7;
+  REQUIRE(dmcp_push_input(ctx, &valid_input).code == MCP_STATUS_CODE_OK);
+
+  dmcp_fake_inputs_process(fake);
+  dmcp_command_result_t valid_result = require_completed_result(ctx, valid_input.sequence);
+  REQUIRE(valid_result.success == true);
+
+  dmcp_command_t invalid_input{};
+  invalid_input.type                   = DMCP_CMD_PLAYER_INPUT;
+  invalid_input.data.input.action      = DMCP_INPUT_WEAPON;
+  invalid_input.data.input.weapon_slot = 8;
+  REQUIRE(dmcp_push_input(ctx, &invalid_input).code == MCP_STATUS_CODE_OK);
+
+  dmcp_fake_inputs_process(fake);
+  dmcp_command_result_t invalid_result = require_completed_result(ctx, invalid_input.sequence);
+  REQUIRE(invalid_result.success == false);
+
+  dmcp_fake_destroy(fake);
+}
+
+TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medium]") {
+  dmcp_fake_config_t cfg  = make_privileged_fake_config();
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
 
@@ -147,7 +204,7 @@ TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medi
   dmcp_command_t set_health{};
   set_health.type                   = DMCP_CMD_SET_PLAYER_HEALTH;
   set_health.data.set_health.health = kRequestedHealth;
-  REQUIRE(dmcp_push_command(ctx, &set_health).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &set_health).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t spawn{};
   spawn.type = DMCP_CMD_SPAWN_ENTITY;
@@ -156,7 +213,7 @@ TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medi
   spawn.data.spawn.position = {before.player.position.x + kSpawnOffset,
                                before.player.position.y + kSpawnOffset};
   spawn.data.spawn.angle    = before.player.angle;
-  REQUIRE(dmcp_push_command(ctx, &spawn).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &spawn).code == MCP_STATUS_CODE_OK);
 
   dmcp_fake_commands_process(fake);
 
@@ -173,7 +230,7 @@ TEST_CASE("Fake adapter medium: command queue processing", "[adapter][fake][medi
 }
 
 TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard][smoke]") {
-  dmcp_fake_config_t cfg  = make_fake_config();
+  dmcp_fake_config_t cfg  = make_privileged_fake_config();
   dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
   REQUIRE(fake != nullptr);
 
@@ -186,7 +243,7 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
               sizeof(change_level.data.change_level.map_name));
   change_level.data.change_level.skill_level     = DMCP_SKILL_MIN;
   change_level.data.change_level.reset_inventory = false;
-  REQUIRE(dmcp_push_command(ctx, &change_level).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &change_level).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t spawn{};
   spawn.type = DMCP_CMD_SPAWN_ENTITY;
@@ -194,7 +251,7 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
   spawn.data.spawn.tid      = kSpawnedEnemyTid;
   spawn.data.spawn.position = {kScenarioSpawnX, kScenarioSpawnY};
   spawn.data.spawn.angle    = kScenarioSpawnAngle;
-  REQUIRE(dmcp_push_command(ctx, &spawn).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &spawn).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t damage{};
   damage.type                   = DMCP_CMD_DAMAGE_ENTITY;
@@ -202,28 +259,28 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
   damage.data.damage.damage     = kDamageAmount;
   dmcp_strcpy(damage.data.damage.damage_type, kDamageTypeNormal,
               sizeof(damage.data.damage.damage_type));
-  REQUIRE(dmcp_push_command(ctx, &damage).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &damage).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t kill{};
   kill.type                 = DMCP_CMD_KILL_ENTITY;
   kill.data.kill.target_tid = kSpawnedEnemyTid;
-  REQUIRE(dmcp_push_command(ctx, &kill).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &kill).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t give_item{};
   give_item.type = DMCP_CMD_GIVE_ITEM;
   dmcp_strcpy(give_item.data.give_item.item_class, kScenarioItem,
               sizeof(give_item.data.give_item.item_class));
   give_item.data.give_item.amount = kExpectedInventoryAmount;
-  REQUIRE(dmcp_push_command(ctx, &give_item).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &give_item).code == MCP_STATUS_CODE_OK);
 
   dmcp_command_t console{};
   console.type = DMCP_CMD_EXECUTE_CONSOLE;
   dmcp_strcpy(console.data.console.command, kScenarioConsoleCommand,
               sizeof(console.data.console.command));
-  REQUIRE(dmcp_push_command(ctx, &console).code == MCP_RESULT_CODE_OK);
+  REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
 
   for (uint32_t i = 0; i < kScenarioTicks; ++i) {
-    REQUIRE(dmcp_fake_tick(fake).code == MCP_RESULT_CODE_OK);
+    REQUIRE(dmcp_fake_tick(fake).code == MCP_STATUS_CODE_OK);
   }
 
   const std::array<uint64_t, 6> sequences = {change_level.sequence, spawn.sequence,
@@ -242,6 +299,33 @@ TEST_CASE("Fake adapter hard: end-to-end smoke scenario", "[adapter][fake][hard]
   char snapshot_json[MCP_MAX_JSON_SIZE] = {0};
   REQUIRE(dmcp_snapshot_to_json(&snapshot, snapshot_json, sizeof(snapshot_json)) > 0);
   REQUIRE(std::string(snapshot_json).find(kScenarioMap) != std::string::npos);
+
+  dmcp_fake_destroy(fake);
+}
+
+TEST_CASE("Fake adapter medium: give all fills every Doom ammo pool", "[adapter][fake][medium]") {
+  dmcp_fake_config_t cfg  = make_privileged_fake_config();
+  dmcp_fake_t*       fake = dmcp_fake_create(&cfg);
+  REQUIRE(fake != nullptr);
+
+  dmcp_context_t* ctx = dmcp_fake_get_context(fake);
+  REQUIRE(ctx != nullptr);
+
+  dmcp_command_t console{};
+  console.type = DMCP_CMD_EXECUTE_CONSOLE;
+  dmcp_strcpy(console.data.console.command, kScenarioConsoleCommand,
+              sizeof(console.data.console.command));
+  REQUIRE(dmcp_push_command(ctx, &console).code == MCP_STATUS_CODE_OK);
+
+  dmcp_fake_commands_process(fake);
+  const dmcp_command_result_t result = require_completed_result(ctx, console.sequence);
+  REQUIRE(result.success == true);
+
+  const dmcp_snapshot_t snapshot = require_snapshot(fake);
+  for (size_t i = 0; i < kExpectedDefaultMaxAmmo.size(); ++i) {
+    REQUIRE(snapshot.player.ammo[i] == snapshot.player.maxammo[i]);
+    REQUIRE(snapshot.player.maxammo[i] == kExpectedDefaultMaxAmmo[i]);
+  }
 
   dmcp_fake_destroy(fake);
 }

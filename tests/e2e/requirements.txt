@@ -1,4 +1,0 @@
-# E2E test dependencies
-pytest>=7.0.0
-requests>=2.28.0
-tenacity>=8.0.0

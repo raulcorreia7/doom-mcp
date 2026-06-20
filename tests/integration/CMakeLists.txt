@@ -1,34 +1,30 @@
-# Integration Tests CMakeLists
-# E2E tests for DMCP with actual game engines
+dmcp_collect_sources(DMCP_INTEGRATION_TEST_SOURCES .)
 
-# Download WAD target
-add_custom_target(download_wad
-    COMMAND ${CMAKE_COMMAND} -E echo "Downloading DOOM shareware WAD..."
-    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/download_wad.sh
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Downloading doom1.wad shareware"
+add_executable(dmcp_integration_tests ${DMCP_INTEGRATION_TEST_SOURCES})
+
+target_include_directories(dmcp_integration_tests
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/src
 )
 
-# Headless test target (run manually after building Crispy Doom)
-add_custom_target(test_headless
-    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_headless.sh
-    DEPENDS download_wad dmcp_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Running headless Crispy Doom tests"
+target_link_libraries(dmcp_integration_tests
+  PRIVATE
+    Catch2::Catch2WithMain
+    dmcp::adapter_fake
+    httplib::httplib
 )
 
-# Add Crispy Doom headless integration test when binary exists
-if(EXISTS "${CMAKE_SOURCE_DIR}/crispy-doom/build/src/crispy-doom")
-    add_test(
-        NAME "Integration: Headless Crispy"
-        COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_headless.sh
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-
-    set_tests_properties("Integration: Headless Crispy" PROPERTIES
-        TIMEOUT 120
-        ENVIRONMENT "DMCP_PORT=7061;DOOM_ENGINE=crispy"
-        RUN_SERIAL TRUE
-        LABELS "integration;e2e;headless;crispy"
-    )
+if(WIN32)
+  target_link_libraries(dmcp_integration_tests PRIVATE ws2_32)
 endif()
+
+if(NOT MSVC)
+  target_compile_options(dmcp_integration_tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_test(NAME dmcp_fake_transport_integration COMMAND dmcp_integration_tests)
+set_tests_properties(dmcp_fake_transport_integration PROPERTIES
+  LABELS "integration;no_game;fake;transport"
+  TIMEOUT 30
+)
