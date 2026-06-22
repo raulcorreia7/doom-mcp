@@ -335,8 +335,9 @@ def command_results_complete(result: Any, sequences: List[int]) -> bool:
 
 def result_failed(value: Any) -> bool:
     if isinstance(value, dict):
+        status = value.get("status")
         if (
-            value.get("status") in {"failed", "timeout", "error"}
+            (isinstance(status, str) and status in {"failed", "timeout", "error"})
             or value.get("success") is False
             or value.get("rejected", 0)
             or value.get("rejected_commands")
