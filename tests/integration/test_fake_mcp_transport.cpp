@@ -218,9 +218,38 @@ TEST_CASE("Fake adapter exposes SDK MCP transport", "[integration][sdk][fake][tr
 
     const std::string player  = call_jsonrpc(server.port, session_id, 3, "tools/call",
                                              R"({"name":"get_player","arguments":{}})");
-    const std::string payload = dmcp::test::tool_text_payload(player);
-    REQUIRE(body_has_text(payload, R"("hp")"));
-    REQUIRE(body_has_text(payload, R"("position")"));
+    mcp::json::Document player_doc;
+    auto                payload = require_tool_json_payload(player, player_doc);
+    REQUIRE(payload.has_member("player"));
+    auto player_state = payload["player"];
+    REQUIRE(player_state.has_member("hp"));
+    REQUIRE(player_state.has_member("position"));
+    REQUIRE(player_state.has_member("weapons"));
+    REQUIRE(player_state["weapons"].is_array());
+    REQUIRE(player_state["weapons"].size() == 2);
+    REQUIRE(string_equals(player_state["weapons"][0].get_string(), "Fist"));
+    REQUIRE(string_equals(player_state["weapons"][1].get_string(), "Pistol"));
+
+    REQUIRE(player_state.has_member("ammo"));
+    auto ammo = player_state["ammo"];
+    REQUIRE(ammo.is_object());
+    REQUIRE(ammo.has_member("Clip"));
+    REQUIRE(ammo["Clip"]["amount"].get_int() == 50);
+    REQUIRE(ammo["Clip"]["max"].get_int() == 200);
+    REQUIRE(ammo.has_member("Shells"));
+    REQUIRE(ammo["Shells"]["amount"].get_int() == 8);
+    REQUIRE(ammo["Shells"]["max"].get_int() == 50);
+    REQUIRE(ammo.has_member("Cell"));
+    REQUIRE(ammo.has_member("RocketAmmo"));
+
+    REQUIRE(player_state.has_member("keys"));
+    REQUIRE(player_state["keys"].is_array());
+    REQUIRE(player_state.has_member("powers"));
+    REQUIRE(player_state["powers"].is_object());
+    REQUIRE(player_state["powers"].has_member("Invulnerability"));
+    REQUIRE_FALSE(player_state.has_member("weaponowned"));
+    REQUIRE_FALSE(player_state.has_member("maxammo"));
+    REQUIRE_FALSE(player_state.has_member("cards"));
   }
 
   SECTION("canonical granular state tools accept structured filters") {
