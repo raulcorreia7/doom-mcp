@@ -169,7 +169,7 @@ Read multiple sections in one request:
 
 | Section | Description | Pagination |
 |---------|-------------|------------|
-| `player` | Health, armor, position, ammo | No |
+| `player` | Health, armor, position, named weapons/ammo/keys/powers | No |
 | `enemies` | Enemy list with HP and position | Yes (`offset`, `limit`, `status`) |
 | `entities` | Enemies and world entities | Yes (`offset`, `limit`, `kind`, `status`) |
 | `items` | World pickups/items only | Yes (`offset`, `limit`, `kind`) |

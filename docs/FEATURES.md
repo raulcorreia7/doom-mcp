@@ -8,7 +8,7 @@ Complete feature overview of the Doom Model Context Protocol SDK.
 
 | Feature | Description |
 |---------|-------------|
-| Player state | Health, armor, position, angle, ammo, current weapon |
+| Player state | Health, armor, position, angle, named ammo, weapons, keys, powers, current weapon |
 | Enemy tracking | Position, HP, type, alive/dead status, TID |
 | Entity enumeration | Pickups, barrels, interactive objects (excludes projectiles/decor) |
 | Level info | Map name, kill/item/secret counts, skill level |
