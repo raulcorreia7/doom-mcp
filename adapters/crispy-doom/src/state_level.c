@@ -165,6 +165,8 @@ void dmcp_crispy_populate_level(dmcp_snapshot_t* snap) {
   } else {
     mcp_strcpy_safe(game->version, DMCP_MAX_STRING, "retail");
   }
+  mcp_strcpy_safe(game->gamestate, DMCP_MAX_STRING, dmcp_crispy_gamestate_to_string(gamestate));
+  game->paused          = paused;
   game->respawnmonsters = respawnmonsters;
   game->consoleplayer   = consoleplayer;
 

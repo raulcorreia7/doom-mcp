@@ -74,6 +74,8 @@ json_builder game(const dmcp_game_t& game) {
   obj.start_object();
   obj.add("mode", game.mode);
   obj.add("version", game.version);
+  obj.add("gamestate", game.gamestate);
+  obj.add("paused", game.paused != 0);
   obj.add("respawnmonsters", game.respawnmonsters != 0);
   obj.add("consoleplayer", static_cast<int64_t>(game.consoleplayer));
   return obj;
