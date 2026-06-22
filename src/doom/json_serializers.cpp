@@ -1,6 +1,5 @@
 #include "doom/internal/json_serializers.hpp"
 
-#include <cstddef>
 #include <cstdint>
 
 #include "dmcp/doom/protocol.h"
@@ -8,13 +7,60 @@
 namespace dmcp::json_serializers {
 namespace {
 
-json_builder int_array(const int32_t* values, std::size_t count) {
+constexpr const char* k_weapon_names[] = {"Fist",           "Pistol",       "Shotgun",
+                                          "Chaingun",       "RocketLauncher", "PlasmaRifle",
+                                          "BFG9000",        "Chainsaw",     "SuperShotgun"};
+
+constexpr const char* k_ammo_names[] = {"Clip", "Shells", "Cell", "RocketAmmo"};
+
+constexpr const char* k_key_names[] = {"BlueKeycard", "YellowKeycard", "RedKeycard",
+                                       "BlueSkullKey", "YellowSkullKey", "RedSkullKey"};
+
+constexpr const char* k_power_names[] = {"Invulnerability", "Berserk",      "Invisibility",
+                                         "RadiationSuit",   "ComputerMap",  "LightAmp"};
+
+json_builder owned_weapons(const int32_t* values) {
   json_builder arr;
   arr.start_array();
-  for (std::size_t i = 0; i < count; ++i) {
-    arr.push(static_cast<int64_t>(values[i]));
+  for (std::size_t i = 0; i < DMCP_MAX_WEAPONS; ++i) {
+    if (values[i] != 0) {
+      arr.push(k_weapon_names[i]);
+    }
   }
   return arr;
+}
+
+json_builder ammo_counts(const int32_t* ammo, const int32_t* maxammo) {
+  json_builder obj;
+  obj.start_object();
+  for (std::size_t i = 0; i < DMCP_MAX_AMMO_TYPES; ++i) {
+    json_builder entry;
+    entry.start_object();
+    entry.add("amount", static_cast<int64_t>(ammo[i]));
+    entry.add("max", static_cast<int64_t>(maxammo[i]));
+    obj.add(k_ammo_names[i], std::move(entry));
+  }
+  return obj;
+}
+
+json_builder owned_keys(const int32_t* values) {
+  json_builder arr;
+  arr.start_array();
+  for (std::size_t i = 0; i < DMCP_MAX_KEYS; ++i) {
+    if (values[i] != 0) {
+      arr.push(k_key_names[i]);
+    }
+  }
+  return arr;
+}
+
+json_builder power_timers(const int32_t* values) {
+  json_builder obj;
+  obj.start_object();
+  for (std::size_t i = 0; i < DMCP_MAX_POWERUPS; ++i) {
+    obj.add(k_power_names[i], static_cast<int64_t>(values[i]));
+  }
+  return obj;
 }
 
 }  // namespace
@@ -38,12 +84,11 @@ json_builder player(const dmcp_player_t& player) {
   obj.add("angle", static_cast<double>(player.angle));
   obj.add("readyweapon", player.readyweapon);
   obj.add("pendingweapon", player.pendingweapon);
-  obj.add("weaponowned", int_array(player.weaponowned, DMCP_MAX_WEAPONS));
-  obj.add("ammo", int_array(player.ammo, DMCP_MAX_AMMO_TYPES));
-  obj.add("maxammo", int_array(player.maxammo, DMCP_MAX_AMMO_TYPES));
+  obj.add("weapons", owned_weapons(player.weaponowned));
+  obj.add("ammo", ammo_counts(player.ammo, player.maxammo));
   obj.add("backpack", player.backpack != 0);
-  obj.add("powers", int_array(player.powers, DMCP_MAX_POWERUPS));
-  obj.add("cards", int_array(player.cards, DMCP_MAX_KEYS));
+  obj.add("powers", power_timers(player.powers));
+  obj.add("keys", owned_keys(player.cards));
   obj.add("playerstate", player.playerstate);
   obj.add("cheats", static_cast<int64_t>(player.cheats));
   obj.add("damagecount", static_cast<int64_t>(player.damagecount));

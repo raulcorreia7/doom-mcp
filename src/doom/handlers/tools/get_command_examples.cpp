@@ -222,6 +222,16 @@ void add_get_state_batch(json_builder* result) {
   result->add("get_state_batch", entry);
 }
 
+void add_get_player(json_builder* result) {
+  json_builder entry = build_entry(
+      "Read player state with named weapons, ammo, keys, and power timers");
+  json_builder example = build_example("get_player");
+  json_builder params;
+  params.start_object();
+  add_example_to_entry(&entry, &example, &params);
+  result->add("get_player", entry);
+}
+
 }  // namespace
 
 bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
@@ -251,6 +261,7 @@ bool handle_tool_get_command_examples(context* /*ctx*/, char* response_buffer,
   add_give_item_example(&result, "give_item_powerup", "Invulnerability", 1, "Give powerup");
 
   // Player commands
+  add_get_player(&result);
   add_int_command(&result, "set_player_health", "set_player_health",
                   "Set player health to specific value", "health", 100);
   add_position_command(&result, "set_player_position", "set_player_position",
