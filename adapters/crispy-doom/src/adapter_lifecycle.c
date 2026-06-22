@@ -108,7 +108,7 @@ static const char* gamestate_to_string(int gs) {
     case GS_FINALE:
       return "finale";
     case GS_DEMOSCREEN:
-      return "demo";
+      return menuactive ? "main_menu" : "demo";
     default:
       return "unknown";
   }
@@ -121,10 +121,12 @@ static void snapshot_callback(void* user_data, dmcp_snapshot_t* snap) {
 
   if (!ctx || !snap) return;
 
-  dmcp_crispy_populate_player(snap);
   dmcp_crispy_populate_level(snap);
-  dmcp_crispy_populate_enemies(snap);
-  dmcp_crispy_populate_entities(snap);
+  if (gamestate == GS_LEVEL) {
+    dmcp_crispy_populate_player(snap);
+    dmcp_crispy_populate_enemies(snap);
+    dmcp_crispy_populate_entities(snap);
+  }
 
   current_gamestate = gamestate;
   if (current_gamestate != ctx->last_gamestate) {
@@ -210,10 +212,6 @@ mcp_status_t dmcp_crispy_tick(dmcp_crispy_t* ctx) {
 
   if (!dmcp_context_is_running(ctx->dmcp_ctx)) {
     return MCP_STATUS_ERROR(MCP_STATUS_CODE_DISABLED, "Operation disabled");
-  }
-
-  if (gamestate != GS_LEVEL) {
-    return MCP_STATUS_OK("Success");
   }
 
   dmcp_context_tick(ctx->dmcp_ctx);

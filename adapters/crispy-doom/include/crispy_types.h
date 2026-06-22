@@ -57,7 +57,7 @@ static inline const char* dmcp_crispy_gamestate_to_string(gamestate_t state) {
     case GS_FINALE:
       return "finale";
     case GS_DEMOSCREEN:
-      return "demo";
+      return menuactive ? "main_menu" : "demo";
     default:
       return "unknown";
   }
